@@ -9,7 +9,7 @@ static struct nf_hook_ops nfho_to_fw, nfho_from_fw, nfho_others, nfho_of_incomin
 /**
  * A hook function that deals with packets that comes to fw / goes out of fw - accepts them (lets them pass)
  **/
-unsigned int hook_func_allow(unsigned int hooknum, struct sk_buff* skb, const struct net_device* in,  
+static unsigned int hook_func_allow(unsigned int hooknum, struct sk_buff* skb, const struct net_device* in,  
 							const struct net_device* out, int(*okfn)(struct sk_buff*) ){
 		printk(KERN_INFO "*** packet passed ***");
 		return NF_ACCEPT;					
@@ -19,50 +19,72 @@ unsigned int hook_func_allow(unsigned int hooknum, struct sk_buff* skb, const st
  * A hook function that deals with packets that are designated to host1 or host2
  * 		(or anywhere else who's not fw but tries to pass through fw), and packets from type IPv6 - blocks them
  **/
- unsigned int hook_func_block(unsigned int hooknum, struct sk_buff* skb, const struct net_device* in,  
+static unsigned int hook_func_block(unsigned int hooknum, struct sk_buff* skb, const struct net_device* in,  
 							const struct net_device* out, int(*okfn)(struct sk_buff*) ){
 		printk(KERN_INFO "*** packet blocked ***");
 		return NF_DROP;						
 }
 
+/**
+ * Help function that updates nfho fiels and hooks it - see documentation below
+ * Note: nf_hookfn is a typedef defined in linux/netfilter.h, and it's the type of the functions that can be associated with the hook
+ * */
+static void registers_hook(struct nf_hook_ops* nfho, nf_hookfn* okfn, int pf, int hooknum, int priority){
+	(*nfho).hook = okfn; // Function to call when all conditions below are met
+	(*nfho).pf = pf; // Type of packet: IPv4/IPv6
+	(*nfho).hooknum = hooknum; // When to call the function (in which hook point)
+	(*nfho).priority = priority; // Sets the priority of the okfn()
+	nf_register_hook(nfho); // Register the hook
+} 
+
 static int __init my_init_func(void){
 
 	//TODO:: ADD FAILURE TESTS?
 
-	/** Takes care of packets sent to fw: **/
-	nfho_to_fw.hook = hook_func_allow; // Function to call when all conditions below are met - allows the packet to pass
-	nfho_to_fw.pf = PF_INET; // Packets of IPv4
-	nfho_to_fw.hooknum = NF_INET_LOCAL_IN; // Called after classifing the packet as "INPUT", at "INPUT" hook-point
-	nfho_to_fw.priority = NF_IP_PRI_FIRST; // Sets the priority of the hook_func_allow() as the highest
-	nf_register_hook(&nfho_to_fw); // Register the hook
+	/** Takes care of packets sent to fw:
+	 * 		hook_func_allow: because we want to allow the packet to pass
+	 * 		PF_INET: packets of IPv4
+	 * 		NF_INET_LOCAL_IN: called after classifing the packet as "INPUT", at "INPUT" hook-point
+	 * 		NF_IP_PRI_FIRST: sets the priority of the hook_func_allow() as the highest
+	 **/
+	registers_hook(&nfho_to_fw, hook_func_allow, PF_INET, NF_INET_LOCAL_IN, NF_IP_PRI_FIRST);
 	
-	/** Takes care of packets sent from fw: **/
-	nfho_from_fw.hook = hook_func_allow; // Function to call when all conditions below are met - allows the packet to move
-	nfho_from_fw.pf = PF_INET;
-	nfho_from_fw.hooknum = NF_INET_LOCAL_OUT; // Called after classifing the packet as "OUTPUT", at fw's-"OUTPUT"-hook-point
-	nfho_from_fw.priority = NF_IP_PRI_FIRST;
-	nf_register_hook(&nfho_from_fw); 
 	
-	/** Takes care of packets who aren't designated to fw: **/ 
-	nfho_others.hook = hook_func_block; // Function to call when all conditions below are met - blocks the packet
-	nfho_others.pf = PF_INET; // Packets of IPv4
-	nfho_others.hooknum = NF_INET_FORWARD; // Called after classifing the packet as not designated to fw - at "FORWARD"-hook-point
-	nfho_others.priority = NF_IP_PRI_FIRST;
-	nf_register_hook(&nfho_others);
+	/** Takes care of packets sent from fw:
+	 * 		hook_func_allow: allows the packet to move
+	 *		PF_INET: packets of IPv4
+	 *		NF_INET_LOCAL_OUT: called after classifing the packet as "OUTPUT", at fw's-"OUTPUT"-hook-point
+	 *		NF_IP_PRI_FIRST: sets the priority of the hook_func_allow() as the highest
+	 **/
+	registers_hook(&nfho_from_fw, hook_func_allow, PF_INET, NF_INET_LOCAL_OUT, NF_IP_PRI_FIRST);
+
 	
-	/** Takes care of incoming IPv6 packets - blocks them, as said at the lecture **/
-	nfho_of_incoming_ipv6.hook = hook_func_block;// Function to call when all conditions below are met - blocks the packet
-	nfho_of_incoming_ipv6.pf = PF_INET6; // Packets of IPv6!
-	nfho_of_incoming_ipv6.hooknum = NF_INET_PRE_ROUTING; //Called even before deciding if the packet is for/from fw or to/from host1/host2
-	nfho_of_incoming_ipv6.priority = NF_IP_PRI_FIRST;
-	nf_register_hook(&nfho_of_incoming_ipv6);
+	/** Takes care of packets who aren't designated to fw:
+	 * 		hook_func_block: because we want to block the packet		
+	 * 		PF_INET: packets of IPv4
+	 * 		NF_INET_FORWARD: called after classifing the packet as not designated to fw - at "FORWARD"-hook-point
+	 *		NF_IP_PRI_FIRST: sets the priority of the hook_func_block() as the highest
+	 **/ 
+	registers_hook(&nfho_others, hook_func_block, PF_INET, NF_INET_FORWARD, NF_IP_PRI_FIRST);
 	
-	/** Takes care of outgoing IPv6 packets - blocks them, as said at the lecture **/
-	nfho_of_outgoing_ipv6.hook = hook_func_block;// Function to call when all conditions below are met - blocks the packet
-	nfho_of_outgoing_ipv6.pf = PF_INET6; // Packets of IPv6!
-	nfho_of_outgoing_ipv6.hooknum = NF_INET_LOCAL_OUT; //Called for an outgoing packet
-	nfho_of_outgoing_ipv6.priority = NF_IP_PRI_FIRST;
-	nf_register_hook(&nfho_of_outgoing_ipv6);
+	
+	/** Takes care of incoming IPv6 packets - blocks them, as said at the lecture:
+	 * 		hook_func_block: to block the IPv6 packet
+	 * 		PF_INET6: packets of IPv6
+	 * 		NF_INET_PRE_ROUTING: because in case of IPv6, blocking function should be called even before
+	 * 							 deciding if the packet is for/from fw or to/from host1/host2
+	 * 		NF_IP_PRI_FIRST: sets the priority of the hook_func_block() as the highest
+	 **/
+	registers_hook(&nfho_of_incoming_ipv6, hook_func_block, PF_INET6, NF_INET_PRE_ROUTING, NF_IP_PRI_FIRST);
+	
+	
+	/** Takes care of outgoing (from fw) IPv6 packets - blocks them, as said at the lecture:
+	 * 		hook_func_block: to block the outgoing IPv6 packet
+	 * 		PF_INET6: packets of IPv6
+	 * 		NF_INET_LOCAL_OUT: called for an outgoing packet
+	 * 		NF_IP_PRI_FIRST: sets the priority of the hook_func_block() as the highest
+	 **/
+	registers_hook(&nfho_of_outgoing_ipv6, hook_func_block, PF_INET6, NF_INET_LOCAL_OUT, NF_IP_PRI_FIRST);
 
 	return 0;
 }
