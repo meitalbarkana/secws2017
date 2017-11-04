@@ -27,10 +27,10 @@ unsigned int hook_func_allow(unsigned int hooknum, struct sk_buff* skb, const st
 
 static int __init my_init_func(void){
 
-	//TODO:: ADD FAILURE TESTS? ALSO, TO MANY PACKETS ARE PASSING :(
+	//TODO:: ADD FAILURE TESTS?
 
 	/** Takes care of packets sent to fw: **/
-	nfho_to_fw.hook = hook_func_allow; // Function to call when all conditions below are met - allows the packet to move
+	nfho_to_fw.hook = hook_func_allow; // Function to call when all conditions below are met - allows the packet to pass
 	nfho_to_fw.pf = PF_INET; // Packets of IPv4
 	nfho_to_fw.hooknum = NF_INET_LOCAL_IN; // Called after classifing the packet as "INPUT", at "INPUT" hook-point
 	nfho_to_fw.priority = NF_IP_PRI_FIRST; // Sets the priority of the hook_func_allow() as the highest
