@@ -3,7 +3,7 @@
 
 typedef enum {no_arg, zero_arg, invalid_arg} arg_stat;
 
-const char* zero_string = "0";
+const char* const zero_string = "0";
 
 static arg_stat check_valid_args(int argc, char* argv[]){
 		if (argc > 2) {			
