@@ -7,12 +7,14 @@
 
 /**
  * Based on Reuven Plevinsky's sysfs_example that can be found in: http://course.cs.tau.ac.il//secws17/lectures/ 
+ * And on: http://derekmolloy.ie/writing-a-linux-kernel-module-part-2-a-character-device/
  **/
-MODULE_LICENCE("GPL");
+
+MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Meital Bar-Kana Swissa");
 
 
-static int major_number; // Will contain our device's major number - its unique ID
+static int major_number = 0; // Will contain our device's major number - its unique ID
 static struct class* sysfs_class = NULL; // A class to categorize our device
 static struct device* sysfs_device = NULL; // Our device
 
@@ -25,13 +27,16 @@ static struct file_operations fops = {
 	.owner = THIS_MODULE
 };
 
+static struct nf_hook_ops nfho_to_fw, nfho_from_fw, nfho_others, nfho_of_incoming_ipv6, nfho_of_outgoing_ipv6;
+
 /**
- *	Returns 1 if count=1 and the first char at "buf" is '0' [this counts as the only valid user-input],
+ *	Returns 0 if count=1 and the first char at "buf" is '0' [this counts as the only valid user-input],
  * 	-1 otherwise.
  **/
 static inline int validate_user_input(const char* buf, size_t count){
-	if((count==1) && (buf[0]=='0'))
-		return 1;
+	if((count==1) && (buf[0]=='0')){
+		return 0;
+	}
 	return -1;
 }
 
@@ -39,8 +44,7 @@ static inline int validate_user_input(const char* buf, size_t count){
  *	This function will be called when user tries to read from the device.  
  **/
 ssize_t ret_packets_summary(struct device* dev, struct device_attribute* attr, char* buf){
-		ssize_t ret = scnprintf(buf, PAGE_SIZE, "#passed packets: %u, #blocked packets: %u\n",
-								packets_passed_so_far, packets_blocked_so_far);
+		ssize_t ret = scnprintf(buf, PAGE_SIZE, "#passed packets: %u, #blocked packets: %u\n", packets_passed_so_far, packets_blocked_so_far);
 		if (ret<=0){
 			printk(KERN_INFO "*** Error: failed writing to user's buffer ***");
 		}
@@ -52,26 +56,33 @@ ssize_t ret_packets_summary(struct device* dev, struct device_attribute* attr, c
  * 	meaning that the user wants to reset the counter-variables.
  * 	Will return 2*sizeof(unsigned int) on success,
  * 	a negative number otherwise.
- * 	If user provided buffer containing something other than "0" - will fail! 
+ * 	If user provided buffer containing something other than a buffer that start with "0"
+ * 		or passed a "count" value that is different from 1 - will fail! 
+ * 	[count represent the length of buf ('\0' not included)]
  **/
-ssize_t reset_packet_counters((struct device* dev, struct device_attribute* attr, const char* buf, size_t count){
-	if (validate_user_input(buf, count)<=0){
+ssize_t reset_packet_counters(struct device* dev, struct device_attribute* attr, const char* buf, size_t count){
+	if (validate_user_input(buf, count)!=0){
 		printk(KERN_INFO "*** Error: user sent invalid writing-command! ***");
 		return -EPERM; // Returns an error of operation not permitted
 	}
 	packets_blocked_so_far = 0; 
 	packets_passed_so_far = 0;
-	return 2*sizeof(unsigned int);
+	return 2*sizeof(unsigned int);//because we've changed the value of two unsigned ints.
 }
 
-static struct nf_hook_ops nfho_to_fw, nfho_from_fw, nfho_others, nfho_of_incoming_ipv6, nfho_of_outgoing_ipv6;
 enum hooked_nfhos {
-	TO_FW_H,
-	FROM_FW_H,
-	OTHERS_H,
-	INCOMING_IPV6_H,
-	OUTGOING_IPV6_H,
-	ALL_H
+	FROM_FW_H = 1,
+	OTHERS_H = 2,
+	INCOMING_IPV6_H = 3,
+	OUTGOING_IPV6_H = 4,
+	ALL_H = 5
+};
+
+enum state_to_fold {
+	UNREG_DES,
+	CLASS_DES,
+	DEVICE_DES,
+	ALL_DES
 };
 
 
@@ -134,9 +145,11 @@ static void unregistersHook(enum hooked_nfhos hookedNfhos){
 			nf_unregister_hook(&nfho_from_fw);
 		case (FROM_FW_H):
 			nf_unregister_hook(&nfho_to_fw);
-		// The default case is when hookedNfhos==TO_FW_H, where there's no need to unregister anything.	
+		// The default case is when there's no need to unregister anything.	
 	}
 } 
+
+
 
 /**
  * 	Link device to the attributes, such that:
@@ -146,6 +159,23 @@ static void unregistersHook(enum hooked_nfhos hookedNfhos){
  * 		.store = reset_packet_counters
  **/
 static DEVICE_ATTR(sysfs_att, S_IRUSR | S_IWUSR | S_IROTH | S_IWOTH, ret_packets_summary, reset_packet_counters);
+
+/**
+ * Help function that cleans up everything associated with creating our device,
+ * According to the state that's been given.
+ **/
+static void destroyDevice(enum state_to_fold stateToFold){
+	switch (stateToFold){
+		case(ALL_DES):
+			device_remove_file(sysfs_device, (const struct device_attribute *)&dev_attr_sysfs_att.attr);
+		case(DEVICE_DES):
+			device_destroy(sysfs_class, MKDEV(major_number, 0));
+		case(CLASS_DES):
+			class_destroy(sysfs_class);
+		case (UNREG_DES):
+			unregister_chrdev(major_number, "Sysfs_Device");
+	}
+}
 
 /**
  * 	A help function that registers all hooks,
@@ -223,15 +253,49 @@ static int registerHooks(void){
  **/
 static int initDevice(void){
 	
+	//create char device
+	major_number = register_chrdev(0, "Sysfs_Device", &fops);
+	if (major_number < 0){
+		return -1;
+	}
+	
+	//create sysfs class
+	sysfs_class = class_create(THIS_MODULE, "Sysfs_class");
+	if (IS_ERR(sysfs_class))
+	{
+		destroyDevice(UNREG_DES);
+		return -1;
+	}
+	
+	//create sysfs device:
+	//class = sysfs_class, parent = NULL, devt(minor) = MKDEV(major_number, 0), 
+	//drvdata = NULL, fmt(device's name) = "sysfs_class" "_" "sysfs_Device"
+	sysfs_device = device_create(sysfs_class, NULL, MKDEV(major_number, 0), NULL, "sysfs_class" "_" "sysfs_Device");	
+	if (IS_ERR(sysfs_device))
+	{
+		destroyDevice(CLASS_DES);
+		return -1;
+	}
+	
+	//create sysfs file attributes	
+	if (device_create_file(sysfs_device, (const struct device_attribute *)&dev_attr_sysfs_att.attr))
+	{
+		destroyDevice(DEVICE_DES);
+		return -1;
+	}
+	
+	return 0;
 }
 
 static int __init my_init_func(void){
 	
-	// Call the function that registers all hooks:
+	// Calls the function that registers all hooks:
 	if(registerHooks()!=0){
 		return -1;
 	}
+	// Calls the function that initiates the device
 	if(initDevice()!=0){
+		unregistersHook(ALL_H);
 		return -1;
 	}
 	return 0;
@@ -241,7 +305,7 @@ static int __init my_init_func(void){
 static void __exit my_exit_func(void){
 	/** Cleans up: unregisters all 5 hooks, using unregistersHook(): **/
 	unregistersHook(ALL_H);
-	//TODO:: add deleteing the device
+	destroyDevice(ALL_DES);
 }
 
 module_init(my_init_func);
