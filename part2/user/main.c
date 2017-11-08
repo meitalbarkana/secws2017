@@ -1,9 +1,13 @@
 #include <stdio.h>
 #include <string.h>
 
+#define BUFF_LEN 1024
+
 typedef enum {no_arg, zero_arg, invalid_arg} arg_stat;
 
 const char* const zero_string = "0";
+
+static char recievedData[BUFF_LEN];
 
 static arg_stat check_valid_args(int argc, char* argv[]){
 		if (argc > 2) {			
@@ -22,18 +26,24 @@ static arg_stat check_valid_args(int argc, char* argv[]){
 
 int main(int argc, char* argv[]){
 	
-		switch(check_valid_args(argc,argv)){
-			case no_arg:
-				printf("meow, meow, MEOW!!!! no arguments:) \n");//TODO:: DELETE THIS
-				break;
-			case zero_arg:
-				printf("Wow, we've got a zero!\n");//TODO:: DELETE THIS
-				break;
-			case invalid_arg:
-			default:
-				printf("Arguments are invalid or too many arguments were delivered: please send one argument at most\n");
-				return -1;
+		enum arg_stat checked_args = check_valid_args(argc,argv);
+		if (checked_args==invalid_arg){
+			printf("Arguments are invalid or too many arguments were delivered: please send one argument at most\n");
+			return -1;
 		}
+
+		// If gets here, checked_args==no_arg OR checked_args==zero_arg
+		
+		if (checked_args==no_arg){//should print the device status
+			int fd = open("________________",O_RDONLY); //TODO:: finish this :P
+			if (fd<0){
+				printf("Error accured trying to open the device, error number: %d\n", errno);
+				return -1;
+			}
+		}
+
+
+		//TODO:: finish...
 		return 0;
 	
 }
