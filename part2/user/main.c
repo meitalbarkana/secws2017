@@ -5,6 +5,8 @@
 #include <sys/stat.h> // For open()
 #include <errno.h>
 #include <unistd.h> // For close()
+#include <stdlib.h> 
+#include <ctype.h> //For isdigit()
 
 #define BUFF_LEN 1024
 /** PATH_TO_DEVICE is /sys/class/<name of class we defined>/<name of device we defined>/<.attr.name we defined> **/
@@ -39,10 +41,52 @@ static enum arg_stat check_valid_args(int argc, char* argv[]){
 }
 
 /**
- * Help function that updates dataToPrint so that it will contain the updated data we want to print, according to recievedData.
+ * 	Returns 0 if str is in the format: <number>,<number>
+ * 	-1 otherwise.
  **/
- static void prepareDataToPrint(void){
-	
+static int check_format(const char* str){
+	printf("str is: %s\n", str);//TODO:: delete!, fix errors!!!!!
+	if (strlen(str) > BUFF_LEN || strlen(str) <= 0){
+		return -1;
+	}
+	size_t index = 0;
+	int comma_index = -1;
+	if(!isdigit(str[index])){
+		return -1;
+	}
+	index++;
+	while (index < strlen(str)){
+		if (!isdigit(str[index])){
+			if((str[index]==',') && (comma_index==-1)){
+				comma_index = index;
+			} else {
+				return -1;
+			}
+		}
+		index++;
+	}
+	if (comma_index==-1 || comma_index==strlen(str)-1){
+		return -1;
+	}
+	return 0;
+}
+
+
+/**
+ * Help function that updates dataToPrint so that it will contain the updated data we want to print, according to recievedData.
+ * recievedData is in format: <passed_packets>,<blocked_packets>
+ * 
+ * Returns 0 on succes, -1 on failure 
+ **/
+ static int prepareDataToPrint(void){
+	 if (check_format(recievedData)==0){ // Passing this assures us strtok()&strtol() won't fail
+		 char* ptr;
+		 long int packets_passed = strtol(strtok(recievedData,","), &ptr, 10);
+		 long int packets_blocked = strtol(strtok(NULL, ","), &ptr, 10);
+		 sprintf(dataToPrint, "Firewall Packets Summary:\nNumber of accepted packets: %ld\nNumber of dropped packets: %ld\nTotal number of packets: %ld",packets_passed,packets_blocked, (packets_passed+packets_blocked));
+		 return 0;
+	 }
+	 return -1;
  }
 
 int main(int argc, char* argv[]){
@@ -67,9 +111,15 @@ int main(int argc, char* argv[]){
 				close(fd);
 				return -1;
 			}
-			printf("Data recieved from device: %s\n", recievedData);
 			close(fd);
-			//TODO:: complete to formatted string!
+			if(prepareDataToPrint()!=0){ // Wrong format of recieved data, we're not really supposed to get here anyhow.
+				printf("Error accured - format data from kernel is wrong.\n");
+				return -1;
+			}
+				
+			printf("%s",recievedData);
+			printf("helllooooo\n");
+			
 		}
 		else { // checked_args==zero_arg
 			printf("zero arguments, wi-hi! :)\n");

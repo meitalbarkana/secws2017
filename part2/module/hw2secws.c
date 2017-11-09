@@ -41,10 +41,15 @@ static inline int validate_user_input(const char* buf, size_t count){
 }
 
 /**
- *	This function will be called when user tries to read from the device.  
+ *	This function will be called when user tries to read from the device.
+ * 	
+ *  !!!NOTE: writes to "buf" the number of packets passed so far & number packets blocked so far in format:
+ * 		<packets_passed_so_far>,<packets_blocked_so_far>
+ * 
+ * [writes minimal amount of characters, as it's a kernel function]
  **/
 ssize_t ret_packets_summary(struct device* dev, struct device_attribute* attr, char* buf){
-		ssize_t ret = scnprintf(buf, PAGE_SIZE, "#passed packets: %u, #blocked packets: %u\n", packets_passed_so_far, packets_blocked_so_far);
+		ssize_t ret = scnprintf(buf, PAGE_SIZE, "%u,%u", packets_passed_so_far, packets_blocked_so_far);
 		if (ret<=0){
 			printk(KERN_INFO "*** Error: failed writing to user's buffer ***");
 		}
