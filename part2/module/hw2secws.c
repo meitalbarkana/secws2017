@@ -34,7 +34,7 @@ static struct nf_hook_ops nfho_to_fw, nfho_from_fw, nfho_others, nfho_of_incomin
  * 	-1 otherwise.
  **/
 static inline int validate_user_input(const char* buf, size_t count){
-	if((count==1) && (buf[0]=='0')){
+	if((buf!=NULL) && (count!=NULL) && (count==1) && (buf[0]=='0')){
 		return 0;
 	}
 	return -1;
