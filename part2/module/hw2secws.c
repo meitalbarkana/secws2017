@@ -155,7 +155,6 @@ static void unregistersHook(enum hooked_nfhos hookedNfhos){
 } 
 
 
-
 /**
  * 	Link device to the attributes, such that:
  * 		.attr.name = "sysfs_att" (access it through: dev_attr_sysfs_att)
@@ -310,6 +309,7 @@ static int __init my_init_func(void){
 static void __exit my_exit_func(void){
 	/** Cleans up: unregisters all 5 hooks, using unregistersHook(): **/
 	unregistersHook(ALL_H);
+	/** Cleans up the char-device we've created **/
 	destroyDevice(ALL_DES);
 }
 

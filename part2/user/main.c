@@ -8,19 +8,20 @@
 #include <stdlib.h> 
 #include <ctype.h> //For isdigit()
 
-#define BUFF_LEN 1024
-/** PATH_TO_DEVICE is /sys/class/<name of class we defined>/<name of device we defined>/<.attr.name we defined> **/
+#define BUFF_LEN 1024 // (more than) Enough for the format returned from kernel.
+/** PATH_TO_DEVICE is: /sys/class/<name of class we defined>/<name of device we defined>/<.attr.name we defined> **/
 #define PATH_TO_DEVICE "/sys/class/Sysfs_class/sysfs_class_sysfs_Device/sysfs_att"
 
 
-enum arg_stat{no_arg, zero_arg, invalid_arg};
+enum arg_stat{no_arg, zero_arg, invalid_arg}; // See explanation below (in check_valid_args())
 
-const char* const ZERO_STRING = "0";
+const char* const ZERO_STRING = "0"; // The only valid format our kernel module accepts for "writing".
+const int ZERO_STR_LEN = 1;
 static char recievedData[BUFF_LEN];
 static char dataToPrint[BUFF_LEN*2];
 
 /**
- *  A help function that returns an enum representing the arguments given to the program (argv[]):
+ *  A help function that returns an enum that summarize information about the arguments given to this program (argv[]):
  * 		no_arg = no arguments were given,
  * 		zero_arg = the argument "0" was given,
  * 		invalid_arg = some other (invalid) argument was given.	
@@ -41,11 +42,11 @@ static enum arg_stat check_valid_args(int argc, char* argv[]){
 }
 
 /**
- * 	Returns 0 if str is in the format: <number>,<number>
+ * 	Returns 0 if str is in the format: <number>,<number> 
+ * 	[which is the format the kernel-module returns information about the packets]
  * 	-1 otherwise.
  **/
 static int check_format(const char* str){
-	printf("str is: %s\n", str);//TODO:: delete!, fix errors!!!!!
 	if (strlen(str) > BUFF_LEN || strlen(str) <= 0){
 		return -1;
 	}
@@ -71,7 +72,6 @@ static int check_format(const char* str){
 	return 0;
 }
 
-
 /**
  * Help function that updates dataToPrint so that it will contain the updated data we want to print, according to recievedData.
  * recievedData is in format: <passed_packets>,<blocked_packets>
@@ -79,11 +79,11 @@ static int check_format(const char* str){
  * Returns 0 on succes, -1 on failure 
  **/
  static int prepareDataToPrint(void){
-	 if (check_format(recievedData)==0){ // Passing this assures us strtok()&strtol() won't fail
+	 if (check_format(recievedData)==0){ // This condition assures us strtok()&strtol() won't fail
 		 char* ptr;
 		 long int packets_passed = strtol(strtok(recievedData,","), &ptr, 10);
 		 long int packets_blocked = strtol(strtok(NULL, ","), &ptr, 10);
-		 sprintf(dataToPrint, "Firewall Packets Summary:\nNumber of accepted packets: %ld\nNumber of dropped packets: %ld\nTotal number of packets: %ld",packets_passed,packets_blocked, (packets_passed+packets_blocked));
+		 sprintf(dataToPrint, "Firewall Packets Summary:\nNumber of accepted packets: %ld\nNumber of dropped packets: %ld\nTotal number of packets: %ld\n",packets_passed,packets_blocked, (packets_passed+packets_blocked));
 		 return 0;
 	 }
 	 return -1;
@@ -113,21 +113,24 @@ int main(int argc, char* argv[]){
 			}
 			close(fd);
 			if(prepareDataToPrint()!=0){ // Wrong format of recieved data, we're not really supposed to get here anyhow.
-				printf("Error accured - format data from kernel is wrong.\n");
+				printf("Error accured - format data from kernel is wrong or unknown.\n");
 				return -1;
 			}
-				
-			printf("%s",recievedData);
-			printf("helllooooo\n");
-			
+			printf("%s",dataToPrint);
 		}
-		else { // checked_args==zero_arg
-			printf("zero arguments, wi-hi! :)\n");
-			//TODO:: finish...
+		else { // checked_args==zero_arg, should reset packet-counters
+			int fd = open(PATH_TO_DEVICE,O_WRONLY); // Open device with write only permissions
+			if (fd<0){
+				printf("Error accured trying to open the device, error number: %d\n", errno);
+				return -1;
+			}
+			if (write(fd, ZERO_STRING, ZERO_STR_LEN) <= 0){
+				printf("Error accured trying to reset packet-counter values, error number: %d\n", errno);
+				close(fd);
+				return -1;
+			}
+			close(fd);
 		}
 
-
-		
-		return 0;
-	
+		return 0;	
 }
