@@ -1,0 +1,52 @@
+#include "fw.h"
+#define MAX_LEN_OF_NAME_RULE 19 //since rule_t.rule_name is of length 20, including 
+
+/**
+ * Based on Reuven Plevinsky's sysfs_example that can be found in: http://course.cs.tau.ac.il//secws17/lectures/ 
+ * And on: http://derekmolloy.ie/writing-a-linux-kernel-module-part-2-a-character-device/
+ **/
+
+MODULE_LICENSE("GPL");
+MODULE_AUTHOR("Meital Bar-Kana Swissa");
+
+
+bool get_rule_name(const char* str){ //TODO:: delete
+	return (strnlen(str, MAX_LEN_OF_NAME_RULE+2) <= MAX_LEN_OF_NAME_RULE);
+}
+
+direction_t translate_str_to_direction(const char* str){//TODO:: delete
+	if((strcmp(str, "in") == 0) || (strcmp(str, "IN") == 0)){
+		return DIRECTION_IN;
+	}
+	if((strcmp(str, "out") == 0) || (strcmp(str, "OUT") == 0)){
+		return DIRECTION_OUT;
+	}
+	if((strcmp(str, "any") == 0) || (strcmp(str, "ANY") == 0)){
+		return DIRECTION_ANY;
+	}
+	return NULL;
+}
+
+static int __init my_init_func(void){
+	//TODO:: DELETE THIS! it's just a TESER
+	char str[] ="hello" ;
+	direction_t dt = translate_str_to_direction(str);
+	if(dt == NULL){
+		printk(KERN_INFO "dt is NULL\n");
+	} else if (dt == DIRECTION_ANY) {
+		printk(KERN_INFO "dt is \"any\"\n");
+	} else if (dt == DIRECTION_IN) {
+		printk(KERN_INFO "dt is \"in\"\n");
+	} else if (dt == DIRECTION_OUT) {
+		printk(KERN_INFO "dt is \"out\"\n");
+	}
+	return 0;
+
+}
+
+static void __exit my_exit_func(void){
+
+}
+
+module_init(my_init_func);
+module_exit(my_exit_func);
