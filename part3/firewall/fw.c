@@ -78,7 +78,7 @@ bool is_ipv4_subnet_format(char* str, __be32* ipv4value, __u8* prefixLength){
 	size_t maxFormatLen = strlen("XXX.XXX.XXX.XXX/YY"); // = 18
 	size_t minFormatLen = strlen("X.X.X.X/Y"); // = 9
 	size_t strLength = strnlen(str, maxFormatLen+2); //Because there's no need to check more chars than that..
-	
+
 	/** These variables are declared here only to avoid warning of:
 	 * "ISO C90 forbids mixed declarations and code"
 	 * (I'd put them after the first "if")
@@ -131,8 +131,8 @@ bool is_ipv4_subnet_format(char* str, __be32* ipv4value, __u8* prefixLength){
 //tester for is_ipv4_subnet_format()
 void tester_2(void){
 	
-	char str0[] = "222.13..0/23";
-	char str1[] = "223.1.1.7/32";
+	char str0[] = "%s,xyz.12.32.1";
+	char str1[] = "12345678901";
 	char str2[] = "256.1.10.42/16";
 	char str3[] = "81.82.70.0/07";
 	char str4[] = "0x1.255.255.255/0";
@@ -193,11 +193,161 @@ void tester_2(void){
 
 }
 
+prot_t translate_str_to_protocol(const char* str){
+	
+	unsigned long temp = 0; //Might be needed in case of "other" protocol
+	
+	//By strcmp() documentation, since we're comparing bitween strings with constatn length ("any","ICMP", etc.) - it's safe 
+	if((strcmp(str, "icmp") == 0) || (strcmp(str, "ICMP") == 0) || (strcmp(str, "1") == 0)){
+		return PROT_ICMP;
+	}
+	if((strcmp(str, "tcp") == 0) || (strcmp(str, "TCP") == 0) || (strcmp(str, "6") == 0)){
+		return PROT_TCP;
+	}
+	if((strcmp(str, "udp") == 0) || (strcmp(str, "UDP") == 0) || (strcmp(str, "17") == 0)){
+		return PROT_UDP;
+	}
+	if((strcmp(str, "any") == 0) || (strcmp(str, "ANY") == 0) || (strcmp(str, "143") == 0)){
+		return PROT_ANY;
+	}
+	if ((strcmp(str, "other") == 0) || (strcmp(str, "OTHER") == 0) || (strcmp(str, "255") == 0)){
+		return PROT_OTHER;
+	}
+	/** 
+	 *  0<=protocol<=255 (since it's of type __u8), so any string representing
+	 *	a number in that range (different from 1/6/17/143) will be considered as "other"
+	 *	if str's length is more than 4 (3+'\0'), sure it can't represent a number in [0,255] range
+	 **/
+	if((strnlen(str,5) <= 3) && (strict_strtoul(str, 10,&temp) == 0) && (temp <= 255)){
+		return PROT_OTHER;
+	}
+	
+	return PROT_ERROR;
+}
+
+//Tests translate_str_to_protocol():
+void tester_3(void){
+	
+	char str0[] = "icmp";
+	char str1[] = "ICMP";
+	char str2[] = "1";
+	char str3[] = "tcp";
+	char str4[] = "TCP";
+	char str5[] = "6";
+	char str6[] = "17";
+	char str7[] = "UDP";
+	char str8[] = "udp";
+	char str9[] = "ANY";
+	char str10[] = "any";
+	char str11[] = "143";
+	char str12[] = "255";
+	char str13[] = "other";
+	char str14[] = "OTHER";
+	char str15[] = "32";
+	char str16[] = "166";
+	char str17[] = "0";
+	char str18[] = "334";
+	char str19[] = "./s3P";
+	char* str;
+	
+	size_t index = 0;
+	for (index = 0; index <= 19; ++index){
+		switch (index){
+			case 0:
+				str = str0;
+				break;
+			case 1:
+				str = str1;
+				break;
+			case 2:
+				str = str2;
+				break;
+			case 3:
+				str = str3;
+				break;
+			case 4:
+				str = str4;
+				break;
+			case 5:
+				str = str5;
+				break;
+			case 6:
+				str = str6;
+				break;
+			case 7:
+				str = str7;
+				break;
+			case 8:
+				str = str8;
+				break;
+			case 9:
+				str = str9;
+				break;
+			case 10:
+				str = str10;
+				break;
+			case 11:
+				str = str11;
+				break;
+			case 12:
+				str = str12;
+				break;
+			case 13:
+				str = str13;
+				break;
+			case 14:
+				str = str14;
+				break;
+			case 15:
+				str = str15;
+				break;
+			case 16:
+				str = str16;
+				break;
+			case 17:
+				str = str17;
+				break;
+			case 18:
+				str = str18;
+				break;
+			case 19:
+				str = str19;
+				break;
+			default:
+				str = "";
+		}
+		
+		switch(translate_str_to_protocol(str)){
+			case(PROT_ICMP):
+				printk(KERN_INFO "the string: %s is ICMP\n", str);
+				break;
+			case(PROT_TCP):
+				printk(KERN_INFO "the string: %s is TCP\n", str);
+				break;
+			case(PROT_UDP):
+				printk(KERN_INFO "the string: %s is UDP\n", str);
+				break;
+			case(PROT_OTHER):
+				printk(KERN_INFO "the string: %s is OTHER\n", str);
+				break;
+			case(PROT_ANY):
+				printk(KERN_INFO "the string: %s is ANY\n", str);
+				break;
+			case(PROT_ERROR):
+				printk(KERN_INFO "the string: %s is ERROR\n", str);
+				break;
+			default:
+				printk(KERN_INFO "the string: %s REALLY CAUSED AN ERROR!!!!\n", str);				
+
+		}
+	}
+}
+
 static int __init my_init_func(void){
 	
 	//tester_1();
-	tester_2();
-	
+	//tester_2();
+	tester_3();
 	return 0;
 
 }

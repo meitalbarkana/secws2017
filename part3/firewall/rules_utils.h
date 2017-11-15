@@ -31,6 +31,15 @@ direction_t translate_str_to_direction(const char* str);
  **/
  bool is_ipv4_subnet_format(char* str, __be32* ipv4value, __u8* prefixLength);
 
+
+/**
+ * Gets a string that supposed to represent the protocol
+ * If succedded, returns the relevant prot_t value
+ * Otherwise - returns PROT_ERROR
+ **/
+prot_t translate_str_to_protocol(const char* str);
+
+
 /**
  *	Gets a string that supposed to represent a proper rule.
  * 	Creates a rule according to str.

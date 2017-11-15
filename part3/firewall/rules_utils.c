@@ -5,6 +5,7 @@ bool is_rule_name(const char* str){
 }
 
 direction_t translate_str_to_direction(const char* str){
+	//By strcmp() documentation, since we're comparing bitween strings with constatn length ("in","out", etc.) - it's safe 
 	if((strcmp(str, "in") == 0) || (strcmp(str, "IN") == 0)){
 		return DIRECTION_IN;
 	}
@@ -69,6 +70,38 @@ bool is_ipv4_subnet_format(char* str, __be32* ipv4value, __u8* prefixLength){
 	}
 	
 	return true;
+}
+
+prot_t translate_str_to_protocol(const char* str){
+	
+	unsigned long temp = 0; //Might be needed in case of "other" protocol
+	
+	//By strcmp() documentation, since we're comparing bitween strings with constatn length ("any","ICMP", etc.) - it's safe 
+	if((strcmp(str, "icmp") == 0) || (strcmp(str, "ICMP") == 0) || (strcmp(str, "1") == 0)){
+		return PROT_ICMP;
+	}
+	if((strcmp(str, "tcp") == 0) || (strcmp(str, "TCP") == 0) || (strcmp(str, "6") == 0)){
+		return PROT_TCP;
+	}
+	if((strcmp(str, "udp") == 0) || (strcmp(str, "UDP") == 0) || (strcmp(str, "17") == 0)){
+		return PROT_UDP;
+	}
+	if((strcmp(str, "any") == 0) || (strcmp(str, "ANY") == 0) || (strcmp(str, "143") == 0)){
+		return PROT_ANY;
+	}
+	if ((strcmp(str, "other") == 0) || (strcmp(str, "OTHER") == 0) || (strcmp(str, "255") == 0)){
+		return PROT_OTHER;
+	}
+	/** 
+	 *  0<=protocol<=255 (since it's of type __u8), so any string representing
+	 *	a number in that range (different from 1/6/17/143) will be considered as "other"
+	 *	if str's length is more than 4 (3+'\0'), sure it can't represent a number in [0,255] range
+	 **/
+	if((strnlen(str,5) <= 3) && (strict_strtoul(str, 10,&temp) == 0) && (temp <= 255)){
+		return PROT_OTHER;
+	}
+	
+	return PROT_ERROR;
 }
 
 //rule_t* get_rule_from_string(const char* str){	

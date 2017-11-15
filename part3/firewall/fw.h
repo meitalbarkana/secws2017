@@ -21,6 +21,7 @@ typedef enum {
 	PROT_UDP	= 17,
 	PROT_OTHER 	= 255,
 	PROT_ANY	= 143,
+	PROT_ERROR
 } prot_t;
 
 
