@@ -197,7 +197,7 @@ prot_t translate_str_to_protocol(const char* str){
 	
 	unsigned long temp = 0; //Might be needed in case of "other" protocol
 	
-	//By strcmp() documentation, since we're comparing bitween strings with constatn length ("any","ICMP", etc.) - it's safe 
+	//By strcmp() documentation, since we're comparing between strings with constatn length ("any","ICMP", etc.) - it's safe 
 	if((strcmp(str, "icmp") == 0) || (strcmp(str, "ICMP") == 0) || (strcmp(str, "1") == 0)){
 		return PROT_ICMP;
 	}
