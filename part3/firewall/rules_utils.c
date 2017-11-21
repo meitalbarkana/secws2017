@@ -51,7 +51,7 @@ static direction_t translate_str_to_direction(const char* str){
  **/
 static bool is_ipv4_subnet_format(char* str, __be32* ipv4value, __u8* prefixLength){
 	
-	size_t maxFormatLen = strlen("XXX.XXX.XXX.XXX/YY"); // = 18
+	size_t maxFormatLen = MAX_STRLEN_OF_IP_ADDR; //strlen("XXX.XXX.XXX.XXX/YY") = 18
 	size_t minFormatLen = strlen("X.X.X.X/Y"); // = 9
 	size_t strLength = strnlen(str, maxFormatLen+2); //Because there's no need to check more chars than that..
 	
@@ -154,7 +154,7 @@ static prot_t translate_str_to_protocol(const char* str){
  **/
 static int translate_str_to_int_port_number(const char* str){
 	unsigned long temp = 0;
-	if(strnlen(str,7) <= 5){ //Since the maximum valid str length is 5+1(for '\0')+1 (to make sure str isn't longer)
+	if(strnlen(str,MAX_STRLEN_OF_PORT+2) <= MAX_STRLEN_OF_PORT){ //Since the maximum valid str length is 5(MAX_STRLEN_OF_PORT)+1(for '\0')+1 (to make sure str isn't longer)
 		if ((strcmp(str, ">1023") == 0) || (strcmp(str, "1023") == 0)) {
 			return PORT_ABOVE_1023;
 		}
@@ -178,7 +178,7 @@ static int translate_str_to_int_port_number(const char* str){
  * Otherwise - returns false
  **/
 static bool translate_str_to_ack(const char* str, ack_t* ack){
-	if((str != NULL) && strnlen(str,5) <= 3){ //Since the maximum valid str length is 3+1(for '\0')+1 (to make sure str isn't longer)
+	if((str != NULL) && strnlen(str,MAX_STRLEN_OF_ACK+2) <= MAX_STRLEN_OF_ACK){ //Since the maximum valid str length is 3+1(for '\0')+1 (to make sure str isn't longer)
 		if ((strcmp(str, "yes") == 0) || (strcmp(str, "YES") == 0)) {
 			*ack = ACK_YES;
 			return true;
@@ -204,7 +204,7 @@ static bool translate_str_to_ack(const char* str, ack_t* ack){
  * Otherwise - returns false
  **/
 static bool translate_str_to_action(const char* str, __u8* action){
-	if((str != NULL) && strnlen(str,8) <= 6){ //Since the maximum valid str length is 6+1(for '\0')+1 (to make sure str isn't longer)
+	if((str != NULL) && strnlen(str,MAX_STRLEN_OF_ACTION+2) <= MAX_STRLEN_OF_ACTION){ //Since the maximum valid str length is 6(MAX_STRLEN_OF_ACTION)+1(for '\0')+1 (to make sure str isn't longer)
 		if ((strcmp(str, "accept") == 0) || (strcmp(str, "ACCEPT") == 0)) {
 			*action = NF_ACCEPT;
 			return true;
@@ -217,7 +217,26 @@ static bool translate_str_to_action(const char* str, __u8* action){
 	return false;
 }
 
-//rule_t* get_rule_from_string(const char* str){	
-//}
+
+/**
+ *	Gets a string that supposed to represent a proper rule.
+ * 	Creates a rule according to str.
+ * 	NOTE: str format should be:
+ * 	<rule name> <direction> <src ip>/<nps> <dst ip>/<nps> <protocol> <dource port> <dest port> <ack> <action>
+ *	
+ * If succedded, returns the pointer to rule_t created,
+ * Otherwise - returns NULL
+ **/
+rule_t* get_rule_from_string(const char* str){	
+	
+	rule_t* rule_ptr = NULL;
+	
+	if ((str == NULL) || (strnlen(str, MAX_STRLEN_OF_RULE_FORMAT+2) > MAX_STRLEN_OF_RULE_FORMAT)){ //to make sure str isn't longer than MAX_STRLEN_OF_RULE_FORMAT
+		return NULL:
+	}
+
+
+
+}
 
 
