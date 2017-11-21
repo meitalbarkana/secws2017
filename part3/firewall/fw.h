@@ -3,7 +3,7 @@
 
 #include <linux/module.h>
 #include <linux/kernel.h>
-#include <linux/slab.h>
+#include <linux/slab.h> //For kmalloc
 #include <linux/device.h>
 #include <linux/fs.h>
 #include <linux/netfilter.h> //For ipv6 packets?

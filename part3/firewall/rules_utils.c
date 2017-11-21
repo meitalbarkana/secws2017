@@ -7,6 +7,10 @@
  * 			false otherwise
  **/
 static bool is_rule_name(const char* str){
+	if (str == NULL){
+		printk(KERN_ERR "function is_rule_name got NULL value\n");
+		return false;
+	}
 	return (strnlen(str, MAX_LEN_OF_NAME_RULE+2) <= MAX_LEN_OF_NAME_RULE);
 }
 
@@ -16,6 +20,10 @@ static bool is_rule_name(const char* str){
  * Otherwise - returns DIRECTION_ERROR
  **/
 static direction_t translate_str_to_direction(const char* str){
+	if (str == NULL){
+		printk(KERN_ERR "function translate_str_to_direction got NULL value\n");
+		return DIRECTION_ERROR;
+	}
 	//By strcmp() documentation, since we're comparing between strings with constatn length ("in","out", etc.) - it's safe 
 	if((strcmp(str, "in") == 0) || (strcmp(str, "IN") == 0)){
 		return DIRECTION_IN;
@@ -150,11 +158,63 @@ static int translate_str_to_int_port_number(const char* str){
 		if ((strcmp(str, ">1023") == 0) || (strcmp(str, "1023") == 0)) {
 			return PORT_ABOVE_1023;
 		}
+		if((strcmp(str, "any") == 0) || (strcmp(str, "ANY") == 0)){
+			return PORT_ANY;
+		}
 		if ((strict_strtoul(str, 10,&temp) == 0) && (temp <= 65535)){
 			return ((int)temp); //Safe casting since 0<=temp<=65535
 		}
 	}
 	return PORT_ERROR;
+}
+
+/**
+ * Gets a string that supposed to represent status of ack-bit and a pointer to ack (
+ * String valid values are:
+ * 		1. "any" / "ANY" - a special value that means any ack
+ * 		2. "no" / "NO" - means ack-bit off
+ * 		3. "yes" / "YES" - means ack bit on
+ * If succedded, returns true and updates *ack to be the relevant value: ACK_ANY / ACK_YES / ACK_NO
+ * Otherwise - returns false
+ **/
+static bool translate_str_to_ack(const char* str, ack_t* ack){
+	if((str != NULL) && strnlen(str,5) <= 3){ //Since the maximum valid str length is 3+1(for '\0')+1 (to make sure str isn't longer)
+		if ((strcmp(str, "yes") == 0) || (strcmp(str, "YES") == 0)) {
+			*ack = ACK_YES;
+			return true;
+		}
+		if((strcmp(str, "any") == 0) || (strcmp(str, "ANY") == 0)){
+			*ack = ACK_ANY;
+			return true;
+		}
+		if((strcmp(str, "no") == 0) || (strcmp(str, "NO") == 0)){
+			*ack = ACK_NO;
+			return true;
+		}
+	}
+	return false;
+}
+
+/**
+ * Gets a string that supposed to represent action to do on the packet and a pointer to "action" (unsigned char)
+ * String valid values are:
+ * 		1. "accept" / "ACCEPT" - means accept the message (let it pass)
+ * 		2. "drop" / "DROP" - means drop the package
+ * If succedded, updates *action to contain the relevant value: NF_ACCEPT, NF_DROP and returns true,
+ * Otherwise - returns false
+ **/
+static bool translate_str_to_action(const char* str, __u8* action){
+	if((str != NULL) && strnlen(str,8) <= 6){ //Since the maximum valid str length is 6+1(for '\0')+1 (to make sure str isn't longer)
+		if ((strcmp(str, "accept") == 0) || (strcmp(str, "ACCEPT") == 0)) {
+			*action = NF_ACCEPT;
+			return true;
+		}
+		if((strcmp(str, "drop") == 0) || (strcmp(str, "DROP") == 0)){
+			*action = NF_DROP;
+			return true;
+		}
+	}
+	return false;
 }
 
 //rule_t* get_rule_from_string(const char* str){	

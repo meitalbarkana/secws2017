@@ -9,7 +9,11 @@
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Meital Bar-Kana Swissa");
 
-bool is_rule_name(const char* str){ //TODO:: delete
+static bool is_rule_name(const char* str){//TODO:: delete
+	if (str == NULL){
+		printk(KERN_ERR "function is_rule_name got NULL value\n");
+		return false;
+	}
 	return (strnlen(str, MAX_LEN_OF_NAME_RULE+2) <= MAX_LEN_OF_NAME_RULE);
 }
 
@@ -73,7 +77,7 @@ void tester_1(void){
 	}
 }
 
-bool is_ipv4_subnet_format(char* str, __be32* ipv4value, __u8* prefixLength){
+bool is_ipv4_subnet_format(char* str, __be32* ipv4value, __u8* prefixLength){//TODO:: delete
 	
 	size_t maxFormatLen = strlen("XXX.XXX.XXX.XXX/YY"); // = 18
 	size_t minFormatLen = strlen("X.X.X.X/Y"); // = 9
@@ -343,11 +347,284 @@ void tester_3(void){
 	}
 }
 
+static int translate_str_to_int_port_number(const char* str){//TODO:: delete this
+	unsigned long temp = 0;
+	if(strnlen(str,7) <= 5){ //Since the maximum valid str length is 5+1(for '\0')+1 (to make sure str isn't longer)
+		if ((strcmp(str, ">1023") == 0) || (strcmp(str, "1023") == 0)) {
+			return PORT_ABOVE_1023;
+		}
+		if((strcmp(str, "any") == 0) || (strcmp(str, "ANY") == 0)){
+			return PORT_ANY;
+		}
+		if ((strict_strtoul(str, 10,&temp) == 0) && (temp <= 65535)){
+			return ((int)temp); //Safe casting since 0<=temp<=65535
+		}
+	}
+	return PORT_ERROR;
+}
+
+//Tests translate_str_to_int_port_number():
+void tester_4(void){
+	
+	//__be16	port_num = 0;
+	switch(translate_str_to_int_port_number("65700")){
+			case (PORT_ERROR):
+				printk(KERN_INFO "the string: 65700 is not a valid port number\n");
+				break;
+			case (PORT_ANY):
+				printk(KERN_INFO "the string: 65700 is any port.\n");
+				break;
+			case(PORT_ABOVE_1023):
+				printk(KERN_INFO "the string: 65700 is above port 1023.\n");
+				break;
+			default: //specific number
+				printk(KERN_INFO "the string: 65700 is a specific number.\n");
+	}
+	
+	switch(translate_str_to_int_port_number("435")){
+			case (PORT_ERROR):
+				printk(KERN_INFO "the string: 435 is not a valid port number\n");
+				break;
+			case (PORT_ANY):
+				printk(KERN_INFO "the string: 435 is any port.\n");
+				break;
+			case(PORT_ABOVE_1023):
+				printk(KERN_INFO "the string: 435 is above port 1023.\n");
+				break;
+			default: //specific number
+				printk(KERN_INFO "the string: 435 is a specific number.\n");
+	}
+	
+	switch(translate_str_to_int_port_number("any")){
+			case (PORT_ERROR):
+				printk(KERN_INFO "the string: any is not a valid port number\n");
+				break;
+			case (PORT_ANY):
+				printk(KERN_INFO "the string: any is any port.\n");
+				break;
+			case(PORT_ABOVE_1023):
+				printk(KERN_INFO "the string: any is above port 1023.\n");
+				break;
+			default: //specific number
+				printk(KERN_INFO "the string: any is a specific number.\n");
+	}
+	
+	switch(translate_str_to_int_port_number(">1023")){
+			case (PORT_ERROR):
+				printk(KERN_INFO "the string: >1023 is not a valid port number\n");
+				break;
+			case (PORT_ANY):
+				printk(KERN_INFO "the string: >1023 is any port.\n");
+				break;
+			case(PORT_ABOVE_1023):
+				printk(KERN_INFO "the string: >1023 is above port 1023.\n");
+				break;
+			default: //specific number
+				printk(KERN_INFO "the string: >1023 is a specific number.\n");
+	}
+	
+	
+	switch(translate_str_to_int_port_number("1023")){
+			case (PORT_ERROR):
+				printk(KERN_INFO "the string: 1023 is not a valid port number\n");
+				break;
+			case (PORT_ANY):
+				printk(KERN_INFO "the string: 1023 is any port.\n");
+				break;
+			case(PORT_ABOVE_1023):
+				printk(KERN_INFO "the string: 1023 is above port 1023.\n");
+				break;
+			default: //specific number
+				printk(KERN_INFO "the string: 1023 is a specific number.\n");
+	}
+	
+	switch(translate_str_to_int_port_number("rrrrf")){
+			case (PORT_ERROR):
+				printk(KERN_INFO "the string: rrrrf is not a valid port number\n");
+				break;
+			case (PORT_ANY):
+				printk(KERN_INFO "the string: rrrrf is any port.\n");
+				break;
+			case(PORT_ABOVE_1023):
+				printk(KERN_INFO "the string: rrrrf is above port 1023.\n");
+				break;
+			default: //specific number
+				printk(KERN_INFO "the string: rrrrf is a specific number.\n");
+	}
+}
+
+static bool translate_str_to_ack(const char* str, ack_t* ack){
+	if((str != NULL) && strnlen(str,5) <= 3){ //Since the maximum valid str length is 3+1(for '\0')+1 (to make sure str isn't longer)
+		if ((strcmp(str, "yes") == 0) || (strcmp(str, "YES") == 0)) {
+			*ack = ACK_YES;
+			return true;
+		}
+		if((strcmp(str, "any") == 0) || (strcmp(str, "ANY") == 0)){
+			*ack = ACK_ANY;
+			return true;
+		}
+		if((strcmp(str, "no") == 0) || (strcmp(str, "NO") == 0)){
+			*ack = ACK_NO;
+			return true;
+		}
+	}
+	return false;
+}
+
+static bool translate_str_to_action(const char* str, __u8* action){
+	if((str != NULL) && strnlen(str,8) <= 6){ //Since the maximum valid str length is 6+1(for '\0')+1 (to make sure str isn't longer)
+		if ((strcmp(str, "accept") == 0) || (strcmp(str, "ACCEPT") == 0)) {
+			*action = NF_ACCEPT;
+			return true;
+		}
+		if((strcmp(str, "drop") == 0) || (strcmp(str, "DROP") == 0)){
+			*action = NF_DROP;
+			return true;
+		}
+	}
+	return false;
+}
+
+//Tests translate_str_to_ack(), translate_str_to_action():
+void tester_5(void){
+	__u8 action = 0;
+	ack_t* ack = kmalloc(sizeof(ack_t) ,GFP_KERNEL);//TODO:: when really using it, make sure it succeeded
+	if (ack == NULL) {
+		printk(KERN_INFO "Allocation failed!\n");
+		return;
+	}
+	
+	if(translate_str_to_ack("ack", ack)){
+		switch (*ack){
+			case (ACK_ANY):
+				printk(KERN_INFO "the string: ack is any.\n");
+				break;
+			case(ACK_YES):
+				printk(KERN_INFO "the string: ack is yes.\n");
+				break;
+			default: //ACK_NO
+				printk(KERN_INFO "the string: ack is no.\n");
+		}
+	} else {
+		printk(KERN_INFO "the string: ack is not a valid ack!.\n");
+	}
+	
+	if(translate_str_to_ack("YES", ack)){
+		switch (*ack){
+			case (ACK_ANY):
+				printk(KERN_INFO "the string: YES is any.\n");
+				break;
+			case(ACK_YES):
+				printk(KERN_INFO "the string: YES is yes.\n");
+				break;
+			default: //ACK_NO
+				printk(KERN_INFO "the string: YES is no.\n");
+		}
+	} else {
+		printk(KERN_INFO "the string: YES is not a valid ack!.\n");
+	}
+	
+	if(translate_str_to_ack("no", ack)){
+		switch (*ack){
+			case (ACK_ANY):
+				printk(KERN_INFO "the string: no is any.\n");
+				break;
+			case(ACK_YES):
+				printk(KERN_INFO "the string: no is yes.\n");
+				break;
+			default: //ACK_NO
+				printk(KERN_INFO "the string: no is no.\n");
+		}
+	} else {
+		printk(KERN_INFO "the string: no is not a valid ack!.\n");
+	}
+	
+	if(translate_str_to_ack("now", ack)){
+		switch (*ack){
+			case (ACK_ANY):
+				printk(KERN_INFO "the string: now is any.\n");
+				break;
+			case(ACK_YES):
+				printk(KERN_INFO "the string: now is yes.\n");
+				break;
+			default: //ACK_NO
+				printk(KERN_INFO "the string: now is no.\n");
+		}
+	} else {
+		printk(KERN_INFO "the string: now is not a valid ack!.\n");
+	}
+	
+	if(translate_str_to_action("now", &action)){
+		switch (action){
+			case (NF_ACCEPT):
+				printk(KERN_INFO "the string: now is action: ACCEPT.\n");
+				break;
+			default: //NF_DROP
+				printk(KERN_INFO "the string: now is action: DROP.\n");
+		}
+	} else {
+		printk(KERN_INFO "the string: now is not a valid action :( \n");
+	}
+	
+	if(translate_str_to_action("accepti", &action)){
+		switch (action){
+			case (NF_ACCEPT):
+				printk(KERN_INFO "the string: accepti is action: ACCEPT.\n");
+				break;
+			default: //NF_DROP
+				printk(KERN_INFO "the string: accepti is action: DROP.\n");
+		}
+	} else {
+		printk(KERN_INFO "the string: accepti is not a valid action :( \n");
+	}
+	
+	if(translate_str_to_action("accept", &action)){
+		switch (action){
+			case (NF_ACCEPT):
+				printk(KERN_INFO "the string: accept is action: ACCEPT.\n");
+				break;
+			default: //NF_DROP
+				printk(KERN_INFO "the string: accept is action: DROP.\n");
+		}
+	} else {
+		printk(KERN_INFO "the string: accept is not a valid action :( \n");
+	}
+	
+	if(translate_str_to_action("DROP", &action)){
+		switch (action){
+			case (NF_ACCEPT):
+				printk(KERN_INFO "the string: DROP is action: ACCEPT.\n");
+				break;
+			default: //NF_DROP
+				printk(KERN_INFO "the string: DROP is action: DROP.\n");
+		}
+	} else {
+		printk(KERN_INFO "the string: DROP is not a valid action :( \n");
+	}
+	
+	if(translate_str_to_action("DROPi", &action)){
+		switch (action){
+			case (NF_ACCEPT):
+				printk(KERN_INFO "the string: DROPi is action: ACCEPT.\n");
+				break;
+			default: //NF_DROP
+				printk(KERN_INFO "the string: DROPi is action: DROP.\n");
+		}
+	} else {
+		printk(KERN_INFO "the string: DROPi is not a valid action :( \n");
+	}
+	
+	kfree(ack);
+}
+
+
 static int __init my_init_func(void){
 	
 	//tester_1();
 	//tester_2();
-	tester_3();
+	//tester_3();
+	//tester_4();
+	tester_5();
 	return 0;
 
 }

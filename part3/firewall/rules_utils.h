@@ -2,7 +2,7 @@
 #define RULES_UTILS_H
 
 #include "fw.h"
-#define MAX_LEN_OF_NAME_RULE 19 //since rule_t.rule_name is of length 20, including 
+#define MAX_LEN_OF_NAME_RULE 19 //since rule_t.rule_name is of length 20, including null-terminator
 
 /**
  *	Gets a string that supposed to represent a proper rule.
