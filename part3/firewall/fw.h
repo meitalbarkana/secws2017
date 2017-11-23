@@ -74,7 +74,7 @@ typedef struct {
 	char rule_name[20];			// names will be no longer than 20 chars(includes '\0')
 	direction_t direction;
 	__be32	src_ip;
-	__be32	src_prefix_mask; 	// e.g., 255.255.255.0 as int in the local endianness - Little-Endian!
+	__be32	src_prefix_mask; 	// e.g., 255.255.255.0 as int in the local endianness
 	__u8    src_prefix_size; 	// valid values: 0-32, e.g., /24 for the example above
 								// (the field is redundant - easier to print)
 	__be32	dst_ip;

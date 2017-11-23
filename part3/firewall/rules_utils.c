@@ -1,5 +1,21 @@
 #include "rules_utils.h"
 
+static size_t g_num_of_valid_rules = 0;
+
+/**
+ * Gets a rulename and pointer to rule-table,
+ * Returns true if a rule with name "rulename" already exists.
+ **/
+static bool does_rulename_already_exists(const char* rulename, rule_t** ptr_to_all_rules_table){
+	size_t i = 0;
+	for (i = 0; i < g_num_of_valid_rules; ++i){
+		if (strncmp(((ptr_to_all_rules_table)[i]).rule_name, rulename, MAX_LEN_OF_NAME_RULE+1) == 0){
+			return true; //rulename already exists
+		}
+	}
+	return false;
+}
+
 /**
  * Inner function.
  * Gets a (non-NULL!) string that supposed to represent rule's name:
@@ -13,6 +29,18 @@ static bool is_rule_name(const char* str){
 	}
 	return (strnlen(str, MAX_LEN_OF_NAME_RULE+2) <= MAX_LEN_OF_NAME_RULE);
 }
+
+/**
+ *   Gets a VALID user name (its length < MAX_LEN_OF_NAME_RULE && it's not a name of any other rule)
+ * 	 and a pointer to rule_t, and updates the rule so it's name would be "valid_rule_name"
+ **/
+ static void update_rule_name(rule_t* rule_ptr, const char* valid_rule_name){
+	 	size_t i = 0;
+	 	strncpy(rule_ptr->rule_name, valid_rule_name, MAX_LEN_OF_NAME_RULE+1); //Updates rule's name
+		for (i = strlen(valid_rule_name); i <= MAX_LEN_OF_NAME_RULE; ++i){ //Makes sure a '\0' is placed at the end of the string rule_name
+			(rule_ptr->rule_name)[i] = '\0';
+		}
+ }
 
 /**
  * Gets a (non-NULL!) string that supposed to represent a direction
@@ -47,7 +75,7 @@ static direction_t translate_str_to_direction(const char* str){
  * 	If the string is valid, updates: 1. ipv4value to contain the unsigned-int value of the ip 
  * 									 2. prefixLength to contain the length of the subnet prefix
  * 
- *  Note: str shouldn't be const- so copy it if needed before sending input to this function!
+ *  Note: str would be changed- so copy it if needed before sending input to this function!
  **/
 static bool is_ipv4_subnet_format(char* str, __be32* ipv4value, __u8* prefixLength){
 	
@@ -219,23 +247,107 @@ static bool translate_str_to_action(const char* str, __u8* action){
 
 
 /**
- *	Gets a string that supposed to represent a proper rule.
- * 	Creates a rule according to str.
- * 	NOTE: str format should be:
- * 	<rule name> <direction> <src ip>/<nps> <dst ip>/<nps> <protocol> <dource port> <dest port> <ack> <action>
- *	
- * If succedded, returns the pointer to rule_t created,
- * Otherwise - returns NULL
+ * 	Gets a prefix_length (Big-Endian, value between 0-32)
+ * 	Returns the prefix mask that prefix_length represent, in the local endianness
  **/
-rule_t* get_rule_from_string(const char* str){	
+static __be32 get_prefix_mask(__u8 prefix_length){
+	//0xffffffff = 11111111 11111111 11111111 11111111
+	__be32 temp = 0xffffffff;
+	if (prefix_length == 32){
+		return temp;
+	}
+	temp = temp >> (32-prefix_length); // For example: if prefix = 3, temp will contain: 00011111 11111111 11111111 11111111
+	temp = temp ^ 0xffffffff; // XORing with 11...11 so that, in our example, temp =  11100000 00000000 00000000 00000000
 	
+	return temp;
+}
+
+/**
+ *	Gets a string that supposed to represent a proper rule,
+ * 	and a pointer to the table containing all rules so far
+ *
+ *  Creates a rule according to str, inserts it to the rule table and updates g_num_of_valid_rules.
+ * 	If succedded, returns the pointer to rule_t created & allocated & inserted to the rule table
+ *	Otherwise - returns NULL
+ * 	
+ * 	NOTE:1. user of this funtion should free memory allocated by it.
+ * 		 2. str will be ruined
+ * 		 3. valid str format should be:
+ * 		    <rule name> <direction> <src ip>/<nps> <dst ip>/<nps> <protocol> <dource port> <dest port> <ack> <act
+ **/
+rule_t* get_rule_from_string(char* str, rule_t** ptr_to_all_rules_table){	
+	size_t i = 0;
 	rule_t* rule_ptr = NULL;
-	
+	char* curr_token;
 	if ((str == NULL) || (strnlen(str, MAX_STRLEN_OF_RULE_FORMAT+2) > MAX_STRLEN_OF_RULE_FORMAT)){ //to make sure str isn't longer than MAX_STRLEN_OF_RULE_FORMAT
 		return NULL:
 	}
+	if ((rule_ptr = kalloc(sizeof(rule_t),GFP_KERNEL)) == NULL) {
+		printk(KERN_ERR "Failed allocating space for rule_t\n");
+		return NULL;
+	}
+	
+	for (i = 0; i < NUM_OF_TOKENS_IN_FORMAT; ++i){
+		
+		curr_token = strsep(&str, " ");
+		if (curr_token == NULL){
+			free(rule_ptr);
+			return NULL;
+		}
+		
+		if (i == 0) { //Checks curr_token is valid rule-name:
+			if( is_rule_name(curr_token) && (!does_rulename_already_exists(curr_token, ptr_to_all_rules_table)) ){ 
+				update_rule_name(rule_ptr, curr_token); //Updates current rule's name
+			} else { //not a valid rule name
+				free(rule_ptr);
+				return NULL;
+			}
+		}
+		else if ( i == 1) { //Checks curr_token is valid direction:
+			rule_ptr->direction = translate_str_to_direction(curr_token);
+			if (rule_ptr->direction == DIRECTION_ERROR){
+				free(rule_ptr);
+				return NULL;
+			}
+		}
+		else if ( i == 2) { //Check curr_token is <src ip>/<nps>
+			if (!is_ipv4_subnet_format(curr_token, &(rule_ptr->src_ip), &(rule_ptr->src_prefix_size))){
+				free(rule_ptr);
+				return NULL;				
+			}
+			rule_ptr->src_prefix_mask = get_prefix_mask(rule_ptr->src_prefix_size);
+		}
+		else if ( i == 3) {
+				
+		}
+		else if ( i == 4) {
+				
+		}
+		else if ( i == 5) {
+				
+		}
+		else if ( i == 6) {
+				
+		}
+		else if ( i == 7) {
+				
+		}
+		else if ( i == 8) {
+				
+		}
+		else { // i == NUM_OF_TOKENS_IN_FORMAT)
+				
+		}
 
-
+	}
+	
+	
+	//Makes sure str didn't contain any invalid characters
+	curr_token = strsep(&str, " ");
+	if (curr_token != NULL){
+		return false;
+	}
+	//TODO:: finish this.
 
 }
 
