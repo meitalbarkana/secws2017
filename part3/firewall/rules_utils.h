@@ -32,7 +32,7 @@
  * NULL if failed,
  * NOTE: user should free memory allocated in it.
  **/
-//char* get_rule_as_str(rule_t* rule);
+char* get_rule_as_str(rule_t* rule);
 
 /**
  *	Gets a string that supposed to represent a proper rule.
@@ -43,10 +43,7 @@
  * If succedded, returns the pointer to rule_t created,
  * Otherwise - returns NULL
  **/
-//rule_t* get_rule_from_string(const char* str);
-
-
-
+rule_t* get_rule_from_string(char* str, rule_t** ptr_to_all_rules_table);
 
 
 #endif /* RULES_UTILS_H */

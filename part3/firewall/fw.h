@@ -13,7 +13,6 @@
 #include <linux/udp.h>
 #include <linux/types.h> //For bool type
 
-
 // the protocols we will work with
 typedef enum {
 	PROT_ICMP	= 1,

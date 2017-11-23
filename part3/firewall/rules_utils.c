@@ -1,6 +1,7 @@
 #include "rules_utils.h"
 
 static size_t g_num_of_valid_rules = 0;
+//static rule_t* g_all_rules_table[MAX_NUM_OF_RULES];
 
 /**
  * Gets a string, nullify ('\0') all its characters, starting from start_index upto last_index, including both
@@ -19,7 +20,7 @@ static void nullify_str(char* str, size_t start_index, size_t last_index){
 static bool does_rulename_already_exists(const char* rulename, rule_t** ptr_to_all_rules_table){
 	size_t i = 0;
 	for (i = 0; i < g_num_of_valid_rules; ++i){
-		if (strncmp(((ptr_to_all_rules_table)[i]).rule_name, rulename, MAX_LEN_OF_NAME_RULE+1) == 0){
+		if (strncmp(((ptr_to_all_rules_table)[i])->rule_name, rulename, MAX_LEN_OF_NAME_RULE+1) == 0){
 			return true; //rulename already exists
 		}
 	}
@@ -45,7 +46,6 @@ static bool is_rule_name(const char* str){
  * 	 and a pointer to rule_t, and updates the rule so it's name would be "valid_rule_name"
  **/
  static void update_rule_name(rule_t* rule_ptr, const char* valid_rule_name){
-	 	size_t i = 0;
 	 	strncpy(rule_ptr->rule_name, valid_rule_name, MAX_LEN_OF_NAME_RULE+1); //Updates rule's name
 	 	nullify_str(rule_ptr->rule_name, strlen(valid_rule_name), MAX_LEN_OF_NAME_RULE); //Makes sure a '\0' is placed at the end of the string rule_name
  }
@@ -101,14 +101,19 @@ static bool is_ipv4_subnet_format(char* str, __be32* ipv4value, __u8* prefixLeng
 	// 2^24 = 256^3 = 16,777,216 , 2^16 = 256^2 = 65536
 	// 2^8 = 256^1 = 256 , 2^0 = 256^0 = 1 
 	unsigned int multiplicand = 1; 
-	size_t i = 0;	
+	size_t i = 0;
+	//Initiating values to zero:	
+	*ipv4value = 0;
+	*prefixLength = 0;
+	
+	//any IPv4 address <=> 0.0.0.0/0 :
+	if ((strLength == 3) && ((strcmp(str, "any") == 0) || (strcmp(str, "ANY") == 0)) ){
+		return true;
+	}
 	
 	if ((strLength < minFormatLen) || (strLength > maxFormatLen)){
 		return false;
 	}
-
-	*ipv4value = 0;
-	*prefixLength = 0;
 
 	for (i = 0; i <= 4; ++i){
 		currToken = strsep(&str, "./");
@@ -279,7 +284,6 @@ static char* tran_uint_to_ipv4str(__be32 ip){
 	char* str;
 	__be32 p0, p1, p2, p3;
 	int num_of_chars_written = 0;
-	size_t i = 0;
 	size_t len_str = strlen("XXX.XXX.XXX.XXX")+1;
 	if((str = kmalloc(len_str * sizeof(char),GFP_KERNEL)) == NULL) {
 		printk(KERN_ERR "Failed allocating space for string representing IPv4\n");
@@ -330,7 +334,7 @@ static char* tran_direction_t_to_str(direction_t direc){
 			break;
 		default: //Never supposed to get here if used correctly.
 			printk(KERN_ERR "Error - tried translating wrong direction_t\n");
-			free(str);
+			kfree(str);
 			return NULL;
 	}
 	return str;
@@ -366,7 +370,7 @@ static char* tran_prot_t_to_str(prot_t prot){
 			break;
 		default: //Never supposed to get here if used correctly.
 			printk(KERN_ERR "Error - tried translating wrong prot_t\n");
-			free(str);
+			kfree(str);
 			return NULL;
 	}
 	return str;
@@ -386,10 +390,6 @@ static char* tran_port_to_str(__be16 port){
 	nullify_str(str, 0, MAX_STRLEN_OF_PORT); //Makes sure str is nullified.
 	
 	switch (port) {
-		case (PORT_ERROR):
-			printk(KERN_ERR "Error - tried translating wrong port number\n");
-			free(str);
-			return NULL;
 		case (PORT_ANY):
 			strncpy(str,"any", MAX_STRLEN_OF_PORT+1);
 			break;
@@ -398,6 +398,8 @@ static char* tran_port_to_str(__be16 port){
 			break;
 		default: //port is a specific number
 			snprintf(str, MAX_STRLEN_OF_PORT+1, "%u", port);
+			
+		//Note: guaranteed that port!=PORT_ERROR since PORT_ERROR==-1, and port is __be16 (unsigned)
 	}
 	return str;
 }
@@ -448,7 +450,7 @@ static char* tran_action_to_str(__u8 action){
 			break;
 		default: //Never supposed to get here if used correctly.
 			printk(KERN_ERR "Error - tried translating wrong action\n");
-			free(str);
+			kfree(str);
 			return NULL;
 	}
 	return str;
@@ -459,7 +461,7 @@ static char* tran_action_to_str(__u8 action){
  **/
 static void free_unnecessary_strs( char* str,char* ip_dst_str,char* ip_src_str, char* direc_str,
 			char* protocol_str,	char* s_port_str,char* d_port_str,char* ack_str,char* action_str)
-{ //TODO:: change it to use va_list!
+{ //TODO:: check if one can change it to use va_list
 	if (str != NULL){
 		kfree(str);
 	}
@@ -492,13 +494,12 @@ static void free_unnecessary_strs( char* str,char* ip_dst_str,char* ip_src_str, 
 /**
  * Returns a representation of a rule as a string on success,
  * NULL if failed,
- * NOTE: user should free memory allocated in it.
+ * NOTE: user should free memory allocated (for str) in it.
  **/
 char* get_rule_as_str(rule_t* rule){
 	
-	char* str, ip_dst_str, ip_src_str, direc_str, protocol_str, s_port_str, d_port_str, ack_str, action_str;
+	char *str, *ip_dst_str, *ip_src_str, *direc_str, *protocol_str, *s_port_str, *d_port_str, *ack_str, *action_str;
 	int num_of_chars_written = 0;
-	size_t i = 0;
 	
 	if((str = kmalloc((MAX_STRLEN_OF_RULE_FORMAT+1)*sizeof(char), GFP_KERNEL)) == NULL) {
 		printk(KERN_ERR "Failed allocating space for string representing rule_t\n");
@@ -515,17 +516,50 @@ char* get_rule_as_str(rule_t* rule){
 	
 	if ((ip_dst_str = tran_uint_to_ipv4str(rule->dst_ip)) == NULL){
 		printk(KERN_ERR "Failed translating destination ip address to string\n");
-		kfree(ip_src_str);
-		kfree(str);
+		free_unnecessary_strs(str, ip_src_str, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
 		return NULL;
 	}
 	
-	//TODO:: fill this. use snprintf
-	//<rule name> <direction> <src ip>/<nps> <dst ip>/<nps> <protocol> <source port> <dest port> <ack> <action>
-	num_of_chars_written = snprintf("%s ", rule->rule_name,);
+	if ((direc_str = tran_direction_t_to_str(rule->direction)) == NULL){
+		printk(KERN_ERR "Failed translating direction to string\n");
+		free_unnecessary_strs(str, ip_src_str, ip_dst_str, NULL, NULL, NULL, NULL, NULL, NULL);
+		return NULL;
+	}
+	if ((protocol_str = tran_prot_t_to_str(rule->protocol)) == NULL){
+		printk(KERN_ERR "Failed translating protocol to string\n");
+		free_unnecessary_strs(str, ip_src_str, ip_dst_str, direc_str, NULL, NULL, NULL, NULL, NULL);
+		return NULL;
+	}	
+	
+	if ((s_port_str = tran_port_to_str(rule->src_port)) == NULL){
+		printk(KERN_ERR "Failed translating source port to string\n");
+		free_unnecessary_strs(str, ip_src_str, ip_dst_str, direc_str, protocol_str, NULL, NULL, NULL, NULL);
+		return NULL;
+	}	
 
-	kfree(ip_src_str);
-	kfree(ip_dst_str);
+	if ((d_port_str = tran_port_to_str(rule->dst_port)) == NULL){
+		printk(KERN_ERR "Failed translating destination port to string\n");
+		free_unnecessary_strs(str, ip_src_str, ip_dst_str, direc_str, protocol_str, s_port_str, NULL, NULL, NULL);
+		return NULL;
+	}
+	if ((ack_str = tran_ack_to_str(rule->ack)) == NULL){
+		printk(KERN_ERR "Failed translating ack to string\n");
+		free_unnecessary_strs(str, ip_src_str, ip_dst_str, direc_str, protocol_str, s_port_str, d_port_str, NULL, NULL);
+		return NULL;
+	}	
+
+	if ((action_str = tran_action_to_str(rule->action)) == NULL){
+		printk(KERN_ERR "Failed translating action to string\n");
+		free_unnecessary_strs(str, ip_src_str, ip_dst_str, direc_str, protocol_str, s_port_str, d_port_str, ack_str, NULL);
+		return NULL;
+	}
+	
+	//<rule name> <direction> <src ip>/<nps> <dst ip>/<nps> <protocol> <source port> <dest port> <ack> <action>
+	num_of_chars_written = snprintf(str, MAX_STRLEN_OF_RULE_FORMAT+1, "%s %s %s/%u %s/%u %s %s %s %s %s", rule->rule_name, direc_str, ip_src_str, rule->src_prefix_size, 
+									ip_dst_str, rule->dst_prefix_size, protocol_str, s_port_str, d_port_str, ack_str, action_str);
+
+	free_unnecessary_strs(NULL, ip_src_str, ip_dst_str, direc_str, protocol_str, s_port_str, d_port_str, ack_str, action_str);
+	
 	if (num_of_chars_written < MIN_STRLEN_OF_RULE_FORMAT){
 		printk(KERN_ERR "Failed translating rule_t to string\n");
 		kfree(str);
@@ -548,7 +582,6 @@ char* get_rule_as_str(rule_t* rule){
  * 		 3. valid str format should be:
  * 		    <rule name> <direction> <src ip>/<nps> <dst ip>/<nps> <protocol> <source port> <dest port> <ack> <action>
  **/
- //TODO::test this function!
 rule_t* get_rule_from_string(char* str, rule_t** ptr_to_all_rules_table){	
 	
 	size_t i = 0;
