@@ -3,6 +3,16 @@
 static size_t g_num_of_valid_rules = 0;
 
 /**
+ * Gets a string, nullify ('\0') all its characters, starting from start_index upto last_index, including both
+ **/
+static void nullify_str(char* str, size_t start_index, size_t last_index){
+	size_t i = 0;
+	for (i = start_index; i <= last_index; ++i){
+		(str)[i] = '\0';
+	}
+}
+
+/**
  * Gets a rulename and pointer to rule-table,
  * Returns true if a rule with name "rulename" already exists.
  **/
@@ -19,7 +29,7 @@ static bool does_rulename_already_exists(const char* rulename, rule_t** ptr_to_a
 /**
  * Inner function.
  * Gets a (non-NULL!) string that supposed to represent rule's name:
- * Returns: true if str can represent a valid rule's name
+ * Returns: true if str can represent a valid rule's name (an empty string is valid as a rule name)
  * 			false otherwise
  **/
 static bool is_rule_name(const char* str){
@@ -37,9 +47,7 @@ static bool is_rule_name(const char* str){
  static void update_rule_name(rule_t* rule_ptr, const char* valid_rule_name){
 	 	size_t i = 0;
 	 	strncpy(rule_ptr->rule_name, valid_rule_name, MAX_LEN_OF_NAME_RULE+1); //Updates rule's name
-		for (i = strlen(valid_rule_name); i <= MAX_LEN_OF_NAME_RULE; ++i){ //Makes sure a '\0' is placed at the end of the string rule_name
-			(rule_ptr->rule_name)[i] = '\0';
-		}
+	 	nullify_str(rule_ptr->rule_name, strlen(valid_rule_name), MAX_LEN_OF_NAME_RULE); //Makes sure a '\0' is placed at the end of the string rule_name
  }
 
 /**
@@ -80,7 +88,7 @@ static direction_t translate_str_to_direction(const char* str){
 static bool is_ipv4_subnet_format(char* str, __be32* ipv4value, __u8* prefixLength){
 	
 	size_t maxFormatLen = MAX_STRLEN_OF_IP_ADDR; //strlen("XXX.XXX.XXX.XXX/YY") = 18
-	size_t minFormatLen = strlen("X.X.X.X/Y"); // = 9
+	size_t minFormatLen = MIN_STRLEN_OF_IP_ADDR; //strlen("X.X.X.X/Y") = 9
 	size_t strLength = strnlen(str, maxFormatLen+2); //Because there's no need to check more chars than that..
 	
 	/** These variables are declared here only to avoid warning:"ISO C90 forbids mixed declarations and code"
@@ -263,6 +271,271 @@ static __be32 get_prefix_mask(__u8 prefix_length){
 }
 
 /**
+ *	Gets unsigned int and returns its IPv4 string representation
+ *  [Format of: "XXX.XXX.XXX.XXX"]
+ * 	If failed, returns NULL
+ **/
+static char* tran_uint_to_ipv4str(__be32 ip){
+	char* str;
+	__be32 p0, p1, p2, p3;
+	int num_of_chars_written = 0;
+	size_t i = 0;
+	size_t len_str = strlen("XXX.XXX.XXX.XXX")+1;
+	if((str = kmalloc(len_str * sizeof(char),GFP_KERNEL)) == NULL) {
+		printk(KERN_ERR "Failed allocating space for string representing IPv4\n");
+		return NULL;	
+	}
+	
+	p3 = ip%256;
+	ip = ip/256;
+	p2 = ip%256;
+	ip = ip/256;
+	p1 = ip%256;
+	ip = ip/256;
+	p0 = ip%256;
+	
+	num_of_chars_written = snprintf(str,len_str, "%u.%u.%u.%u", p0,p1,p2,p3);
+	if ( num_of_chars_written < strlen("X.X.X.X")){
+		kfree(str);
+		printk(KERN_ERR "Failed translating to string representation of IPv4\n");
+		return NULL;
+	}
+	
+	nullify_str(str, num_of_chars_written, len_str-1);//Makes sure a '\0' is placed at the end of the string
+
+	return str;
+}
+
+/**
+ *	Gets direction_t and returns its string representation
+ * 	If failed, returns NULL
+ **/
+static char* tran_direction_t_to_str(direction_t direc){
+	char* str;
+	if ((str = kmalloc((MAX_STRLEN_OF_DIRECTION+1)*sizeof(char), GFP_KERNEL)) == NULL) {
+		printk(KERN_ERR "Failed allocating space for string representing direction\n");
+		return NULL;
+	}
+	nullify_str(str, 0, MAX_STRLEN_OF_DIRECTION); //Makes sure str is nullified.
+	
+	switch (direc) {
+		case(DIRECTION_IN):
+			strncpy(str, "in", MAX_STRLEN_OF_DIRECTION+1);
+			break;
+		case(DIRECTION_OUT):
+			strncpy(str, "out", MAX_STRLEN_OF_DIRECTION+1);
+			break;
+		case(DIRECTION_ANY):
+		 	strncpy(str, "any", MAX_STRLEN_OF_DIRECTION+1);
+			break;
+		default: //Never supposed to get here if used correctly.
+			printk(KERN_ERR "Error - tried translating wrong direction_t\n");
+			free(str);
+			return NULL;
+	}
+	return str;
+}
+
+/**
+ *	Gets prot_t and returns its string representation
+ * 	If failed, returns NULL
+ **/
+static char* tran_prot_t_to_str(prot_t prot){
+	char* str;
+	if ((str = kmalloc((MAX_STRLEN_OF_PROTOCOL+1)*sizeof(char), GFP_KERNEL)) == NULL) {
+		printk(KERN_ERR "Failed allocating space for string representing protocol\n");
+		return NULL;
+	}
+	nullify_str(str, 0, MAX_STRLEN_OF_PROTOCOL); //Makes sure str is nullified.
+	
+	switch (prot) {
+		case(PROT_ICMP):
+			strncpy(str,"icmp", MAX_STRLEN_OF_PROTOCOL+1);
+			break;
+		case(PROT_TCP):
+			strncpy(str,"tcp", MAX_STRLEN_OF_PROTOCOL+1);
+			break;
+		case(PROT_UDP):
+			strncpy(str,"udp", MAX_STRLEN_OF_PROTOCOL+1);
+			break;
+		case(PROT_OTHER):
+			strncpy(str,"other", MAX_STRLEN_OF_PROTOCOL+1);
+			break;
+		case(PROT_ANY):
+			strncpy(str,"any", MAX_STRLEN_OF_PROTOCOL+1);
+			break;
+		default: //Never supposed to get here if used correctly.
+			printk(KERN_ERR "Error - tried translating wrong prot_t\n");
+			free(str);
+			return NULL;
+	}
+	return str;
+}
+
+/**
+ *	Gets unsigned short representing port number
+ *  Returns its string representation
+ * 	If failed, returns NULL
+ **/
+static char* tran_port_to_str(__be16 port){
+	char* str;
+	if ((str = kmalloc((MAX_STRLEN_OF_PORT+1)*sizeof(char), GFP_KERNEL)) == NULL) {
+		printk(KERN_ERR "Failed allocating space for string representing port number\n");
+		return NULL;
+	}
+	nullify_str(str, 0, MAX_STRLEN_OF_PORT); //Makes sure str is nullified.
+	
+	switch (port) {
+		case (PORT_ERROR):
+			printk(KERN_ERR "Error - tried translating wrong port number\n");
+			free(str);
+			return NULL;
+		case (PORT_ANY):
+			strncpy(str,"any", MAX_STRLEN_OF_PORT+1);
+			break;
+		case(PORT_ABOVE_1023):
+			strncpy(str,">1023", MAX_STRLEN_OF_PORT+1);
+			break;
+		default: //port is a specific number
+			snprintf(str, MAX_STRLEN_OF_PORT+1, "%u", port);
+	}
+	return str;
+}
+
+/**
+ *	Gets ack_t representing ack, Returns its string representation
+ * 	If failed, returns NULL
+ **/
+static char* tran_ack_to_str(ack_t ack){
+	char* str;
+	if ((str = kmalloc((MAX_STRLEN_OF_ACK+1)*sizeof(char), GFP_KERNEL)) == NULL) {
+		printk(KERN_ERR "Failed allocating space for string representing ack\n");
+		return NULL;
+	}
+	nullify_str(str, 0, MAX_STRLEN_OF_ACK); //Makes sure str is nullified.
+	
+	switch (ack) {	
+			case (ACK_ANY):
+				strncpy(str,"any", MAX_STRLEN_OF_ACK+1);
+				break;
+			case(ACK_YES):
+				strncpy(str,"yes", MAX_STRLEN_OF_ACK+1);
+				break;		
+			default: // == ACK_NO
+				strncpy(str,"no", MAX_STRLEN_OF_ACK+1);
+	}
+	return str;
+}
+
+/**
+ *	Gets __u8 (unsigned char) representing action, Returns its string representation
+ * 	If failed, returns NULL
+ **/
+static char* tran_action_to_str(__u8 action){
+	char* str;
+	if ((str = kmalloc((MAX_STRLEN_OF_ACTION+1)*sizeof(char), GFP_KERNEL)) == NULL) {
+		printk(KERN_ERR "Failed allocating space for string representing action\n");
+		return NULL;
+	}
+	nullify_str(str, 0, MAX_STRLEN_OF_ACTION); //Makes sure str is nullified.
+	
+	switch (action) {	
+		case (NF_ACCEPT):
+			strncpy(str, "accept", MAX_STRLEN_OF_ACTION+1);
+			break;
+		case(NF_DROP):
+			strncpy(str, "drop", MAX_STRLEN_OF_ACTION+1);
+			break;
+		default: //Never supposed to get here if used correctly.
+			printk(KERN_ERR "Error - tried translating wrong action\n");
+			free(str);
+			return NULL;
+	}
+	return str;
+}
+
+/**
+ *  Helper function - to free allocated strings if creating the string representation of the rule failed
+ **/
+static void free_unnecessary_strs( char* str,char* ip_dst_str,char* ip_src_str, char* direc_str,
+			char* protocol_str,	char* s_port_str,char* d_port_str,char* ack_str,char* action_str)
+{ //TODO:: change it to use va_list!
+	if (str != NULL){
+		kfree(str);
+	}
+	if (ip_dst_str != NULL){
+		kfree(ip_dst_str);
+	}
+	if (ip_src_str != NULL){
+		kfree(ip_src_str);
+	}
+	if (direc_str != NULL){
+		kfree(direc_str);
+	}
+	if (protocol_str != NULL){
+		kfree(protocol_str);
+	}
+	if (s_port_str != NULL){
+		kfree(s_port_str);
+	}
+	if (d_port_str != NULL){
+		kfree(d_port_str);
+	}
+	if (ack_str != NULL){
+		kfree(ack_str);
+	}
+	if (action_str != NULL){
+		kfree(action_str);
+	}		
+}
+
+/**
+ * Returns a representation of a rule as a string on success,
+ * NULL if failed,
+ * NOTE: user should free memory allocated in it.
+ **/
+char* get_rule_as_str(rule_t* rule){
+	
+	char* str, ip_dst_str, ip_src_str, direc_str, protocol_str, s_port_str, d_port_str, ack_str, action_str;
+	int num_of_chars_written = 0;
+	size_t i = 0;
+	
+	if((str = kmalloc((MAX_STRLEN_OF_RULE_FORMAT+1)*sizeof(char), GFP_KERNEL)) == NULL) {
+		printk(KERN_ERR "Failed allocating space for string representing rule_t\n");
+		return NULL;
+	}
+	//Make sure str is nullified:
+	nullify_str(str, 0, MAX_STRLEN_OF_RULE_FORMAT);
+	
+	if ((ip_src_str = tran_uint_to_ipv4str(rule->src_ip)) == NULL){
+		printk(KERN_ERR "Failed translating source ip address to string\n");
+		kfree(str);
+		return NULL;
+	}
+	
+	if ((ip_dst_str = tran_uint_to_ipv4str(rule->dst_ip)) == NULL){
+		printk(KERN_ERR "Failed translating destination ip address to string\n");
+		kfree(ip_src_str);
+		kfree(str);
+		return NULL;
+	}
+	
+	//TODO:: fill this. use snprintf
+	//<rule name> <direction> <src ip>/<nps> <dst ip>/<nps> <protocol> <source port> <dest port> <ack> <action>
+	num_of_chars_written = snprintf("%s ", rule->rule_name,);
+
+	kfree(ip_src_str);
+	kfree(ip_dst_str);
+	if (num_of_chars_written < MIN_STRLEN_OF_RULE_FORMAT){
+		printk(KERN_ERR "Failed translating rule_t to string\n");
+		kfree(str);
+		return NULL;
+	}
+	
+	return str;
+}
+
+/**
  *	Gets a string that supposed to represent a proper rule,
  * 	and a pointer to the table containing all rules so far
  *
@@ -273,81 +546,99 @@ static __be32 get_prefix_mask(__u8 prefix_length){
  * 	NOTE:1. user of this funtion should free memory allocated by it.
  * 		 2. str will be ruined
  * 		 3. valid str format should be:
- * 		    <rule name> <direction> <src ip>/<nps> <dst ip>/<nps> <protocol> <dource port> <dest port> <ack> <act
+ * 		    <rule name> <direction> <src ip>/<nps> <dst ip>/<nps> <protocol> <source port> <dest port> <ack> <action>
  **/
+ //TODO::test this function!
 rule_t* get_rule_from_string(char* str, rule_t** ptr_to_all_rules_table){	
+	
 	size_t i = 0;
 	rule_t* rule_ptr = NULL;
-	char* curr_token;
+	char* curr_token = NULL;
+	int temp_val = 0;
+	
 	if ((str == NULL) || (strnlen(str, MAX_STRLEN_OF_RULE_FORMAT+2) > MAX_STRLEN_OF_RULE_FORMAT)){ //to make sure str isn't longer than MAX_STRLEN_OF_RULE_FORMAT
-		return NULL:
+		return NULL;
 	}
-	if ((rule_ptr = kalloc(sizeof(rule_t),GFP_KERNEL)) == NULL) {
+	if ((rule_ptr = kmalloc(sizeof(rule_t),GFP_KERNEL)) == NULL) {
 		printk(KERN_ERR "Failed allocating space for rule_t\n");
 		return NULL;
 	}
 	
-	for (i = 0; i < NUM_OF_TOKENS_IN_FORMAT; ++i){
+	while (i < NUM_OF_TOKENS_IN_FORMAT){
 		
-		curr_token = strsep(&str, " ");
-		if (curr_token == NULL){
-			free(rule_ptr);
-			return NULL;
+		if ((curr_token = strsep(&str, " ")) == NULL) {
+			break;
 		}
 		
 		if (i == 0) { //Checks curr_token is valid rule-name:
 			if( is_rule_name(curr_token) && (!does_rulename_already_exists(curr_token, ptr_to_all_rules_table)) ){ 
 				update_rule_name(rule_ptr, curr_token); //Updates current rule's name
 			} else { //not a valid rule name
-				free(rule_ptr);
-				return NULL;
+				break;
 			}
 		}
-		else if ( i == 1) { //Checks curr_token is valid direction:
-			rule_ptr->direction = translate_str_to_direction(curr_token);
-			if (rule_ptr->direction == DIRECTION_ERROR){
-				free(rule_ptr);
-				return NULL;
+		else if (i == 1) { //Checks curr_token is valid direction:
+			if ((rule_ptr->direction = translate_str_to_direction(curr_token)) == DIRECTION_ERROR){
+				break;
 			}
 		}
-		else if ( i == 2) { //Check curr_token is <src ip>/<nps>
+		else if (i == 2) { //Check curr_token is <src ip>/<nps>
 			if (!is_ipv4_subnet_format(curr_token, &(rule_ptr->src_ip), &(rule_ptr->src_prefix_size))){
-				free(rule_ptr);
-				return NULL;				
+				break;				
 			}
 			rule_ptr->src_prefix_mask = get_prefix_mask(rule_ptr->src_prefix_size);
 		}
-		else if ( i == 3) {
-				
+		else if (i == 3) { //Check curr_token is <dst ip>/<nps>
+			if (!is_ipv4_subnet_format(curr_token, &(rule_ptr->dst_ip), &(rule_ptr->dst_prefix_size))){
+				break;				
+			}
+			rule_ptr->dst_prefix_mask = get_prefix_mask(rule_ptr->dst_prefix_size);	
 		}
-		else if ( i == 4) {
-				
+		else if (i == 4) { //Checks curr_token is <protocol>
+			if ((rule_ptr->protocol = translate_str_to_protocol(curr_token)) == PROT_ERROR){
+				break;
+			}
 		}
-		else if ( i == 5) {
-				
+		else if ((i == 5) || (i == 6)) { //Check curr_token is <source port> / <dest port>
+			if ((temp_val = translate_str_to_int_port_number(curr_token)) == PORT_ERROR){
+				break;
+			}
+			if (i == 5){
+				rule_ptr->src_port = (__be16)temp_val; // Safe casting since temp_val!=PORT_ERROR
+			} else { // i is 6, update dst_port:
+				rule_ptr->dst_port = (__be16)temp_val;
+			}
 		}
-		else if ( i == 6) {
-				
+		else if (i == 7) { //Check curr_token is <ack>
+			if (!translate_str_to_ack(curr_token, &(rule_ptr->ack))){
+				break;
+			}	
 		}
-		else if ( i == 7) {
-				
+		else { // i == 8, last index that is < NUM_OF_TOKENS_IN_FORMAT. Check curr_token is <action> 
+			if(!translate_str_to_action(curr_token, &(rule_ptr->action))){
+				break;
+			}
 		}
-		else if ( i == 8) {
-				
-		}
-		else { // i == NUM_OF_TOKENS_IN_FORMAT)
-				
-		}
-
+		
+		++i;
 	}
 	
+	if ( i != NUM_OF_TOKENS_IN_FORMAT) { // Means loop was broken - str isn't a valid rule
+		kfree(rule_ptr);
+		return NULL;		
+	}
 	
-	//Makes sure str didn't contain any invalid characters
+	//Makes sure str didn't contain any invalid characters (at its end)
 	curr_token = strsep(&str, " ");
 	if (curr_token != NULL){
-		return false;
+		kfree(rule_ptr);
+		return NULL;
 	}
-	//TODO:: finish this.
+
+	//If gets here, we have a valid rule:
+	ptr_to_all_rules_table[g_num_of_valid_rules] = rule_ptr;
+	++g_num_of_valid_rules;
+	return rule_ptr;
 
 }
 
