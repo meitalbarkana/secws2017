@@ -1,4 +1,5 @@
-obj-m += fw.o
+obj-m += firewall.o
+firewall-objs := main.o rules_utils.o fw.o
 
 all:
 	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
