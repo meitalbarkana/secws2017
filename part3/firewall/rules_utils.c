@@ -19,11 +19,13 @@ static void nullify_str(char* str, size_t start_index, size_t last_index){
  **/
 static bool does_rulename_already_exists(const char* rulename, rule_t** ptr_to_all_rules_table){
 	size_t i = 0;
+	printk(KERN_INFO "******************In does_rulename_already_exists\n");//TODO::DELETE THIS, TEST
 	for (i = 0; i < g_num_of_valid_rules; ++i){
 		if (strncmp(((ptr_to_all_rules_table)[i])->rule_name, rulename, MAX_LEN_OF_NAME_RULE+1) == 0){
 			return true; //rulename already exists
 		}
 	}
+	printk(KERN_INFO "******************In does_rulename_already_exists, returning false :)\n");//TODO::DELETE THIS, TEST
 	return false;
 }
 
@@ -38,6 +40,7 @@ static bool is_rule_name(const char* str){
 		printk(KERN_ERR "function is_rule_name got NULL value\n");
 		return false;
 	}
+	printk(KERN_INFO "******************In is_rule_name, str isnt NULL\n");//TODO::DELETE THIS, TEST
 	return (strnlen(str, MAX_LEN_OF_NAME_RULE+2) <= MAX_LEN_OF_NAME_RULE);
 }
 
@@ -82,19 +85,17 @@ static direction_t translate_str_to_direction(const char* str){
  * 	Returns: true if it is, false otherwise.
  * 	If the string is valid, updates: 1. ipv4value to contain the unsigned-int value of the ip 
  * 									 2. prefixLength to contain the length of the subnet prefix
- * 
- *  Note: str would be changed- so copy it if needed before sending input to this function!
  **/
-static bool is_ipv4_subnet_format(char* str, __be32* ipv4value, __u8* prefixLength){
+static bool is_ipv4_subnet_format(const char* const_str, __be32* ipv4value, __u8* prefixLength){
 	
 	size_t maxFormatLen = MAX_STRLEN_OF_IP_ADDR; //strlen("XXX.XXX.XXX.XXX/YY") = 18
 	size_t minFormatLen = MIN_STRLEN_OF_IP_ADDR; //strlen("X.X.X.X/Y") = 9
-	size_t strLength = strnlen(str, maxFormatLen+2); //Because there's no need to check more chars than that..
+	size_t strLength = strnlen(const_str, maxFormatLen+2); //Because there's no need to check more chars than that..
 	
 	/** These variables are declared here only to avoid warning:"ISO C90 forbids mixed declarations and code"
 	 * (I'd put them after the first "if")**/
-	//Will contain "XXX" or "YY" string:
-	char* currToken; 
+	//currToken will contain "XXX" or "YY" string:
+	char *currToken, *str ,*pStr; 
 	//Will contain the value "XXX" or "YY" represent:
 	unsigned long temp = 0; 
 	//Will contain the relevant multiplicand needed for calculating ip address:
@@ -107,26 +108,37 @@ static bool is_ipv4_subnet_format(char* str, __be32* ipv4value, __u8* prefixLeng
 	*prefixLength = 0;
 	
 	//any IPv4 address <=> 0.0.0.0/0 :
-	if ((strLength == 3) && ((strcmp(str, "any") == 0) || (strcmp(str, "ANY") == 0)) ){
+	if ((strLength == 3) && ((strcmp(const_str, "any") == 0) || (strcmp(const_str, "ANY") == 0)) ){
 		return true;
 	}
 	
 	if ((strLength < minFormatLen) || (strLength > maxFormatLen)){
 		return false;
 	}
-
+	
+	//Creating a copy of const_str:
+	if((str = kmalloc(sizeof(char)*(strLength+1),GFP_KERNEL)) == NULL){
+		printk(KERN_ERR "Failed allocating space for copying IPv4 string\n");
+		return false;
+	}
+	strncpy(str, const_str, strLength+1);
+	pStr = str;
+	
 	for (i = 0; i <= 4; ++i){
 		currToken = strsep(&str, "./");
 		if (currToken == NULL){
+			kfree(pStr);
 			return false;
 		}
 		if (i == 4) { //means we're at the part of the string representing the netmask length 
 			if((strict_strtoul(currToken, 10,&temp) != 0) || (temp > 32)){ //strict_strtoul() returns 0 on success
+				kfree(pStr);
 				return false;
 			}
 			*prefixLength = (__u8)temp;	//Safe casting, since temp <= 32
 		} else { // i is 0/1/2/3
 			if((strict_strtoul(currToken, 10,&temp) != 0) || (temp > 255)){
+				kfree(pStr);
 				return false;
 			}
 			multiplicand = 1 << (8*(3-i));
@@ -137,9 +149,11 @@ static bool is_ipv4_subnet_format(char* str, __be32* ipv4value, __u8* prefixLeng
 	//Makes sure str didn't contain any invalid characters
 	currToken = strsep(&str, "./");
 	if (currToken != NULL){
+		kfree(pStr);
 		return false;
 	}
 	
+	kfree(pStr);
 	return true;
 }
 
@@ -582,27 +596,33 @@ char* get_rule_as_str(rule_t* rule){
  * 		 3. valid str format should be:
  * 		    <rule name> <direction> <src ip>/<nps> <dst ip>/<nps> <protocol> <source port> <dest port> <ack> <action>
  **/
-rule_t* get_rule_from_string(char* str, rule_t** ptr_to_all_rules_table){	
+rule_t* get_rule_from_string(const char* const_str, rule_t** ptr_to_all_rules_table){	
 	
+	char *str, *pStr;
 	size_t i = 0;
 	rule_t* rule_ptr = NULL;
 	char* curr_token = NULL;
 	int temp_val = 0;
 	
-	if ((str == NULL) || (strnlen(str, MAX_STRLEN_OF_RULE_FORMAT+2) > MAX_STRLEN_OF_RULE_FORMAT)){ //to make sure str isn't longer than MAX_STRLEN_OF_RULE_FORMAT
+	if ((const_str == NULL) || (strnlen(const_str, MAX_STRLEN_OF_RULE_FORMAT+2) > MAX_STRLEN_OF_RULE_FORMAT)){ //to make sure str isn't longer than MAX_STRLEN_OF_RULE_FORMAT
 		return NULL;
 	}
 	if ((rule_ptr = kmalloc(sizeof(rule_t),GFP_KERNEL)) == NULL) {
-		printk(KERN_ERR "Failed allocating space for rule_t\n");
 		return NULL;
 	}
 	
+	//Creating a copy of const_str:
+	if((str = kmalloc(sizeof(char)*(strlen(const_str)+1),GFP_KERNEL)) == NULL){
+		kfree(rule_ptr);
+		return NULL;
+	}
+	strncpy(str, const_str, strlen(const_str)+1);
+	pStr = str;
+	
 	while (i < NUM_OF_TOKENS_IN_FORMAT){
-		
 		if ((curr_token = strsep(&str, " ")) == NULL) {
 			break;
 		}
-		
 		if (i == 0) { //Checks curr_token is valid rule-name:
 			if( is_rule_name(curr_token) && (!does_rulename_already_exists(curr_token, ptr_to_all_rules_table)) ){ 
 				update_rule_name(rule_ptr, curr_token); //Updates current rule's name
@@ -657,6 +677,7 @@ rule_t* get_rule_from_string(char* str, rule_t** ptr_to_all_rules_table){
 	}
 	
 	if ( i != NUM_OF_TOKENS_IN_FORMAT) { // Means loop was broken - str isn't a valid rule
+		kfree(pStr);
 		kfree(rule_ptr);
 		return NULL;		
 	}
@@ -664,13 +685,16 @@ rule_t* get_rule_from_string(char* str, rule_t** ptr_to_all_rules_table){
 	//Makes sure str didn't contain any invalid characters (at its end)
 	curr_token = strsep(&str, " ");
 	if (curr_token != NULL){
+		kfree(pStr);
 		kfree(rule_ptr);
 		return NULL;
 	}
 
 	//If gets here, we have a valid rule:
+	kfree(pStr);
 	ptr_to_all_rules_table[g_num_of_valid_rules] = rule_ptr;
 	++g_num_of_valid_rules;
+	printk(KERN_INFO "g_num_of_valid_rules is: %u \n",g_num_of_valid_rules);//TODO::DELETE THIS, TEST
 	return rule_ptr;
 
 }

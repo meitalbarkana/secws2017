@@ -10,7 +10,7 @@ MODULE_AUTHOR("Meital Bar-Kana Swissa");
 
 static int __init my_init_func(void){
 	//Test:
-	char* str;
+	//char* str;
 	rule_t* all_rules_table[MAX_NUM_OF_RULES];
 	all_rules_table[0] = get_rule_from_string("telnet1 out 10.0.1.1/24 any TCP >1023 23 any accept", all_rules_table);
 	

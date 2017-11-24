@@ -43,7 +43,7 @@ char* get_rule_as_str(rule_t* rule);
  * If succedded, returns the pointer to rule_t created,
  * Otherwise - returns NULL
  **/
-rule_t* get_rule_from_string(char* str, rule_t** ptr_to_all_rules_table);
+rule_t* get_rule_from_string(const char* const_str, rule_t** ptr_to_all_rules_table);
 
 
 #endif /* RULES_UTILS_H */
