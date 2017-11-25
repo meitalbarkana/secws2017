@@ -1,10 +1,10 @@
 #include "rules_utils.h"
 
 static size_t g_num_of_valid_rules = 0;
-//static rule_t* g_all_rules_table[MAX_NUM_OF_RULES];
+static rule_t** g_all_rules_table;
 
 /**
- * Gets a string, nullify ('\0') all its characters, starting from start_index upto last_index, including both
+ * Gets a string, nullify ('\0') its characters, starting from start_index upto last_index, including both
  **/
 static void nullify_str(char* str, size_t start_index, size_t last_index){
 	size_t i = 0;
@@ -14,14 +14,14 @@ static void nullify_str(char* str, size_t start_index, size_t last_index){
 }
 
 /**
- * Gets a rulename and pointer to rule-table,
- * Returns true if a rule with name "rulename" already exists.
+ * Gets a rulename,
+ * Returns true if a rule with name "rulename" already exists in g_all_rules_table.
  **/
-static bool does_rulename_already_exists(const char* rulename, rule_t** ptr_to_all_rules_table){
+static bool does_rulename_already_exists(const char* rulename){
 	size_t i = 0;
 	printk(KERN_INFO "******************In does_rulename_already_exists\n");//TODO::DELETE THIS, TEST
 	for (i = 0; i < g_num_of_valid_rules; ++i){
-		if (strncmp(((ptr_to_all_rules_table)[i])->rule_name, rulename, MAX_LEN_OF_NAME_RULE+1) == 0){
+		if (strncmp(((g_all_rules_table)[i])->rule_name, rulename, MAX_LEN_OF_NAME_RULE+1) == 0){
 			return true; //rulename already exists
 		}
 	}
@@ -508,7 +508,7 @@ static void free_unnecessary_strs( char* str,char* ip_dst_str,char* ip_src_str, 
 /**
  * Returns a representation of a rule as a string on success,
  * NULL if failed,
- * NOTE: user should free memory allocated (for str) in it.
+ * NOTE: user should free memory allocated (for char* returned) in it.
  **/
 char* get_rule_as_str(rule_t* rule){
 	
@@ -584,10 +584,10 @@ char* get_rule_as_str(rule_t* rule){
 }
 
 /**
- *	Gets a string that supposed to represent a proper rule,
- * 	and a pointer to the table containing all rules so far
+ *	Gets a string that supposed to represent a proper rule
  *
- *  Creates a rule according to str, inserts it to the rule table and updates g_num_of_valid_rules.
+ *  If g_num_of_valid_rules<MAX_NUM_OF_RULES,
+ *  creates a rule according to str, inserts it to the rule table (g_all_rules_table) and updates g_num_of_valid_rules.
  * 	If succedded, returns the pointer to rule_t created & allocated & inserted to the rule table
  *	Otherwise - returns NULL
  * 	
@@ -596,7 +596,7 @@ char* get_rule_as_str(rule_t* rule){
  * 		 3. valid str format should be:
  * 		    <rule name> <direction> <src ip>/<nps> <dst ip>/<nps> <protocol> <source port> <dest port> <ack> <action>
  **/
-rule_t* get_rule_from_string(const char* const_str, rule_t** ptr_to_all_rules_table){	
+rule_t* get_rule_from_string(const char* const_str){
 	
 	char *str, *pStr;
 	size_t i = 0;
@@ -604,7 +604,8 @@ rule_t* get_rule_from_string(const char* const_str, rule_t** ptr_to_all_rules_ta
 	char* curr_token = NULL;
 	int temp_val = 0;
 	
-	if ((const_str == NULL) || (strnlen(const_str, MAX_STRLEN_OF_RULE_FORMAT+2) > MAX_STRLEN_OF_RULE_FORMAT)){ //to make sure str isn't longer than MAX_STRLEN_OF_RULE_FORMAT
+	if ((g_num_of_valid_rules >= MAX_NUM_OF_RULES) || (const_str == NULL) ||
+		(strnlen(const_str, MAX_STRLEN_OF_RULE_FORMAT+2) > MAX_STRLEN_OF_RULE_FORMAT)){ //To make sure there aren't too much rules & that str isn't longer than MAX_STRLEN_OF_RULE_FORMAT
 		return NULL;
 	}
 	if ((rule_ptr = kmalloc(sizeof(rule_t),GFP_KERNEL)) == NULL) {
@@ -624,7 +625,7 @@ rule_t* get_rule_from_string(const char* const_str, rule_t** ptr_to_all_rules_ta
 			break;
 		}
 		if (i == 0) { //Checks curr_token is valid rule-name:
-			if( is_rule_name(curr_token) && (!does_rulename_already_exists(curr_token, ptr_to_all_rules_table)) ){ 
+			if( is_rule_name(curr_token) && (!does_rulename_already_exists(curr_token)) ){ 
 				update_rule_name(rule_ptr, curr_token); //Updates current rule's name
 			} else { //not a valid rule name
 				break;
@@ -692,11 +693,33 @@ rule_t* get_rule_from_string(const char* const_str, rule_t** ptr_to_all_rules_ta
 
 	//If gets here, we have a valid rule:
 	kfree(pStr);
-	ptr_to_all_rules_table[g_num_of_valid_rules] = rule_ptr;
+	g_all_rules_table[g_num_of_valid_rules] = rule_ptr;
 	++g_num_of_valid_rules;
 	printk(KERN_INFO "g_num_of_valid_rules is: %u \n",g_num_of_valid_rules);//TODO::DELETE THIS, TEST
 	return rule_ptr;
 
+}
+
+/**
+ * 	Initiates (allocates space for)  g_all_rules_table, returns true on success
+ **/
+static bool init_rules_table(){
+	if ((g_all_rules_table = kmalloc(sizeof(rule_t*)*MAX_NUM_OF_RULES, GFP_KERNEL)) == NULL) {
+		return false;
+	}
+	return true;
+}
+
+/**
+ * Frees all memory allocated for g_all_rules_table 
+ **/
+static void destroy_rule_table(){
+	size_t i = 0;
+	for (i = 0; i < g_num_of_valid_rules; i++){
+		kfree(g_all_rules_table[i]);//TODO:: check if * needed??
+	}
+	g_num_of_valid_rules = 0;
+	kree(g_all_rules_table);
 }
 
 
