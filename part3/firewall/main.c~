@@ -13,7 +13,7 @@ static int __init my_init_func(void){
 	char* str;
 	rule_t* all_rules_table[MAX_NUM_OF_RULES];
 	all_rules_table[0] = get_rule_from_string("telnet1 outofthewoods 10.0.1.1/12 ANY TCP 177 23 any ACCEPT", all_rules_table);
-	//all_rules_table[1] = get_rule_from_string("telnet2 in 11.0.1.1/12 11.0.1.1/12 TCP 177 23 any ACCEPT", all_rules_table);
+	all_rules_table[1] = get_rule_from_string("telnet2 in 11.0.1.1/12 11.0.1.1/12 TCP 177 23 any ACCEPT", all_rules_table);
 	
 	if (all_rules_table[0] != NULL){
 		printk(KERN_INFO "**********Rule created successfully!\n");
@@ -30,7 +30,7 @@ static int __init my_init_func(void){
 		printk(KERN_INFO "________________Creating rule failed!\n");
 	}
 	
-	/**if (all_rules_table[1] != NULL){
+	if (all_rules_table[1] != NULL){
 		printk(KERN_INFO "**********Rule created successfully!\n");
 		str = get_rule_as_str(all_rules_table[1]);
 		if (str != NULL){
@@ -43,7 +43,7 @@ static int __init my_init_func(void){
 		kfree(all_rules_table[1]);
 	} else {
 		printk(KERN_INFO "________________Creating rule2 failed!\n");
-	}**/
+	}
 	//END OF Test
 	
 	

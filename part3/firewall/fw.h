@@ -20,7 +20,6 @@ typedef enum {
 	PROT_UDP	= 17,
 	PROT_OTHER 	= 255,
 	PROT_ANY	= 143,
-	PROT_ERROR
 } prot_t;
 
 
@@ -65,7 +64,6 @@ typedef enum {
 	DIRECTION_IN 	= 0x01,
 	DIRECTION_OUT 	= 0x02,
 	DIRECTION_ANY 	= DIRECTION_IN | DIRECTION_OUT,
-	DIRECTION_ERROR
 } direction_t;
 
 // rule base
