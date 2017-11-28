@@ -23,6 +23,7 @@
 #define MAX_STRLEN_OF_RULE_FORMAT (NUM_OF_SPACES_IN_FORMAT+(MAX_LEN_RULE_NAME-1)+ 4*MAX_STRLEN_OF_BE32 + 2*MAX_STRLEN_OF_BE16 + 4*MAX_STRLEN_OF_U8)
 //MAX_STRLEN_OF_RULE_FORMAT doesn't count the null-terminator and the '\n'.
 
+#define MAX_LEN_ALL_RULES_BUFF ((MAX_NUM_OF_RULES*MAX_STRLEN_OF_RULE_FORMAT) + MAX_NUM_OF_RULES)
 /*******************************/
 
 #define FW_ON 1

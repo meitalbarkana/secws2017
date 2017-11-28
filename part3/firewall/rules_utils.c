@@ -394,4 +394,26 @@ static bool is_valid_rule(const char* rule_str){
  */
 static ssize_t dev_write(struct file* filp, const char* buffer, size_t len, loff_t *offset){
 	
+	size_t buff_len;
+	ssize_t written_bytes = 0;
+	char *buff_copy, *ptr_buff_copy, *rule_token; 
+	
+	//Basic input checks:
+	if ((buffer == NULL) || (len == 0) || (len > MAX_LEN_ALL_RULES_BUFF)
+		|| ( (buff_len = strnlen(buffer, MAX_LEN_ALL_RULES_BUFF+2)) > MAX_LEN_ALL_RULES_BUFF ) ) 
+	{
+		return -1;
+	}
+	//Case user wanted to clean rule-table:
+	if ((len == 1) && buffer[0]==CLEAR_RULES){
+		g_num_of_valid_rules = 0;
+		return len;
+	} 
+	
+	if((buff_copy = kmalloc(sizeof(char)*(buff_len+1),GFP_KERNEL)) == NULL){
+		printk(KERN_ERR "Failed allocating space for copying all-rules string\n");
+		return -1;
+	}
+	
+	
 }
