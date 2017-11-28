@@ -159,7 +159,7 @@ static bool is_rule_name(const char* str){
 static bool does_rulename_already_exists(const char* rulename){
 	size_t i = 0;
 	for (i = 0; i < g_num_of_valid_rules; ++i){
-		if (strncmp(((g_all_rules_table)[i]).rule_name, rulename, MAX_LEN_OF_NAME_RULE+1) == 0){
+		if (strncmp(((g_all_rules_table)[i]).rule_name, rulename, MAX_LEN_RULE_NAME) == 0){ 
 			return true; //rulename already exists
 		}
 	}
@@ -294,17 +294,7 @@ static bool is_valid_action(unsigned char num, rule_t* rule){
 	return false; //not a valid action
 }
 
-/**
- * @rule - pointer to initialized rule_t that we check if 
- * 		   can indeed represent reasonable rule.
- * 
- * Returns true if it is.
- **/
-static bool is_valid_rule_logic(rule_t* rule){
-	//TODO:: add check that if it's not TCP, rule ACK is any
-	//		probably more checks: direction and stuff
-	return true;
-}
+
 
 /**
  * Checks if rule is valid, if it does adds it to g_all_rules_table.
@@ -342,7 +332,6 @@ static bool is_valid_rule(const char* rule_str){
 	int	t_ack;
 	__u8	t_action;
 
-
 #ifdef DEBUG_MODE
 	printk(KERN_INFO "In function is_valid_rule, testing rule number: %huu\n",g_num_of_valid_rules);
 #endif
@@ -364,7 +353,6 @@ static bool is_valid_rule(const char* rule_str){
 		return false;
 	}
 	
-	
 	if( (!is_valid_rule_name(t_rule_name, rule)) ||
 		(!is_valid_direction(t_direction, rule)) ||
 		(!is_valid_mask_prefix_size(t_src_prefix_len, rule, SRC)) ||
@@ -376,13 +364,34 @@ static bool is_valid_rule(const char* rule_str){
 		return false;
 	}
 	
-	
-	if (!is_valid_rule_logic(rule)){
-		printk(KERN_ERR "Rule has no reasonable logic. It wasn't added to g_all_rules_table.\n");
-		return false;
-	}
-	
 	//If gets here, rule_str was valid & added to g_all_rules_table[g_num_of_valid_rules]
 	++g_num_of_valid_rules;
+	
+#ifdef DEBUG_MODE
+	printk(KERN_INFO "In function is_valid_rule, done testing a VALID rule. Total valid rules so far: %huu, \n",g_num_of_valid_rules);
+#endif	
+
 	return true;
+}
+
+/** 
+ * 	This function will be called whenever the device is being written to (from user space) -
+ *  meaning that data is sent to the device from the user.
+ *  
+ *	@filp - a pointer to a file object (here it's not relevant)
+ *  @buffer - the buffer that contains the string user wants to write to the device
+ *  @len - the length of buffer
+ *  @offset - the offset if required (here it's not relevant)
+ * 
+ * 	NOTE:	1. if user sends 1 as len & buffer[0] = CLEAR_RULES,
+ * 				it means he wants to clear rules-table.
+ * 			2. otherwise, we treat buffer as a "list" of rules, in format:
+ *	<rule name> <direction> <src ip> <src prefix length> <dst ip> <dst prefix length> <protocol> <source port> <dest port> <ack> <action>'\n'			
+ * 	<rule name> <direction> <src ip> <src prefix length> <dst ip> <dst prefix length> <protocol> <source port> <dest port> <ack> <action>'\n'..
+ * 
+ * 	Returns: number of bytes from buffer that have been "written" in our device,
+ * 			negative number if failed.
+ */
+static ssize_t dev_write(struct file* filp, const char* buffer, size_t len, loff_t *offset){
+	
 }

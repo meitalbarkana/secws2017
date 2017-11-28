@@ -25,18 +25,13 @@
 
 /*******************************/
 
-
-
-
-
-
 #define FW_ON 1
 #define FW_OFF 0
 
-
+#define CLEAR_RULES '0'
 enum src_or_dst_t {
 	SRC,
 	DST
-}
+};
 
 #endif /* RULES_UTILS_H */
