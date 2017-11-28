@@ -17,6 +17,21 @@
 #define FW_ON 1
 #define FW_OFF 0
 
+ /** Constants for formatting rule data send by / to user**/
+/** NBR_xxx stands for Number of Bytes for Rule field xxx **/
+#define NBR_NAME (20)			// names will be no longer than 20 chars(includes null-terminator) = 20 bytes
+#define	NBR_DIRECTION (32)		// sizeof(direction_t)
+#define	NBR_SRC_IP (32)			// sizeof(__be32)
+#define	NBR_SRC_PREFIX_SIZE (8)	// sizeof(__u8)
+#define	NBR_DST_IP (32)			// sizeof(__be32)
+#define	NBR_DST_PREFIX_SIZE (8)	// sizeof(__u8)
+#define	NBR_SRC_PORT (16)		// sizeof(__be16)  
+#define	NBR_DST_PORT (16)		// sizeof(__be16)
+#define	NBR_PROTOCOL (8)		// sizeof(__u8)
+#define	NBR_ACK	(32)			// sizeof(ack_t)
+#define	NBR_ACTION (8) 			// sizeof(__u8)
+#define NBR_FULL_RULE (NBR_NAME+NBR_DIRECTION+NBR_SRC_IP+NBR_SRC_PREFIX_SIZE+NBR_DST_IP+NBR_DST_PREFIX_SIZE+NBR_SRC_PORT+NBR_DST_PORT+NBR_PROTOCOL+NBR_ACK+NBR_ACTION)
+
 enum src_or_dst_t {
 	SRC,
 	DST

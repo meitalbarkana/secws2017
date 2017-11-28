@@ -192,7 +192,7 @@ static bool is_valid_rule_name(const char* rulename, rule_t* rule){
  **/
 static bool is_valid_direction(int num, rule_t* rule){
 	if( (num == DIRECTION_IN) || (num == DIRECTION_OUT) || (num == DIRECTION_ANY) ){ 
-		rule->direction = (direction_t)num; //Safe casting
+		rule->direction = (direction_t)(num); //Safe casting
 		return true;
 	} 
 	return false; //not a valid direction
@@ -238,7 +238,7 @@ static bool is_valid_mask_prefix_size(unsigned char num, rule_t* rule, enum src_
 		}
 		return true;
 	} 
-	return false; //not a valid direction
+	return false; //not a valid mask-prefix-size
 }
 
 /**
@@ -270,7 +270,7 @@ static bool is_valid_ack(int num, rule_t* rule){
 		rule->ack = (ack_t)num; //Safe casting
 		return true;
 	} 
-	return false; //not a valid protocol
+	return false; //not a valid ack
 }
 
 /**
@@ -290,9 +290,85 @@ static bool is_valid_action(unsigned char num, rule_t* rule){
 }
 
 /**
- * @ruleStr -
- * Returns true if 
+ * @rule - pointer to initialized rule_t that we check if 
+ * 		   can indeed represent reasonable rule.
+ * 
+ * Returns true if it is.
  **/
-static bool is_valid_rule(const char* ruleStr){
-	//TODO:: 
+static bool is_valid_rule_logic(rule_t* rule){
+	//TODO:: add check that if it's not TCP, rule ACK is any
+	//		probably more checks: direction and stuff
+	return true;
+}
+
+/**
+ * Checks if rule is valid, if it does adds it to g_all_rules_table.
+ * 
+ * @rule_buff - buffer of characters representing ONE rule
+ * 
+ * valid rule format would be exactly:
+ * 		NBR_NAME (20) Bytes for rule-name, padded with '\0' (name's length < NBR_NAME)
+ *		NBR_DIRECTION (32) Bytes for direction
+ * 		NBR_SRC_IP (32)	Bytes for source ip
+ * 		NBR_SRC_PREFIX_SIZE (8)	Bytes for length of source mask-prefix
+ * 		NBR_DST_IP (32)	Bytes for destination ip
+ * 		NBR_DST_PREFIX_SIZE (8)	Bytes for length of destination mask-prefix
+ * 		NBR_SRC_PORT (16) Bytes for	source port number
+ * 		NBR_DST_PORT (16) Bytes for	destination port number
+ * 		NBR_PROTOCOL (8) Bytes for protocol number
+ * 		NBR_ACK	(32) Bytes for ack value
+ *		NBR_ACTION (8) Bytes for action value
+ * 		Meaning: a valid rule has exactly NBR_FULL_RULE (212) Bytes in it. 
+ * 
+ * NOTE: 1.	function would check exactly NBR_FULL_RULE of rule_buff 
+ *			while trying to translate it to a valid rule.
+ * 		 2. function updates g_all_rules_table[g_num_of_valid_rules]
+ * 			to contain this (if valid) rule
+ * 		 3. function updates (if valid rule) g_num_of_valid_rules
+ * 
+ * Returns true on success. 
+ **/
+static bool is_valid_rule(const char* rule_buff){
+	
+	size_t rb_offset = 0;
+	rule_t* rule = &(g_all_rules_table[g_num_of_valid_rules]);
+
+#ifdef DEBUG_MODE
+	printk(KERN_INFO "In function is_valid_rule, testing rule number: %huu\n",g_num_of_valid_rules);
+#endif
+	
+	if (!is_valid_rule_name(rule_buff, rule)){
+		return false;
+	}
+	rb_offset += NBR_NAME;
+	
+	if (!is_valid_direction((int)rule_buff[rb_offset], rule)){
+		return false;
+	}
+	rb_offset += NBR_DIRECTION;
+	
+	rule->src_ip =  (__be32)rule_buff[rb_offset]; //Since any 4 bytes represent a valid IPv4 address
+	rb_offset += NBR_SRC_IP;
+	
+	if (!is_valid_mask_prefix_size((__u8)rule_buff[rb_offset], rule, SRC)){
+		return false;
+	}
+	rb_offset += NBR_SRC_PREFIX_SIZE;
+	
+	rule->dst_ip =  (__be32)rule_buff[rb_offset]; //Since any 4 bytes represent a valid IPv4 address
+	rb_offset += NBR_DST_IP;
+	
+	if (!is_valid_mask_prefix_size((__u8)rule_buff[rb_offset], rule, DST)){
+		return false;
+	}
+	rb_offset += NBR_DST_PREFIX_SIZE;	
+
+	
+	//TODO:: continue, add from src_port including
+	
+	
+	if (!is_valid_rule_logic(rule)){
+		printk(KERN_ERR "Rule has no reasonable logic. It wasn't added to g_all_rules_table.\n");
+		return false;
+	}
 }

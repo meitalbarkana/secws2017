@@ -6,12 +6,20 @@
 #include <linux/slab.h> //For kmalloc
 #include <linux/device.h>
 #include <linux/fs.h>
-#include <linux/netfilter.h> //For ipv6 packets?
+#include <linux/netfilter.h> //For ipv6 packets
 #include <linux/netfilter_ipv4.h>
 #include <linux/ip.h>
 #include <linux/tcp.h>
 #include <linux/udp.h>
 #include <linux/types.h> //For bool type
+
+
+/**
+ * If DEBUG_MODE is defined, code will print debug messages to KERN_INFO
+ **/
+#define DEBUG_MODE (1) //For debug-printing 
+
+
 
 // the protocols we will work with
 typedef enum {
