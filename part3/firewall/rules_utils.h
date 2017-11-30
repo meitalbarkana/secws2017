@@ -24,12 +24,15 @@
 //MAX_STRLEN_OF_RULE_FORMAT doesn't count the null-terminator and the '\n'.
 
 #define MAX_LEN_ALL_RULES_BUFF ((MAX_NUM_OF_RULES*MAX_STRLEN_OF_RULE_FORMAT) + MAX_NUM_OF_RULES)
+//MAX_LEN_ALL_RULES_BUFF doesn't count the '\0'
 /*******************************/
 
 #define FW_ON 1
 #define FW_OFF 0
 
 #define CLEAR_RULES '0'
+#define DELIMETER_STR "\n"
+
 enum src_or_dst_t {
 	SRC,
 	DST

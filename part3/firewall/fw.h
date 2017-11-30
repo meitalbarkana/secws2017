@@ -12,7 +12,7 @@
 #include <linux/tcp.h>
 #include <linux/udp.h>
 #include <linux/types.h> //For bool type
-
+#include <linux/uaccess.h> //For allowing user-space access
 
 /**
  * If DEBUG_MODE is defined, code will print debug messages to KERN_INFO

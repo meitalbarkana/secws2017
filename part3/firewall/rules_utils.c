@@ -1,9 +1,36 @@
 #include "rules_utils.h"
 
+/** 	
+ * Used: http://derekmolloy.ie/writing-a-linux-kernel-module-part-2-a-character-device/
+ * as a reference.
+ **/
+
 static unsigned char g_num_of_valid_rules = 0;
 static rule_t g_all_rules_table[MAX_NUM_OF_RULES];
 static unsigned char g_fw_is_active = FW_OFF;
+
+//TODO:: take care of all makefile errors :(
+
+// The prototype functions for the character driver -- must come before the struct definition
+//static int dev_open(struct inode *, struct file *); //TODO::
+//static int dev_release(struct inode *, struct file *); //TODO::
+static ssize_t dev_read(struct file *filp, char *buffer, size_t len, loff_t *offset);
+static ssize_t dev_write(struct file* filp, const char* buffer, size_t len, loff_t *offset){
  
+/**
+ * 	Devices are represented as file structure in the kernel. The file_operations structure from
+ *  /linux/fs.h lists the callback functions that you wish to associated with your file operations
+ *  using a C99 syntax structure. char devices usually implement open, read, write and release calls
+ */
+static struct file_operations fops = {
+	.owner = THIS_MODULE,
+	//.open = dev_open,
+	.read = dev_read,
+	.write = dev_write,
+	//.release = dev_release
+};
+
+
 //For tests alone! prints rule to kernel
 /**
 static void print_rule(rule_t* rulePtr){
@@ -339,7 +366,7 @@ static bool is_valid_rule(const char* rule_str){
 	//Makea sure there aren't too much rules & that rule_str isn't longer than MAX_STRLEN_OF_RULE_FORMAT
 	if ((g_num_of_valid_rules >= MAX_NUM_OF_RULES) || (rule_str == NULL) ||
 		(strnlen(rule_str, MAX_STRLEN_OF_RULE_FORMAT+2) > MAX_STRLEN_OF_RULE_FORMAT)){ 
-		printk(KERN_ERR "Rule format is invalid: too long.\n");
+		printk(KERN_ERR "Rule format is invalid: too long or NULL accepted.\n");
 		return false;
 	}
 	
@@ -380,17 +407,17 @@ static bool is_valid_rule(const char* rule_str){
  *  
  *	@filp - a pointer to a file object (here it's not relevant)
  *  @buffer - the buffer that contains the string user wants to write to the device
- *  @len - the length of buffer
+ *  @len - the length of buffer (not includes '\0')
  *  @offset - the offset if required (here it's not relevant)
  * 
  * 	NOTE:	1. if user sends 1 as len & buffer[0] = CLEAR_RULES,
  * 				it means he wants to clear rules-table.
  * 			2. otherwise, we treat buffer as a "list" of rules, in format:
  *	<rule name> <direction> <src ip> <src prefix length> <dst ip> <dst prefix length> <protocol> <source port> <dest port> <ack> <action>'\n'			
- * 	<rule name> <direction> <src ip> <src prefix length> <dst ip> <dst prefix length> <protocol> <source port> <dest port> <ack> <action>'\n'..
+ * 	<rule name> <direction> <src ip> <src prefix length> <dst ip> <dst prefix length> <protocol> <source port> <dest port> <ack> <action>'\n'...
  * 
  * 	Returns: number of bytes from buffer that have been "written" in our device,
- * 			negative number if failed.
+ * 			 negative number if failed (zero if no rule was added)
  */
 static ssize_t dev_write(struct file* filp, const char* buffer, size_t len, loff_t *offset){
 	
@@ -410,10 +437,120 @@ static ssize_t dev_write(struct file* filp, const char* buffer, size_t len, loff
 		return len;
 	} 
 	
+	/*Create a copy of buffer (because it's const):*/
 	if((buff_copy = kmalloc(sizeof(char)*(buff_len+1),GFP_KERNEL)) == NULL){
 		printk(KERN_ERR "Failed allocating space for copying all-rules string\n");
 		return -1;
 	}
+	//buffer is guaranteed to have '\0' at its end, from passing basic input check:
+	strncpy(buff_copy, buffer, MAX_LEN_ALL_RULES_BUFF+1); 
+	//Saving a ptr so we can free it later (strsep "ruins" buff_copy)
+	ptr_buff_copy = buff_copy; 
 	
+	while ( ((rule_token = strsep(&buff_copy, DELIMETER_STR)) != NULL) 
+			&& (g_num_of_valid_rules < MAX_NUM_OF_RULES) ) 
+	{
+		if(is_valid_rule(rule_token)){
+			written_bytes += strnlen(rule_token, MAX_STRLEN_OF_RULE_FORMAT+2);
+		}
+	}
+	
+	return written_bytes;
 	
 }
+
+
+/**
+ * A helper function to dev_read: writes rulePrt representation
+ * as string into buffer, using copy_to_user, in format:
+ * <rule name> <direction> <src ip> <src prefix length> <dst ip> <dst prefix length> <protocol> <source port> <dest port> <ack> <action>'\n'
+ * 
+ * @rulePtr - pointer to rule to be "printed" into buffer
+ * @buffer
+ * 
+ * Returns - on success: number of bytes written (sent) to buffer,
+ * 			 on failure: -EFAULT if copy_to_user failed,
+ * 						 -1 if other failure happened
+ **/
+static int send_str_rule_to_buffer(rule_t* rulePtr, char* buffer){
+	
+	size_t str_len = 0;
+	char str[MAX_STRLEN_OF_RULE_FORMAT+2]; //+2: for '\n' and '\0' 
+	
+	if (rulePtr == NULL){
+		printk(KERN_ERR "add_str_rule_to_buffer got NULL value\n");
+		return -1;
+	}
+	
+	if ((sprintf(str,
+				"%s %d %u %hhu: %u %hhu %hu %hu %hhu %d %hhu\n",
+				rulePtr->rule_name,
+				rulePtr->direction,
+				rulePtr->src_ip,
+				rulePtr->src_prefix_size,
+				rulePtr->dst_ip,
+				rulePtr->dst_prefix_size,
+				rulePtr->src_port,
+				rulePtr->dst_port,
+				rulePtr->protocol,
+				rulePtr->ack,
+				rulePtr->action)
+		) < NUM_OF_FIELDS_IN_RULE_T)
+	{
+		printk(KERN_ERR "Error formatting rule to its string representation\n"); //Should never get here..
+		return -1;
+	} 
+	
+	// copy_to_user has the format ( * to, *from, size) and returns 0 on success
+	if ( copy_to_user(buffer, str, strnlen(str,MAX_STRLEN_OF_RULE_FORMAT+2)) != 0 ) {
+		printk(KERN_INFO "Function copy_to_user failed - writing rule to user's buffer failed\n");
+		return -EFAULT; //Return a bad address message
+	}
+	
+#ifdef DEBUG_MODE
+	printk(KERN_INFO "In function add_str_rule_to_buffer, done adding it:\n%s\n",str);
+#endif	
+	
+	return strnlen(str,MAX_STRLEN_OF_RULE_FORMAT+2);
+	
+}
+
+
+/** 
+ * 	This function is called whenever device is being read from user space i.e. data is
+ *  being sent from the device to the user. 
+ * 	We use copy_to_user() function to copy rules (in their string format)
+ * 	to buffer.
+ * 
+ *  @filp - a pointer to a file object (here it's not relevant)
+ *  @buffer - pointer to the buffer to which this function will write the data
+ *  @len - length of the buffer, excluding '\0'. 
+ *  @offset - the offset if required (here it's not relevant)
+ * 
+ * Note: if len isn't enough for all rules,
+ * 		 buffer will be filled with as many rules as send_str_rule_to_buffer will succeed.
+ * 		 User should allocate enough space for all rules and check he got all of them.
+ */
+static ssize_t dev_read(struct file *filp, char *buffer, size_t len, loff_t *offset){
+	
+	int temp = 0;
+	size_t i = 0;
+	ssize_t bytes_read = 0;
+	
+	while ( (i < g_num_of_valid_rules) && (bytes_read < len) ) {
+		temp = send_str_rule_to_buffer(&(g_all_rules_table[i]), buffer+bytes_read );
+		if (temp <= 0){ //copy_to_user failed/other error: stop trying to copy all other rules
+			break;
+		}
+		bytes_read += temp;
+		++i;
+	}
+	
+	if (bytes_read == 0 && temp < 0){ //No rules were written at all because of an error 
+		return -1;
+	}
+	
+	return bytes_read;
+	
+}
+
