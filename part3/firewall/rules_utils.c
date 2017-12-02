@@ -614,9 +614,6 @@ static int rfw_dev_release(struct inode *inodep, struct file *fp){
 }
 
 
-
-
-
 /*** FUNCTIONS FOR TESTING IF RULE IS RELEVANT TO PACKET ***/
 
 /**
@@ -680,6 +677,7 @@ static bool is_relevant_protocol(prot_t rule_protocol, __u8 packet_protocol){
  *	@ptr_tcp_hdr - pointer to a struct tcphdr
  * 
  *	Note: the return value is strongly based on how we defined ack_t values!
+ *		  accessing specific bits through struct fields is endian-safe.
  **/
 static bool is_relevant_ack(ack_t rule_ack, struct tcphdr* ptr_tcp_hdr){
 	
@@ -691,27 +689,54 @@ static bool is_relevant_ack(ack_t rule_ack, struct tcphdr* ptr_tcp_hdr){
 }
 
 /**
- * 	Checks if a given packet is XMAS packet.
+ * 	DEPRECATED since the hook that checks rule-table checks only IPv4 packets. 
+ *  Returns true if a given packet is an IPv4 packet.
  *	
- *	@skb - pointer to struct sk_buff that represents current IPv4 packet
+ *	@skb - pointer to struct sk_buff that represents the packet
+ *	
+ *	struct sk_buff->protocol values are from: 
+ *	https://elixir.free-electrons.com/linux/v4.3/source/include/uapi/linux/if_ether.h#L46
+ * (under: Ethernet Protocol ID's)
+ *	here we're only interested in IPv4 value.
+ **/
+/**
+bool is_ipv4_packet(struct sk_buff* skb){
+	if (skb && (skb->protocol == ETH_P_IP)){
+		return true;
+	}
+	return false;
+}
+**/
+
+/**
+ * 	Checks if a given IPv4 packet is XMAS packet.
+ *	
+ *	@skb - pointer to struct sk_buff that represents current packet
  *	
  *	Returns true if it represent a Christmas Tree Packet
  *	(TCP packet with PSH, URG, FIN flags on)
+ * 
+ *	struct iphdr->protocol values are from: 
+ *	http://elixir.free-electrons.com/linux/latest/source/include/uapi/linux/in.h#L37
+ *	here we're only interested in values that appear in enum prot_t. 
  **/
 bool is_XMAS(struct sk_buff* skb){
 	
 	struct iphdr* ptr_ipv4_hdr; //pointer to ipv4 header
 	struct tcphdr* ptr_tcp_hdr; //pointer to tcp header
+	__u8 ip_h_protocol = 0;
 	
 	if (skb){ 
 		ptr_ipv4_hdr = ip_hdr(skb);
 		if(ptr_ipv4_hdr){
-			if (ptr_ipv4_hdr->protocol == PROT_TCP) {
+			ip_h_protocol = ptr_ipv4_hdr->protocol; //Network order!
+			if (ntohs(ip_h_protocol) == PROT_TCP) {	//Checks in local endianness
 				ptr_tcp_hdr = (struct tcphdr*)((char*)ptr_ipv4_hdr + (ptr_ipv4_hdr->ihl * 4));
 				if ( ptr_tcp_hdr && (ptr_tcp_hdr->psh == 1) && (ptr_tcp_hdr->urg == 1)
-					&& (ptr_tcp_hdr->fin == 1) ){
+					&& (ptr_tcp_hdr->fin == 1) ) //accessing specific bits through struct fields is endian-safe.
+				{
 						return true;
-					}
+				}
 			}
 		}
 	}
