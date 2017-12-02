@@ -235,10 +235,10 @@ static bool is_valid_direction(int num, rule_t* rule){
 static __be32 get_prefix_mask(unsigned char prefix_length){
 	//0xffffffff = 11111111 11111111 11111111 11111111
 	__be32 temp = 0xffffffff;
-	if (prefix_length == 32){
+	if (prefix_length == 32){//Since right shifting of width of type (=32) is undefined behavior
 		return temp;
 	}
-	temp = temp >> (32-prefix_length); // For example: if prefix = 3, temp will contain: 00011111 11111111 11111111 11111111
+	temp = temp >> prefix_length; // For example: if prefix = 3, temp will contain: 00011111 11111111 11111111 11111111
 	temp = temp ^ 0xffffffff; // XORing with 11...11 so that, in our example, temp =  11100000 00000000 00000000 00000000
 	
 	return temp;
@@ -636,10 +636,27 @@ static int rfw_dev_release(struct inode *inodep, struct file *fp){
  * 
  */
 
-/*
+/**
+ *	Checks if given packet_direction is relevant to rule_direction
+ *	Returns true is it is.
+ **/
 static bool is_relevant_direction(direction_t rule_direction, direction_t packet_direction){
 	return ( (rule_direction == packet_direction) || 
 			(rule_direction == DIRECTION_ANY) || 
-			(packet_direction == DIRECTION_ANY) ); //Not sure about testing packet's direction - since it supposed to be final(?) TODO::
+			(packet_direction == DIRECTION_ANY) ); //TODO::check about this line - since packet_direction supposed to be final(??)
 }
-*/
+
+/**
+ *	Checks if given packet_ip is relevant
+ * 	according to rule_ip & rule_prefix_mask,
+ * 
+ *	Returns true is it is.
+ * 	
+ * 	@rule_ip - rule's ip in LOCAL endianness
+ * 	@rule_prefix_mask
+ * 	@packet_ip - packet's ip in LOCAL endianness
+ **/
+/*static bool is_relevant_ip(__be32 rule_ip, __be32 rule_prefix_mask, __be32 packet_ip){
+	return ( (rule_prefix_mask == 0) ||
+			
+}*/
