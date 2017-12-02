@@ -8,26 +8,27 @@
 static unsigned char g_num_of_valid_rules = 0;
 static rule_t g_all_rules_table[MAX_NUM_OF_RULES];
 static unsigned char g_fw_is_active = FW_OFF;
+static int g_usage_counter = 0;
+static unsigned char g_num_rules_have_been_read = 0;
 
-//TODO:: take care of all makefile errors :(
-
-// The prototype functions for the character driver -- must come before the struct definition
-//static int dev_open(struct inode *, struct file *); //TODO::
-//static int dev_release(struct inode *, struct file *); //TODO::
-static ssize_t dev_read(struct file *filp, char *buffer, size_t len, loff_t *offset);
-static ssize_t dev_write(struct file* filp, const char* buffer, size_t len, loff_t *offset){
+// Prototype functions declarations for the character driver - must come before the struct definition
+static ssize_t rfw_dev_read(struct file *filp, char *buffer, size_t len, loff_t *offset);
+static ssize_t rfw_dev_write(struct file* filp, const char* buffer, size_t len, loff_t *offset);
+static int rfw_dev_open(struct inode *inodep, struct file *fp);
+static int rfw_dev_release(struct inode *inodep, struct file *fp);
  
 /**
- * 	Devices are represented as file structure in the kernel. The file_operations structure from
- *  /linux/fs.h lists the callback functions that you wish to associated with your file operations
- *  using a C99 syntax structure. char devices usually implement open, read, write and release calls
+ * 	Devices are represented as file structure in the kernel.
+ *  The file_operations structure from /linux/fs.h lists the callback
+ *  functions that we wish to associate with our file operations
+ *  using a C99 syntax structure.
  */
 static struct file_operations fops = {
 	.owner = THIS_MODULE,
-	//.open = dev_open,
-	.read = dev_read,
-	.write = dev_write,
-	//.release = dev_release
+	.open = rfw_dev_open,
+	.read = rfw_dev_read,
+	.write = rfw_dev_write,
+	.release = rfw_dev_release
 };
 
 
@@ -419,7 +420,7 @@ static bool is_valid_rule(const char* rule_str){
  * 	Returns: number of bytes from buffer that have been "written" in our device,
  * 			 negative number if failed (zero if no rule was added)
  */
-static ssize_t dev_write(struct file* filp, const char* buffer, size_t len, loff_t *offset){
+static ssize_t rfw_dev_write(struct file* filp, const char* buffer, size_t len, loff_t *offset){
 	
 	size_t buff_len;
 	ssize_t written_bytes = 0;
@@ -474,7 +475,6 @@ static ssize_t dev_write(struct file* filp, const char* buffer, size_t len, loff
  **/
 static int send_str_rule_to_buffer(rule_t* rulePtr, char* buffer){
 	
-	size_t str_len = 0;
 	char str[MAX_STRLEN_OF_RULE_FORMAT+2]; //+2: for '\n' and '\0' 
 	
 	if (rulePtr == NULL){
@@ -517,8 +517,8 @@ static int send_str_rule_to_buffer(rule_t* rulePtr, char* buffer){
 
 
 /** 
- * 	This function is called whenever device is being read from user space i.e. data is
- *  being sent from the device to the user. 
+ * 	This function is called whenever device is being read from user space
+ *  i.e. data is being sent from the device to the user. 
  * 	We use copy_to_user() function to copy rules (in their string format)
  * 	to buffer.
  * 
@@ -527,15 +527,32 @@ static int send_str_rule_to_buffer(rule_t* rulePtr, char* buffer){
  *  @len - length of the buffer, excluding '\0'. 
  *  @offset - the offset if required (here it's not relevant)
  * 
- * Note: if len isn't enough for all rules,
- * 		 buffer will be filled with as many rules as send_str_rule_to_buffer will succeed.
- * 		 User should allocate enough space for all rules and check he got all of them.
+ * Note: 1. if len isn't enough for all rules, buffer will be filled 
+ * 			with as many rules as send_str_rule_to_buffer will succeed.
+ * 		 2. g_num_rules_have_been_read will be updated according to
+ * 			rules that have been read (for further reading)
+ * 		 3. User should allocate enough space and check he got all rules.
+ * 		 4. In case of consecutive calls, in USER's responsibility to 
+ * 			update buffer's pointer (offset is ignored).
+ * 
+ * Returns: 
+ * 		 1. In case there were rules to read 
+ * 			(i.e. g_num_rules_have_been_read < g_num_of_valid_rules)
+ *  		returns the number of bytes written (sent) to buffer.
+ * 		 2. In case there were NO rules left to read - returns 0 
+ * 		 3. (-EFAULT) if copy_to_user failed / (-1) if other failure happened
  */
-static ssize_t dev_read(struct file *filp, char *buffer, size_t len, loff_t *offset){
+static ssize_t rfw_dev_read(struct file *filp, char *buffer, size_t len, loff_t *offset){
 	
 	int temp = 0;
-	size_t i = 0;
+	size_t i = g_num_rules_have_been_read;
 	ssize_t bytes_read = 0;
+	
+	//Checks if user already finished reading all rules:
+	if (g_num_rules_have_been_read == g_num_of_valid_rules) { 
+		g_num_rules_have_been_read = 0; //To allow another reading if he wants
+		return 0;
+	}
 	
 	while ( (i < g_num_of_valid_rules) && (bytes_read < len) ) {
 		temp = send_str_rule_to_buffer(&(g_all_rules_table[i]), buffer+bytes_read );
@@ -543,6 +560,7 @@ static ssize_t dev_read(struct file *filp, char *buffer, size_t len, loff_t *off
 			break;
 		}
 		bytes_read += temp;
+		++g_num_rules_have_been_read;
 		++i;
 	}
 	
@@ -554,3 +572,74 @@ static ssize_t dev_read(struct file *filp, char *buffer, size_t len, loff_t *off
 	
 }
 
+/** 
+ * 	The device open function (called each time the device is opened):
+ * 		1. Increments g_usage_counter (although ".owner" is defined so it's not mandatory)
+ *  	2. Updates g_num_rules_have_been_read to 0.
+ * 
+ *	@inodep - pointer to an inode object)
+ *  @fp - pointer to a file object
+ */
+static int rfw_dev_open(struct inode *inodep, struct file *fp){
+   g_usage_counter++;
+   g_num_rules_have_been_read = 0;
+   
+#ifdef DEBUG_MODE 
+   printk(KERN_INFO "fw_rules: device has been opened %d time(s)\n", g_usage_counter);
+#endif
+
+   return 0;
+}
+
+/** 
+ * 	The device release function - called whenever the device is 
+ *	closed/released by the userspace program.
+ * 		1. Decrements g_usage_counter
+ *  	2. Updates g_num_rules_have_been_read to 0.
+ *
+ *  @inodep - pointer to an inode object
+ *  @fp - pointer to a file object
+ */
+static int rfw_dev_release(struct inode *inodep, struct file *fp){
+	if (g_usage_counter != 0){
+		g_usage_counter--;
+	}
+	g_num_rules_have_been_read = 0;
+	
+#ifdef DEBUG_MODE 
+   printk(KERN_INFO "fw_rules: device successfully closed\n");
+#endif
+
+   return 0;
+}
+
+
+
+
+
+/*** FUNCTIONS FOR TESTING IF RULE IS RELEVANT TO PACKET ***/
+/*
+ * 	
+	__be32	src_ip;
+	__be32	src_prefix_mask; 	// e.g., 255.255.255.0 as int in the local endianness
+	__u8    src_prefix_size; 	// valid values: 0-32, e.g., /24 for the example above
+								// (the field is redundant - easier to print)
+	__be32	dst_ip;
+	__be32	dst_prefix_mask; 	// as above
+	__u8    dst_prefix_size; 	// as above	
+	__be16	src_port; 			// number of port or 0 for any or port 1023 for any port number > 1023  
+	__be16	dst_port; 			// number of port or 0 for any or port 1023 for any port number > 1023 
+	__u8	protocol; 			// values from: prot_t
+	ack_t	ack; 				// values from: ack_t
+ * 
+ * 
+ * 
+ */
+
+/*
+static bool is_relevant_direction(direction_t rule_direction, direction_t packet_direction){
+	return ( (rule_direction == packet_direction) || 
+			(rule_direction == DIRECTION_ANY) || 
+			(packet_direction == DIRECTION_ANY) ); //Not sure about testing packet's direction - since it supposed to be final(?) TODO::
+}
+*/
