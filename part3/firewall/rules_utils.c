@@ -681,6 +681,8 @@ static bool is_relevant_protocol(prot_t rule_protocol, __u8 packet_protocol){
  **/
 static bool is_relevant_ack(ack_t rule_ack, struct tcphdr* ptr_tcp_hdr){
 	
+	//TODO:: change this function to get packet_acl instead
+	
 	//Sets packet_ack to be "ACK_YES" if the ack bit is on:
 	ack_t packet_ack = ((ptr_tcp_hdr->ack) == 1) ? ACK_YES : ACK_NO; 
 	
@@ -744,3 +746,11 @@ bool is_XMAS(struct sk_buff* skb){
 }
 
 
+/**
+ *	Returns 
+ **/
+/**
+enum action_t is_relevant_rule(rule_t* rule, struct sk_buff* skb){
+	//TODO:: change parameters, get a log_row_t*, ack_t, 
+}
+**/
