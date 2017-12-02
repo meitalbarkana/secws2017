@@ -677,15 +677,45 @@ static bool is_relevant_protocol(prot_t rule_protocol, __u8 packet_protocol){
  *	Returns true is it is.
  * 
  *	@rule_ack - rule's ack value
- *	@ptrTcphdr - pointer to a struct tcphdr
+ *	@ptr_tcp_hdr - pointer to a struct tcphdr
  * 
  *	Note: the return value is strongly based on how we defined ack_t values!
  **/
-static bool is_relevant_ack(ack_t rule_ack, struct tcphdr* ptrTcphdr){
+static bool is_relevant_ack(ack_t rule_ack, struct tcphdr* ptr_tcp_hdr){
 	
 	//Sets packet_ack to be "ACK_YES" if the ack bit is on:
-	ack_t packet_ack = ((ptrTcphdr->ack) == 1) ? ACK_YES : ACK_NO; 
+	ack_t packet_ack = ((ptr_tcp_hdr->ack) == 1) ? ACK_YES : ACK_NO; 
 	
 	// packet_ack&rule_ack == 0 only when one is ACK_YES and the other is ACK_NO:
 	return ( (packet_ack & rule_ack) != 0 );
 }
+
+/**
+ * 	Checks if a given packet is XMAS packet.
+ *	
+ *	@skb - pointer to struct sk_buff that represents current IPv4 packet
+ *	
+ *	Returns true if it represent a Christmas Tree Packet
+ *	(TCP packet with PSH, URG, FIN flags on)
+ **/
+bool is_XMAS(struct sk_buff* skb){
+	
+	struct iphdr* ptr_ipv4_hdr; //pointer to ipv4 header
+	struct tcphdr* ptr_tcp_hdr; //pointer to tcp header
+	
+	if (skb){ 
+		ptr_ipv4_hdr = ip_hdr(skb);
+		if(ptr_ipv4_hdr){
+			if (ptr_ipv4_hdr->protocol == PROT_TCP) {
+				ptr_tcp_hdr = (struct tcphdr*)((char*)ptr_ipv4_hdr + (ptr_ipv4_hdr->ihl * 4));
+				if ( ptr_tcp_hdr && (ptr_tcp_hdr->psh == 1) && (ptr_tcp_hdr->urg == 1)
+					&& (ptr_tcp_hdr->fin == 1) ){
+						return true;
+					}
+			}
+		}
+	}
+	return false;
+}
+
+

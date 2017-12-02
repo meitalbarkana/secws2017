@@ -5,8 +5,6 @@
 #define MAX_NUM_OF_RULES (50)
 
 /** Constants for printing & formatting: **/
-
-
 /*For test-printing mainly:*/
 #define MAX_LEN_RULE_NAME (20) //Including null-terminator byte 
 #define NUM_OF_FIELDS_IN_RULE_T (13)
@@ -37,5 +35,7 @@ enum src_or_dst_t {
 	SRC,
 	DST
 };
+
+bool is_XMAS(struct sk_buff* skb);
 
 #endif /* RULES_UTILS_H */
