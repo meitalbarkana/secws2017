@@ -235,7 +235,7 @@ static bool is_valid_direction(int num, rule_t* rule){
 static __be32 get_prefix_mask(unsigned char prefix_length){
 	//0xffffffff = 11111111 11111111 11111111 11111111
 	__be32 temp = 0xffffffff;
-	if (prefix_length == 32){//Since right shifting of width of type (=32) is undefined behavior
+	if (prefix_length == 32){//Since right shifting of width of type (=32) has undefined behavior
 		return temp;
 	}
 	temp = temp >> prefix_length; // For example: if prefix = 3, temp will contain: 00011111 11111111 11111111 11111111
@@ -618,23 +618,6 @@ static int rfw_dev_release(struct inode *inodep, struct file *fp){
 
 
 /*** FUNCTIONS FOR TESTING IF RULE IS RELEVANT TO PACKET ***/
-/*
- * 	
-	__be32	src_ip;
-	__be32	src_prefix_mask; 	// e.g., 255.255.255.0 as int in the local endianness
-	__u8    src_prefix_size; 	// valid values: 0-32, e.g., /24 for the example above
-								// (the field is redundant - easier to print)
-	__be32	dst_ip;
-	__be32	dst_prefix_mask; 	// as above
-	__u8    dst_prefix_size; 	// as above	
-	__be16	src_port; 			// number of port or 0 for any or port 1023 for any port number > 1023  
-	__be16	dst_port; 			// number of port or 0 for any or port 1023 for any port number > 1023 
-	__u8	protocol; 			// values from: prot_t
-	ack_t	ack; 				// values from: ack_t
- * 
- * 
- * 
- */
 
 /**
  *	Checks if given packet_direction is relevant to rule_direction
@@ -648,7 +631,8 @@ static bool is_relevant_direction(direction_t rule_direction, direction_t packet
 
 /**
  *	Checks if given packet_ip is relevant
- * 	according to rule_ip & rule_prefix_mask,
+ * 	according to rule_ip & rule_prefix_mask
+ * 	(if packet_ip is inside the sub-network defined by rule_ip & rule_prefix_mask)
  * 
  *	Returns true is it is.
  * 	
@@ -656,7 +640,52 @@ static bool is_relevant_direction(direction_t rule_direction, direction_t packet
  * 	@rule_prefix_mask
  * 	@packet_ip - packet's ip in LOCAL endianness
  **/
-/*static bool is_relevant_ip(__be32 rule_ip, __be32 rule_prefix_mask, __be32 packet_ip){
-	return ( (rule_prefix_mask == 0) ||
-			
-}*/
+static bool is_relevant_ip(__be32 rule_ip, __be32 rule_prefix_mask, __be32 packet_ip){
+	__be32 network_prefix = rule_ip & rule_prefix_mask; //Bitwise and. 
+	__be32 p_network_prefix = packet_ip & rule_prefix_mask;
+
+	return ( p_network_prefix == network_prefix );
+}
+
+/**
+ *	Checks if given packet_port is relevant to rule_port
+ *	Returns true is it is.
+ * 
+ * 	Note:	rule_port value can be: 
+ * 			1. a specific port number in range [1,..,65535]\{1023}
+ * 			2. PORT_ANY (0) for any port
+ * 			3. PORT_ABOVE_1023	(1023) for any port number > 1023 
+ **/
+static bool is_relevant_port(__be16 rule_port, __be16 packet_port){
+	return ( (rule_port == PORT_ANY) || 
+			((rule_port == PORT_ABOVE_1023)	&& (packet_port > PORT_ABOVE_1023))
+			|| (rule_port == packet_port) );
+}
+
+/**
+ *	Checks if given packet_protocol is relevant to rule_protocol
+ *	Returns true is it is.
+ **/
+static bool is_relevant_protocol(prot_t rule_protocol, __u8 packet_protocol){
+	return ( (rule_protocol == PROT_ANY) || 
+			(packet_protocol == (unsigned char)rule_protocol) ); //Safe casting 
+}
+
+/**
+ *	Checks if given (TCP) packet's ack value is relevant to rule_ack
+ *	
+ *	Returns true is it is.
+ * 
+ *	@rule_ack - rule's ack value
+ *	@ptrTcphdr - pointer to a struct tcphdr
+ * 
+ *	Note: the return value is strongly based on how we defined ack_t values!
+ **/
+static bool is_relevant_ack(ack_t rule_ack, struct tcphdr* ptrTcphdr){
+	
+	//Sets packet_ack to be "ACK_YES" if the ack bit is on:
+	ack_t packet_ack = ((ptrTcphdr->ack) == 1) ? ACK_YES : ACK_NO; 
+	
+	// packet_ack&rule_ack == 0 only when one is ACK_YES and the other is ACK_NO:
+	return ( (packet_ack & rule_ack) != 0 );
+}
