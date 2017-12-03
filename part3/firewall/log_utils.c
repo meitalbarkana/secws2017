@@ -32,17 +32,18 @@ bool init_log_row(struct sk_buff* skb, log_row_t* ptr_pckt_lg_info,
 	struct timespec ts = { .tv_sec = 0,.tv_nsec = 0};
 	getnstimeofday(&ts);
     
+    //Initiates know values:
     ptr_pckt_lg_info->timestamp = ts.tv_sec;
 	ptr_pckt_lg_info->hooknum = hooknumber;
+	*direction = get_direction(in, out);
 	
-	//Default values:
+	//Initiates default values:
 	ptr_pckt_lg_info->count = 1;
 	ptr_pckt_lg_info->action = RULE_NOT_RELEVANT;
 	ptr_pckt_lg_info->reason = NO_REASON;
 	ptr_pckt_lg_info->src_port = 0;
 	ptr_pckt_lg_info->dst_port = 0;
 	*ack = ACK_NO; //Default since if it isn't a tcp packet, there's no ack
-	*direction = DIRECTION_ANY;
 	
 	if (skb) {
 		ptr_ipv4_hdr = ip_hdr(skb);
@@ -82,7 +83,6 @@ bool init_log_row(struct sk_buff* skb, log_row_t* ptr_pckt_lg_info,
 				temp_port_num = ptr_udp_hdr->dest;
 				ptr_pckt_lg_info->dst_port = ntohs(temp_port_num); //Convert to local-endianness
 			}
-			//TODO:: take care of direction!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 			return true;
 		}
 		
