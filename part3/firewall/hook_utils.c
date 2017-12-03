@@ -1,5 +1,9 @@
 #include "hook_utils.h"
 
+static struct nf_hook_ops	nfho_to_fw,
+							nfho_from_fw,
+							nfho_others;
+
 /**
  *	This function would be called as a helper function,
  *  when hooknum is NF_INET_FORWARD for IPv4 packets
@@ -16,6 +20,7 @@ static unsigned int check_packet_hookp_forward(struct sk_buff* skb,
 		const struct net_device* in, const struct net_device* out)
 {
 	//TODO:: after finishing user-space, MAYBE change to dynamic allocation
+	//TODO:: add write to logger
 	log_row_t pckt_lg_info; 
 	ack_t packet_ack;
 	direction_t packet_direction;
@@ -124,16 +129,9 @@ static int registers_hook(struct nf_hook_ops* nfho, nf_hookfn* okfn, int pf, int
  * Help function that unregisters "hookedNfhos" number of hooks -
  * BY THE ORDER THER WERE HOOKED IN "registerHooks()":
  **/
- //TODO:: fix nf_hook_ops names
- //static struct nf_hook_ops nfho_to_fw, nfho_from_fw, nfho_others, nfho_of_incoming_ipv6, nfho_of_outgoing_ipv6;
-/**
 static void unregistersHook(enum hooked_nfhos hookedNfhos){
 	switch (hookedNfhos){
 		case (ALL_H):
-			nf_unregister_hook(&nfho_of_outgoing_ipv6);
-		case (OUTGOING_IPV6_H):
-			nf_unregister_hook(&nfho_of_incoming_ipv6);
-		case (INCOMING_IPV6_H):
 			nf_unregister_hook(&nfho_others);
 		case (OTHERS_H):
 			nf_unregister_hook(&nfho_from_fw);
@@ -142,81 +140,58 @@ static void unregistersHook(enum hooked_nfhos hookedNfhos){
 		// The default case is when there's no need to unregister anything.	
 	}
 } 
-**/
 
 /**
  * 	A help function that registers all hooks,
  * 	Returns 0 on success, -1 on failure. 
  **/
+int registerHooks(void){
 
-//static int registerHooks(void){
-
-	/** Takes care of packets sent to fw:
-	 * 		hook_func_allow: because we want to allow the packet to pass
-	 * 		PF_INET: packets of IPv4
-	 * 		NF_INET_LOCAL_IN: called after classifing the packet as "INPUT", at "INPUT" hook-point
-	 * 		NF_IP_PRI_FIRST: sets the priority of the hook_func_allow() as the highest
+	/**
+	 * Takes care of packets sent to fw:
+	 * 		hook_func_callback: main hook function
+	 * 		PF_INET: only packets of IPv4
+	 * 		NF_INET_LOCAL_IN: called after classifing the packet as LOCAL_IN
+	 * 		NF_IP_PRI_FIRST: sets the priority of hook_func_callback() as the highest
 	 **/
-	 /**
-	if(registers_hook(&nfho_to_fw, hook_func_allow, PF_INET, NF_INET_LOCAL_IN, NF_IP_PRI_FIRST)){
-		// If gets here, registers_hook failed when trying to register "nfho_to_fw",
-		// so no need to call unregistersHook - we'll just return -1 (nothing was registered)
+	if(registers_hook(&nfho_to_fw, hook_func_callback, PF_INET, NF_INET_LOCAL_IN, NF_IP_PRI_FIRST)){
+		// Registers_hook failed when trying to register "nfho_to_fw"
 		return -1;
 	}
-	**/
-	/** Takes care of packets sent from fw:
-	 * 		hook_func_allow: allows the packet to move
+	
+	/** 
+	 * Takes care of packets sent from fw:
+	 * 		hook_func_callback: main hook function
 	 *		PF_INET: packets of IPv4
-	 *		NF_INET_LOCAL_OUT: called after classifing the packet as "OUTPUT", at fw's-"OUTPUT"-hook-point
-	 *		NF_IP_PRI_FIRST: sets the priority of the hook_func_allow() as the highest
+	 *		NF_INET_LOCAL_OUT: called after classifing the packet as LOCAL_OUT
+	 *		NF_IP_PRI_FIRST: sets the priority of hook_func_callback() as the highest
 	 **/
-	 /**
-	if (registers_hook(&nfho_from_fw, hook_func_allow, PF_INET, NF_INET_LOCAL_OUT, NF_IP_PRI_FIRST)){
-		// If gets here, registers_hook failed on "nfho_from_fw", so we need to unregister accordingly:
+	if (registers_hook(&nfho_from_fw, hook_func_callback, PF_INET, NF_INET_LOCAL_OUT, NF_IP_PRI_FIRST)){
+		// Registers_hook failed on "nfho_from_fw", so we need to unregister accordingly:
 		unregistersHook(FROM_FW_H);
 		return -1;
 	}
-	**/
-	/** Takes care of packets who aren't designated to fw:
-	 * 		hook_func_block: because we want to block the packet		
+	
+	/** 
+	 * Takes care of packets who aren't designated to fw:
+	 * 		hook_func_callback: main hook function		
 	 * 		PF_INET: packets of IPv4
-	 * 		NF_INET_FORWARD: called after classifing the packet as not designated to fw - at "FORWARD"-hook-point
-	 *		NF_IP_PRI_FIRST: sets the priority of the hook_func_block() as the highest
+	 * 		NF_INET_FORWARD: called after classifing the packet as not 
+	 * 						designated to fw - at "FORWARD"-hook-point
+	 *		NF_IP_PRI_FIRST: sets the priority of hook_func_callback() as the highest
 	 **/
-	 /** 
-	if (registers_hook(&nfho_others, hook_func_block, PF_INET, NF_INET_FORWARD, NF_IP_PRI_FIRST)){
-		// If gets here, registers_hook failed on "nfho_others", so we need to unregister accordingly:
+	if (registers_hook(&nfho_others, hook_func_callback, PF_INET, NF_INET_FORWARD, NF_IP_PRI_FIRST)){
+		// Registers_hook failed on "nfho_others", so we need to unregister accordingly:
 		unregistersHook(OTHERS_H);
 		return -1;
 	}
-	**/
-	/** Takes care of incoming IPv6 packets - blocks them, as said at the lecture:
-	 * 		hook_func_block: to block the IPv6 packet
-	 * 		PF_INET6: packets of IPv6
-	 * 		NF_INET_PRE_ROUTING: because in case of IPv6, blocking function should be called even before
-	 * 							 deciding if the packet is for/from fw or to/from host1/host2
-	 * 		NF_IP_PRI_FIRST: sets the priority of the hook_func_block() as the highest
-	 **/
-	 /**
-	if (registers_hook(&nfho_of_incoming_ipv6, hook_func_block, PF_INET6, NF_INET_PRE_ROUTING, NF_IP_PRI_FIRST)){
-		// If gets here, registers_hook failed on "nfho_of_incoming_ipv6", so we need to unregister accordingly:
-		unregistersHook(INCOMING_IPV6_H);
-		return -1;
-	}
-	**/
-	/** Takes care of outgoing (from fw) IPv6 packets - blocks them, as said at the lecture:
-	 * 		hook_func_block: to block the outgoing IPv6 packet
-	 * 		PF_INET6: packets of IPv6
-	 * 		NF_INET_LOCAL_OUT: called for an outgoing packet
-	 * 		NF_IP_PRI_FIRST: sets the priority of the hook_func_block() as the highest
-	 **/
-	 /**
-	if (registers_hook(&nfho_of_outgoing_ipv6, hook_func_block, PF_INET6, NF_INET_LOCAL_OUT, NF_IP_PRI_FIRST)){
-		// If gets here, registers_hook failed on "nfho_of_outgoing_ipv6", so we need to unregister accordingly:
-		unregistersHook(OUTGOING_IPV6_H);
-		return -1;
-	}
-
+	
 	return 0;
 }
-**/
+
+/**
+ *	Unregisters all hooks
+ **/
+void unRegisterHooks(void){
+	unregistersHook(ALL_H);
+}

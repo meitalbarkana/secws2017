@@ -188,7 +188,7 @@ static bool is_rule_name(const char* str){
  * Returns true if a rule with name "rulename" already exists in g_all_rules_table.
  **/
 static bool does_rulename_already_exists(const char* rulename){
-	size_t i = 0;
+	unsigned char i = 0;
 	for (i = 0; i < g_num_of_valid_rules; ++i){
 		if (strncmp(((g_all_rules_table)[i]).rule_name, rulename, MAX_LEN_RULE_NAME) == 0){ 
 			return true; //rulename already exists
