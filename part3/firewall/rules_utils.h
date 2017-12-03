@@ -34,11 +34,45 @@
 #define LOCALHOST_MASK_LEN (8) 
 #define LOCALHOST_PREFIX_MASK (4278190080u) // <=> mask of length 8
 
+//Enum that helps deciding which fields to update (source or destination):
 enum src_or_dst_t {
 	SRC,
 	DST
 };
 
+//Enum that helps "folding" up stages, 
+//used when: - initiating device stopped because of some error 
+//			 - device is destroyed.
+enum state_to_fold {
+	UNREG_DES,
+	DEVICE_DES,
+	FIRST_FILE_DES,
+	ALL_DES
+};
+
+//Firewalls' build-in rule: to allow connection between localhost to itself:
+static const rule_t g_buildin_rule = 
+{
+	.rule_name = "build-in-rule",
+	.direction = DIRECTION_ANY,
+	.src_ip = LOCALHOST_IP,
+	.src_prefix_mask = LOCALHOST_PREFIX_MASK,
+	.src_prefix_size = LOCALHOST_MASK_LEN,
+	.dst_ip = LOCALHOST_IP,
+	.dst_prefix_mask = LOCALHOST_PREFIX_MASK,
+	.dst_prefix_size = LOCALHOST_MASK_LEN,
+	.src_port = PORT_ANY,
+	.dst_port = PORT_ANY,
+	.protocol = PROT_ANY,
+	.ack = ACK_ANY,
+	.action = NF_ACCEPT
+};
+
+//Functions that will be used outside rules_utils: 
 bool is_XMAS(struct sk_buff* skb);
+enum action_t is_relevant_rule(rule_t* rule, log_row_t* ptr_pckt_lg_info,ack_t* packet_ack, direction_t* packet_direction);
+int get_relevant_rule_num_from_table(log_row_t* ptr_pckt_lg_info, ack_t* packet_ack, direction_t* packet_direction);
+int init_rules_device(struct class* fw_class);
+void destroy_rules_device(struct class* fw_class);
 
 #endif /* RULES_UTILS_H */

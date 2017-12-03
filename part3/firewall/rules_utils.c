@@ -11,23 +11,8 @@ static unsigned char g_fw_is_active = FW_OFF;
 static int g_usage_counter = 0;
 static unsigned char g_num_rules_have_been_read = 0;
 
-//Firewalls' build-in rule: to allow connection between localhost to itself:
-static const rule_t g_buildin_rule = 
-{
-	.rule_name = "build-in-rule",
-	.direction = DIRECTION_ANY,
-	.src_ip = LOCALHOST_IP,
-	.src_prefix_mask = LOCALHOST_PREFIX_MASK,
-	.src_prefix_size = LOCALHOST_MASK_LEN,
-	.dst_ip = LOCALHOST_IP,
-	.dst_prefix_mask = LOCALHOST_PREFIX_MASK,
-	.dst_prefix_size = LOCALHOST_MASK_LEN,
-	.src_port = PORT_ANY,
-	.dst_port = PORT_ANY,
-	.protocol = PROT_ANY,
-	.ack = ACK_ANY,
-	.action = NF_ACCEPT
-};
+static int rules_dev_major_number = 0; // Will contain rules-device's major number - its unique ID
+static struct device* rules_device = NULL;
 
 // Prototype functions declarations for the character driver - must come before the struct definition
 static ssize_t rfw_dev_read(struct file *filp, char *buffer, size_t len, loff_t *offset);
@@ -869,3 +854,81 @@ int get_relevant_rule_num_from_table(log_row_t* ptr_pckt_lg_info,
 	return (-1);
 }
 
+/**
+ * Help function that cleans up everything associated with creating our device,
+ * According to the state that's been given.
+ **/
+static void destroyRulesDevice(struct class* fw_class, enum state_to_fold stateToFold){
+	switch (stateToFold){
+		case(ALL_DES):
+			device_remove_file(rules_device, (const struct device_attribute *)&dev_attr_rules_size.attr);
+		case(FIRST_FILE_DES):
+			device_remove_file(rules_device, (const struct device_attribute *)&dev_attr_active.attr);
+		case(DEVICE_DES):
+			device_destroy(fw_class, MKDEV(rules_dev_major_number, MINOR_RULES));
+		case (UNREG_DES):
+			unregister_chrdev(rules_dev_major_number, DEVICE_NAME_RULES);
+	}
+}
+
+/**
+ *	Initiates rule-device.
+ *	Returns: 0 on success, -1 if failed. 
+ * 
+ *	Note: user should destroy fw_class if this function returned -1!
+ **/
+int init_rules_device(struct class* fw_class){
+	
+	//Initiates global values, just to make sure:
+	g_num_of_valid_rules = 0;
+	g_fw_is_active = FW_OFF;
+	g_usage_counter = 0;
+	g_num_rules_have_been_read = 0;
+	
+	//Create char device
+	rules_dev_major_number = register_chrdev(0, DEVICE_NAME_RULES, &fops);
+	if (rules_dev_major_number < 0){
+		printk(KERN_ERR "Error: failed registering rules-char-device.\n");
+		return -1;
+	}
+	
+	//Create rules-sysfs device:
+	rules_device = device_create(fw_class, NULL, MKDEV(rules_dev_major_number, MINOR_RULES), NULL, CLASS_NAME "_" DEVICE_NAME_RULES);
+	if (IS_ERR(rules_device))
+	{
+		printk(KERN_ERR "Error: failed creating rules-char-device.\n");
+		destroyRulesDevice(fw_class,UNREG_DES);
+		return -1;
+	}
+	
+	//Create "active"-sysfs file attributes:
+	if (device_create_file(rules_device, (const struct device_attribute *)&dev_attr_active.attr))
+	{
+		printk(KERN_ERR "Error: failed creating active-sysfs-file inside rules-char-device.\n");
+		destroyRulesDevice(fw_class, DEVICE_DES);
+		return -1;
+	}
+	
+	//Create "rules_size"-sysfs file attributes:
+	if (device_create_file(rules_device, (const struct device_attribute *)&dev_attr_rules_size.attr))
+	{
+		printk(KERN_ERR "Error: failed creating rules_size-sysfs-file inside rules-char-device.\n");
+		destroyRulesDevice(fw_class, FIRST_FILE_DES);
+		return -1;
+	}
+	
+#ifdef DEBUG_MODE 
+   printk(KERN_INFO "fw_rules: device successfully initiated.\n");
+#endif
+	return 0;
+}
+
+/**
+ *	Destroys rule-device
+ **/
+void destroy_rules_device(struct class* fw_class){
+	destroyRulesDevice(fw_class, ALL_DES);
+#ifdef DEBUG_MODE 
+   printk(KERN_INFO "fw_rules: device destroyed.\n");
+#endif
+}
