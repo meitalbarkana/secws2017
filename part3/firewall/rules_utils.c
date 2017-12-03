@@ -11,6 +11,24 @@ static unsigned char g_fw_is_active = FW_OFF;
 static int g_usage_counter = 0;
 static unsigned char g_num_rules_have_been_read = 0;
 
+//Firewalls' build-in rule: to allow connection between localhost to itself:
+static const rule_t g_buildin_rule = 
+{
+	.rule_name = "build-in-rule",
+	.direction = DIRECTION_ANY,
+	.src_ip = LOCALHOST_IP,
+	.src_prefix_mask = LOCALHOST_PREFIX_MASK,
+	.src_prefix_size = LOCALHOST_MASK_LEN,
+	.dst_ip = LOCALHOST_IP,
+	.dst_prefix_mask = LOCALHOST_PREFIX_MASK,
+	.dst_prefix_size = LOCALHOST_MASK_LEN,
+	.src_port = PORT_ANY,
+	.dst_port = PORT_ANY,
+	.protocol = PROT_ANY,
+	.ack = ACK_ANY,
+	.action = NF_ACCEPT
+};
+
 // Prototype functions declarations for the character driver - must come before the struct definition
 static ssize_t rfw_dev_read(struct file *filp, char *buffer, size_t len, loff_t *offset);
 static ssize_t rfw_dev_write(struct file* filp, const char* buffer, size_t len, loff_t *offset);
@@ -345,6 +363,7 @@ static bool is_valid_action(unsigned char num, rule_t* rule){
  * NOTE: 1.	function updates g_all_rules_table[g_num_of_valid_rules]
  * 			to contain this (if valid) rule
  * 		 2. function updates (if valid rule) g_num_of_valid_rules
+ * 		 3. adding a rule to table DOESN'T check its logic!
  * 
  * Returns true on success. 
  **/
@@ -674,18 +693,19 @@ static bool is_relevant_protocol(prot_t rule_protocol, __u8 packet_protocol){
  *	Returns true is it is.
  * 
  *	@rule_ack - rule's ack value
- *	@ptr_tcp_hdr - pointer to a struct tcphdr
+ *	@packet_ack - packets' ack valuer.
  * 
- *	Note: the return value is strongly based on how we defined ack_t values!
- *		  accessing specific bits through struct fields is endian-safe.
+ *	Note: 1. packet_ack value allowed values are only ACK_YES/ACK_NO
+ * 			(since if packet isn't a tcp packet, deafult ack value is ACK_NO)
+ *		  2. the return value is strongly based on how we defined ack_t values!
+ *		 	accessing specific bits through struct fields is endian-safe.
  **/
-static bool is_relevant_ack(ack_t rule_ack, struct tcphdr* ptr_tcp_hdr){
+static bool is_relevant_ack(ack_t rule_ack, ack_t packet_ack){
 	
-	//TODO:: change this function to get packet_acl instead
-	
-	//Sets packet_ack to be "ACK_YES" if the ack bit is on:
-	ack_t packet_ack = ((ptr_tcp_hdr->ack) == 1) ? ACK_YES : ACK_NO; 
-	
+	if (packet_ack == ACK_ANY) { //Should never get here
+		printk (KERN_ERR "In function is_relevant_ack(), got invalid packet_ack argument (ACK_ANY)\n");
+	}
+		
 	// packet_ack&rule_ack == 0 only when one is ACK_YES and the other is ACK_NO:
 	return ( (packet_ack & rule_ack) != 0 );
 }
@@ -734,8 +754,9 @@ bool is_XMAS(struct sk_buff* skb){
 			ip_h_protocol = ptr_ipv4_hdr->protocol; //Network order!
 			if (ntohs(ip_h_protocol) == PROT_TCP) {	//Checks in local endianness
 				ptr_tcp_hdr = (struct tcphdr*)((char*)ptr_ipv4_hdr + (ptr_ipv4_hdr->ihl * 4));
+				//accessing specific bits through struct fields is endian-safe:
 				if ( ptr_tcp_hdr && (ptr_tcp_hdr->psh == 1) && (ptr_tcp_hdr->urg == 1)
-					&& (ptr_tcp_hdr->fin == 1) ) //accessing specific bits through struct fields is endian-safe.
+					&& (ptr_tcp_hdr->fin == 1) ) 
 				{
 						return true;
 				}
@@ -747,10 +768,65 @@ bool is_XMAS(struct sk_buff* skb){
 
 
 /**
- *	Returns 
+ *	Checks if rule is relevant to packet represented by ptr_pckt_lg_info.
+ *	
+ * 
+ * 
+ *	Updates: ptr_pckt_lg_info->action (if rule is relevant to current packet)
+ * 
+ *	Returns: 1. if rule is relevant: RULE_ACCEPTS_PACKET = NF_ACCEPT/	
+ *									 RULE_DROPS_PACKET = NF_DROP
+ *			 2. if rule's irrelevant: RULE_NOT_RELEVANT
+ * 
+ *	Note: 1. function should be called AFTER ptr_pckt_lg_info was
+ * 			 initiated (using init_log_row).
+ * 		  2. function should be called AFTER making sure packet isn't XMAS 
  **/
-/**
-enum action_t is_relevant_rule(rule_t* rule, struct sk_buff* skb){
-	//TODO:: change parameters, get a log_row_t*, ack_t, 
+
+enum action_t is_relevant_rule(rule_t* rule, log_row_t* ptr_pckt_lg_info,
+		ack_t* packet_ack, direction_t* packet_direction)
+{
+	
+	//Makes sure the packet isn't checked twice if it's action have
+	//already been set (never supposed to get in)
+	if (ptr_pckt_lg_info->action != RULE_NOT_RELEVANT) {
+		printk(KERN_ERR "In is_relevant_rule(), invalid argument - packet with already set action\n");
+		return (enum action_t)ptr_pckt_lg_info->action;
+	}
+	
+	if( is_relevant_protocol(rule->protocol, ptr_pckt_lg_info->protocol) &&
+		is_relevant_direction(rule->direction, *packet_direction) &&
+		is_relevant_ip(rule->src_ip, rule->src_prefix_mask, ptr_pckt_lg_info->src_ip) &&
+		is_relevant_ip(rule->dst_ip, rule->dst_prefix_mask, ptr_pckt_lg_info->dst_ip) )
+	{
+		if ( (rule->protocol == PROT_TCP) || (rule->protocol == PROT_UDP) )
+		{
+			//In those protocols, also ports should be checked:
+			if ( is_relevant_port(rule->src_port, ptr_pckt_lg_info->src_port) &&
+				 is_relevant_port(rule->dst_port, ptr_pckt_lg_info->dst_port) )
+			{	
+				//If TCP, also ack value should be checked
+				//If UDP, rule fits packet
+				if ( ((rule->protocol == PROT_TCP) && 
+					(is_relevant_ack(rule->ack, *packet_ack))) ||
+					(rule->protocol == PROT_UDP) )
+				{		
+					ptr_pckt_lg_info->action = rule->action;
+					return (enum action_t)rule->action;		
+				} 
+			}
+			//Otherwise, rule isn't relevant to packet - ports/ack(TCP alone)
+			//don't fit, will continue to "rule isn't relevant to packet"
+					
+		} else { //Not a tcp/udp rule&packet, and they fit:
+			//Set packets' action according to this rule:
+			ptr_pckt_lg_info->action = rule->action;
+			return (enum action_t)rule->action;
+		}	
+	}
+	
+	//rule isn't relevant to packet:
+	return RULE_NOT_RELEVANT;
+
 }
-**/
+

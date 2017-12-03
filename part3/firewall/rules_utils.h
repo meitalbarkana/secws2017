@@ -30,6 +30,9 @@
 
 #define CLEAR_RULES '0'
 #define DELIMETER_STR "\n"
+#define LOCALHOST_IP (2130706433u) // <=> 127.0.0.1
+#define LOCALHOST_MASK_LEN (8) 
+#define LOCALHOST_PREFIX_MASK (4278190080u) // <=> mask of length 8
 
 enum src_or_dst_t {
 	SRC,
