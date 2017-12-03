@@ -854,6 +854,43 @@ int get_relevant_rule_num_from_table(log_row_t* ptr_pckt_lg_info,
 	return (-1);
 }
 
+
+
+/**
+ *	Decides the action that should be taken on packet:
+ *	Updates: ptr_pckt_lg_info->action
+ * 			 ptr_pckt_lg_info->reason
+ * 
+ *	Note: function should be called AFTER ptr_pckt_lg_info,
+ * 		  *packet_ack and *packet_directionwas were initiated
+ * 		  (using init_log_row).
+ * */
+void decide_packet_action(struct sk_buff* skb, log_row_t* ptr_pckt_lg_info,
+		ack_t* packet_ack, direction_t* packet_direction)
+{
+	if (g_fw_is_active == FW_OFF) {
+		ptr_pckt_lg_info->action = NF_ACCEPT;
+		ptr_pckt_lg_info->reason = REASON_FW_INACTIVE;
+		return;
+	}
+	
+	if (is_XMAS(skb)){
+		ptr_pckt_lg_info->action = NF_DROP;
+		ptr_pckt_lg_info->reason = REASON_XMAS_PACKET;
+		return;
+	} 
+	//If gets here, g_fw_is_active == FW_ON & packet isn't XMAS
+	
+	if ( (get_relevant_rule_num_from_table(ptr_pckt_lg_info,
+						packet_ack, packet_direction)) <  0 )
+	{//Meaning no relevant rule was found:
+		ptr_pckt_lg_info->action = NF_ACCEPT;
+		ptr_pckt_lg_info->reason = REASON_NO_MATCHING_RULE;	
+			
+	} //Otherwise, ptr_pckt_lg_info->action & reason were updated during get_relevant_rule_num_from_table()
+	
+}
+
 /**
  * Help function that cleans up everything associated with creating our device,
  * According to the state that's been given.
@@ -929,6 +966,6 @@ int init_rules_device(struct class* fw_class){
 void destroy_rules_device(struct class* fw_class){
 	destroyRulesDevice(fw_class, ALL_DES);
 #ifdef DEBUG_MODE 
-   printk(KERN_INFO "fw_rules: device destroyed.\n");
+	printk(KERN_INFO "fw_rules: device destroyed.\n");
 #endif
 }
