@@ -32,7 +32,7 @@ bool init_log_row(struct sk_buff* skb, log_row_t* ptr_pckt_lg_info,
 	struct timespec ts = { .tv_sec = 0,.tv_nsec = 0};
 	getnstimeofday(&ts);
     
-    //Initiates know values:
+    //Initiates known values:
     ptr_pckt_lg_info->timestamp = ts.tv_sec;
 	ptr_pckt_lg_info->hooknum = hooknumber;
 	*direction = get_direction(in, out);
@@ -92,3 +92,34 @@ bool init_log_row(struct sk_buff* skb, log_row_t* ptr_pckt_lg_info,
 	return false;
 	
 }
+
+//For tests alone! prints log-row to kernel
+void print_log_row(log_row_t* logrowPtr, int logrow_num){
+	
+	size_t add_to_len = strlen("log row number: ,\ntimestamp: ,\nprotocol: ,\naction: ,\nhooknum: ,\nsrc_ip: ,\ndst_ip: ,\nsrc_port: ,\ndst_port: ,\nreason: ,\ncount: .\n");
+	char str[MAX_STRLEN_OF_ULONG + 3*MAX_STRLEN_OF_U8 + 5*MAX_STRLEN_OF_BE32 + 2*MAX_STRLEN_OF_BE16 + add_to_len+3]; //+3: 1 for null-terminator, 2 more to make sure 
+	
+	if ((sprintf(str,
+				"log row number: %d,\ntimestamp: %lu,\nprotocol: %hhu,\naction: %hhu,\nhooknum: %hhu,\nsrc_ip: %u,\ndst_ip: %u,\nsrc_port: %hu,\ndst_port: %hu,\nreason: %d,\ncount: %u.\n",
+				logrow_num,
+				logrowPtr->timestamp,
+				logrowPtr->protocol,
+				logrowPtr->action,
+				logrowPtr->hooknum,
+				logrowPtr->src_ip,
+				logrowPtr->dst_ip,
+				logrowPtr->src_port,
+				logrowPtr->dst_port,
+				logrowPtr->reason,
+				logrowPtr->count )
+		) < NUM_OF_FIELDS_IN_LOF_ROW_T + 1)
+	{
+		printk(KERN_INFO "Error printing log-row presentation");
+	} 
+	else
+	{
+		printk (KERN_INFO "%s",str);
+	}
+}
+
+

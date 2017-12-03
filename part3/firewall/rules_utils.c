@@ -761,11 +761,11 @@ static bool is_XMAS(struct sk_buff* skb){
  *			 2. if rule's irrelevant: RULE_NOT_RELEVANT
  * 
  *	Note: 1. function should be called AFTER ptr_pckt_lg_info,
- * 			 *packet_ack and *packet_directionwas were initiated
+ * 			 *packet_ack and *packet_direction were initiated
  * 			 (using init_log_row).
  * 		  2. function should be called AFTER making sure packet isn't XMAS 
  **/
-static enum action_t is_relevant_rule(rule_t* rule, log_row_t* ptr_pckt_lg_info,
+static enum action_t is_relevant_rule(const rule_t* rule, log_row_t* ptr_pckt_lg_info,
 		ack_t* packet_ack, direction_t* packet_direction)
 {
 	
@@ -825,7 +825,7 @@ static enum action_t is_relevant_rule(rule_t* rule, log_row_t* ptr_pckt_lg_info,
  *			 2. if no relevant rule was found: (-1)
  * 
  *	Note: 1. function should be called AFTER ptr_pckt_lg_info,
- * 			 *packet_ack and *packet_directionwas were initiated
+ * 			 *packet_ack and *packet_direction were initiated
  * 			 (using init_log_row).
  * 		  2. function should be called AFTER making sure packet isn't XMAS 
  **/
@@ -861,7 +861,7 @@ static int get_relevant_rule_num_from_table(log_row_t* ptr_pckt_lg_info,
  * 			 ptr_pckt_lg_info->reason
  * 
  *	Note: function should be called AFTER ptr_pckt_lg_info,
- * 		  *packet_ack and *packet_directionwas were initiated
+ * 		  *packet_ack and *packet_direction were initiated
  * 		  (using init_log_row).
  **/
 void decide_packet_action(struct sk_buff* skb, log_row_t* ptr_pckt_lg_info,
@@ -888,6 +888,33 @@ void decide_packet_action(struct sk_buff* skb, log_row_t* ptr_pckt_lg_info,
 			
 	} //Otherwise, ptr_pckt_lg_info->action & reason were updated during get_relevant_rule_num_from_table()
 	
+}
+
+
+/**
+ *	Decides the action that should be taken on AN INNER packet
+ *	(a packet caught in hook-points: NF_INET_LOCAL_IN/NF_INET_LOCAL_OUT) 
+ * 
+ *	Updates: ptr_pckt_lg_info->action 
+ * 			(if build-in rule is relevant to current packet)
+ * 
+ *	Note: 1.function should be called AFTER ptr_pckt_lg_info,
+ * 		  	*packet_ack and *packet_direction were initiated
+ * 		  	(using init_log_row).
+ *		  2.function should be used on packets that WON'T BE LOGGED,
+ * 			using log_row_t* since it's easier :)
+ * 		
+ **/
+unsigned int decide_inner_packet_action(log_row_t* ptr_pckt_lg_info,
+		ack_t* packet_ack, direction_t* packet_direction )
+{
+	enum action_t answer = is_relevant_rule(&g_buildin_rule, ptr_pckt_lg_info, packet_ack, packet_direction);
+	if (answer == RULE_NOT_RELEVANT) {
+		//Since in those hook-points, we block any packet which doesn't fit g_buildin_rule:
+		return NF_DROP;
+	}
+	//If gets here, ptr_pckt_lg_info->action must be NF_ACCEPT
+	return ptr_pckt_lg_info->action;
 }
 
 /**

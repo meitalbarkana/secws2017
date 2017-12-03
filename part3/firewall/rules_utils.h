@@ -9,9 +9,6 @@
 #define MAX_LEN_RULE_NAME (20) //Including null-terminator byte 
 #define NUM_OF_FIELDS_IN_RULE_T (13)
 #define NUM_OF_FIELDS_IN_FORMAT (11)
-#define MAX_STRLEN_OF_BE32 (10)	//MAX_U_INT = 2^32-1 = 4294967295, 10 digits
-#define MAX_STRLEN_OF_BE16 (5)	//MAX_U_SHORT = 2^16-1 = 65535, 5 digits
-#define MAX_STRLEN_OF_U8 (3)	//MAX_U_CHAR = 2^8-1 = 255, 3 digits
 #define MAX_STRLEN_OF_D (10)	//as in MAX_U_INT...
 
 /*For formatting input:*/
@@ -70,6 +67,7 @@ static const rule_t g_buildin_rule =
 
 //Functions that will be used outside rules_utils: 
 void decide_packet_action(struct sk_buff* skb, log_row_t* ptr_pckt_lg_info, ack_t* packet_ack, direction_t* packet_direction);
+unsigned int decide_inner_packet_action(log_row_t* ptr_pckt_lg_info, ack_t* packet_ack, direction_t* packet_direction);
 int init_rules_device(struct class* fw_class);
 void destroy_rules_device(struct class* fw_class);
 

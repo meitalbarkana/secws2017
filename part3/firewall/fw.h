@@ -21,7 +21,11 @@
 #define DEBUG_MODE (1) //For debug-printing 
 
 #define NO_REASON (-777)
-
+/*For test-printing mainly:*/
+#define MAX_STRLEN_OF_ULONG (20)  //MAX_U_LONG = 2^64-1 = 18446744073709551615, 20 digits
+#define MAX_STRLEN_OF_BE32 (10)	//MAX_U_INT = 2^32-1 = 4294967295, 10 digits
+#define MAX_STRLEN_OF_BE16 (5)	//MAX_U_SHORT = 2^16-1 = 65535, 5 digits
+#define MAX_STRLEN_OF_U8 (3)	//MAX_U_CHAR = 2^8-1 = 255, 3 digits
 
 // the protocols we will work with
 typedef enum {
