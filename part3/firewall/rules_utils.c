@@ -770,19 +770,17 @@ bool is_XMAS(struct sk_buff* skb){
 /**
  *	Checks if rule is relevant to packet represented by ptr_pckt_lg_info.
  *	
- * 
- * 
  *	Updates: ptr_pckt_lg_info->action (if rule is relevant to current packet)
  * 
  *	Returns: 1. if rule is relevant: RULE_ACCEPTS_PACKET = NF_ACCEPT/	
  *									 RULE_DROPS_PACKET = NF_DROP
  *			 2. if rule's irrelevant: RULE_NOT_RELEVANT
  * 
- *	Note: 1. function should be called AFTER ptr_pckt_lg_info was
- * 			 initiated (using init_log_row).
+ *	Note: 1. function should be called AFTER ptr_pckt_lg_info,
+ * 			 *packet_ack and *packet_directionwas were initiated
+ * 			 (using init_log_row).
  * 		  2. function should be called AFTER making sure packet isn't XMAS 
  **/
-
 enum action_t is_relevant_rule(rule_t* rule, log_row_t* ptr_pckt_lg_info,
 		ack_t* packet_ack, direction_t* packet_direction)
 {
@@ -828,5 +826,46 @@ enum action_t is_relevant_rule(rule_t* rule, log_row_t* ptr_pckt_lg_info,
 	//rule isn't relevant to packet:
 	return RULE_NOT_RELEVANT;
 
+}
+
+/**
+ *	Checks if g_all_rules_table contains a rule which is relevant
+ *  to packet represented by ptr_pckt_lg_info.
+ *	
+ *	Updates: if found relevant rule:
+ * 			1.ptr_pckt_lg_info->action to NF_ACCEPT/NF_DROP
+ * 			2.ptr_pckt_lg_info->reason to rules' index
+ *
+ * 
+ *	Returns: 1. if found relevant rule: it's index
+ *			 2. if no relevant rule was found: (-1)
+ * 
+ *	Note: 1. function should be called AFTER ptr_pckt_lg_info,
+ * 			 *packet_ack and *packet_directionwas were initiated
+ * 			 (using init_log_row).
+ * 		  2. function should be called AFTER making sure packet isn't XMAS 
+ **/
+int get_relevant_rule_num_from_table(log_row_t* ptr_pckt_lg_info,
+		ack_t* packet_ack, direction_t* packet_direction)
+{
+	size_t index = 0;
+	for (index = 0; index < g_num_of_valid_rules; ++index) {
+		if ( is_relevant_rule(&(g_all_rules_table[index]),
+				ptr_pckt_lg_info,packet_ack, packet_direction)
+			!= RULE_NOT_RELEVANT )
+		{ 
+		//Rule is relevant, ptr_pckt_lg_info->action was updated in is_relevant_rule()
+			ptr_pckt_lg_info->reason = index;
+#ifdef DEBUG_MODE
+			printk(KERN_INFO "In function get_relevant_rule_num_from_table, found relevant rule, its index is: %u.\n",index);
+#endif
+			return index;
+		}
+	}
+	//No rule was found
+#ifdef DEBUG_MODE
+	printk(KERN_INFO "In function get_relevant_rule_num_from_table, NO relevant rule was found.\n");
+#endif
+	return (-1);
 }
 
