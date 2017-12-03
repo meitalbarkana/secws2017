@@ -69,9 +69,7 @@ static const rule_t g_buildin_rule =
 };
 
 //Functions that will be used outside rules_utils: 
-bool is_XMAS(struct sk_buff* skb);
-enum action_t is_relevant_rule(rule_t* rule, log_row_t* ptr_pckt_lg_info,ack_t* packet_ack, direction_t* packet_direction);
-int get_relevant_rule_num_from_table(log_row_t* ptr_pckt_lg_info, ack_t* packet_ack, direction_t* packet_direction);
+void decide_packet_action(struct sk_buff* skb, log_row_t* ptr_pckt_lg_info, ack_t* packet_ack, direction_t* packet_direction);
 int init_rules_device(struct class* fw_class);
 void destroy_rules_device(struct class* fw_class);
 

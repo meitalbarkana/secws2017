@@ -727,7 +727,7 @@ bool is_ipv4_packet(struct sk_buff* skb){
  *	http://elixir.free-electrons.com/linux/latest/source/include/uapi/linux/in.h#L37
  *	here we're only interested in values that appear in enum prot_t. 
  **/
-bool is_XMAS(struct sk_buff* skb){
+static bool is_XMAS(struct sk_buff* skb){
 	
 	struct iphdr* ptr_ipv4_hdr; //pointer to ipv4 header
 	struct tcphdr* ptr_tcp_hdr; //pointer to tcp header
@@ -751,7 +751,6 @@ bool is_XMAS(struct sk_buff* skb){
 	return false;
 }
 
-
 /**
  *	Checks if rule is relevant to packet represented by ptr_pckt_lg_info.
  *	
@@ -766,7 +765,7 @@ bool is_XMAS(struct sk_buff* skb){
  * 			 (using init_log_row).
  * 		  2. function should be called AFTER making sure packet isn't XMAS 
  **/
-enum action_t is_relevant_rule(rule_t* rule, log_row_t* ptr_pckt_lg_info,
+static enum action_t is_relevant_rule(rule_t* rule, log_row_t* ptr_pckt_lg_info,
 		ack_t* packet_ack, direction_t* packet_direction)
 {
 	
@@ -830,7 +829,7 @@ enum action_t is_relevant_rule(rule_t* rule, log_row_t* ptr_pckt_lg_info,
  * 			 (using init_log_row).
  * 		  2. function should be called AFTER making sure packet isn't XMAS 
  **/
-int get_relevant_rule_num_from_table(log_row_t* ptr_pckt_lg_info,
+static int get_relevant_rule_num_from_table(log_row_t* ptr_pckt_lg_info,
 		ack_t* packet_ack, direction_t* packet_direction)
 {
 	size_t index = 0;
@@ -864,7 +863,7 @@ int get_relevant_rule_num_from_table(log_row_t* ptr_pckt_lg_info,
  *	Note: function should be called AFTER ptr_pckt_lg_info,
  * 		  *packet_ack and *packet_directionwas were initiated
  * 		  (using init_log_row).
- * */
+ **/
 void decide_packet_action(struct sk_buff* skb, log_row_t* ptr_pckt_lg_info,
 		ack_t* packet_ack, direction_t* packet_direction)
 {
