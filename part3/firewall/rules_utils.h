@@ -36,12 +36,6 @@ enum src_or_dst_t {
 	DST
 };
 
-enum action_t {
-	RULE_ACCEPTS_PACKET = NF_ACCEPT,
-	RULE_DROPS_PACKET = NF_DROP,
-	RULE_NOT_RELEVANT
-};
-
 bool is_XMAS(struct sk_buff* skb);
 
 #endif /* RULES_UTILS_H */

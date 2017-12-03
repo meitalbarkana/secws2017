@@ -11,12 +11,18 @@
  *	@hooknumber - as received from netfilter hook
  *	@ack - a pointer to ack_t to be updated
  *	@direction - a pointer to direction_t to be updated
+ *	@in - pointer to net_device representing the network inteface
+ * 		  the packet pass through. NULL if packet traversal is "out".
+ *	@out - pointer to net_device representing the network inteface
+ * 		  the packet pass through. NULL if packet traversal is "in".
  * 
  * 	Note: fields: action, reason, count are only initiallized to default!
  *
  *	Returns true on success, false if an error happened (skb==NULL)
  **/
-bool init_log_row(struct sk_buff* skb, log_row_t* ptr_pckt_lg_info, unsigned char hooknumber, ack_t* ack, direction_t* direction){
+bool init_log_row(struct sk_buff* skb, log_row_t* ptr_pckt_lg_info,
+		unsigned char hooknumber, ack_t* ack, direction_t* direction,
+		const struct net_device* in, const struct net_device* out){
 	
 	struct iphdr* ptr_ipv4_hdr;		//pointer to ipv4 header
 	struct tcphdr* ptr_tcp_hdr;		//pointer to tcp header

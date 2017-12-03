@@ -108,4 +108,13 @@ typedef struct {
 	unsigned int   	count;        	// counts this line's hits
 } log_row_t;
 
+//Enum to help deciding about packets
+enum action_t {
+	RULE_ACCEPTS_PACKET = NF_ACCEPT,
+	RULE_DROPS_PACKET = NF_DROP,
+	RULE_NOT_RELEVANT
+};
+
+direction_t get_direction(const struct net_device* in, const struct net_device* out);
+
 #endif // _FW_H_
