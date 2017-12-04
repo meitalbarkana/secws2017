@@ -681,7 +681,7 @@ static bool is_relevant_protocol(prot_t rule_protocol, __u8 packet_protocol){
  *	@packet_ack - packets' ack valuer.
  * 
  *	Note: 1. packet_ack value allowed values are only ACK_YES/ACK_NO
- * 			(since if packet isn't a tcp packet, deafult ack value is ACK_NO)
+ * 			(since if packet isn't a tcp packet this function would never be called)
  *		  2. the return value is strongly based on how we defined ack_t values!
  *		 	accessing specific bits through struct fields is endian-safe.
  **/

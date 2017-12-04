@@ -43,7 +43,7 @@ bool init_log_row(struct sk_buff* skb, log_row_t* ptr_pckt_lg_info,
 	ptr_pckt_lg_info->reason = NO_REASON;
 	ptr_pckt_lg_info->src_port = PORT_ANY;
 	ptr_pckt_lg_info->dst_port = PORT_ANY;
-	*ack = ACK_NO; //Default since if it isn't a tcp packet, there's no ack
+	*ack = ACK_ANY; //Default value, according to rules_0.txt example
 	
 	if (skb) {
 		ptr_ipv4_hdr = ip_hdr(skb);
