@@ -17,6 +17,8 @@
 #define MAX_STRLEN_OF_RULE_FORMAT (NUM_OF_SPACES_IN_FORMAT+MAX_LEN_OF_NAME_RULE+MAX_STRLEN_OF_DIRECTION+2*MAX_STRLEN_OF_IP_ADDR+MAX_STRLEN_OF_PROTOCOL+2*MAX_STRLEN_OF_PORT+MAX_STRLEN_OF_ACK+MAX_STRLEN_OF_ACTION)
 #define MAX_PREFIX_LEN_VALUE (32)
 
+#define MAX_LINES_TO_CHECK_IN_FILE (200)//To avoid infinit loop
+
 #define MIN_LEN_OF_NAME_RULE (0) 
 #define MIN_STRLEN_OF_DIRECTION (2)		// minimum length value of("in","out","any) = 2
 #define MIN_STRLEN_OF_IP_ADDR (9)		// strlen("X.X.X.X/Y") = 9
@@ -27,23 +29,5 @@
 #define MIN_STRLEN_OF_RULE_FORMAT (NUM_OF_SPACES_IN_FORMAT+MIN_LEN_OF_NAME_RULE+MIN_STRLEN_OF_DIRECTION+2*MIN_STRLEN_OF_IP_ADDR+MIN_STRLEN_OF_PROTOCOL+2*MIN_STRLEN_OF_PORT+MIN_STRLEN_OF_ACK+MIN_STRLEN_OF_ACTION)
 
 
-
-/**
- * Returns a representation of a rule as a string on success,
- * NULL if failed,
- * NOTE: user should free memory allocated in it.
- **/
-char* get_rule_as_str(rule_t* rule);
-
-/**
- *	Gets a string that supposed to represent a proper rule.
- * 	Creates a rule according to str.
- * 	NOTE: str format should be:
- * 	<rule name> <direction> <src ip>/<nps> <dst ip>/<nps> <protocol> <source port> <dest port> <ack> <action>
- *	
- * If succedded, returns the pointer to rule_t created,
- * Otherwise - returns NULL
- **/
-rule_t* get_rule_from_string(const char* const_str, rule_t** ptr_to_all_rules_table);
 
 #endif // _INPUT_UTILS_H_

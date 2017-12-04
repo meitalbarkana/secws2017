@@ -1,6 +1,6 @@
 #ifndef _USER_FW_H_
 #define _USER_FW_H_
-
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <string.h>
 #include <fcntl.h> // For open()
@@ -8,14 +8,16 @@
 #include <sys/stat.h> // For open()
 #include <errno.h>
 #include <unistd.h> // For close()
-#include <stdlib.h> 
-#include <ctype.h> //For isdigit()
+#include <stdlib.h> // For calloc()
 #include <arpa/inet.h> //For inet_pton()
+#include <stdbool.h> //For bool
+#include <linux/netfilter.h> //For NF_ACCEPT, NF_DROP
 
+#define USER_DEBUG_MODE (1) //For debug-printing 
 /**
 #include <linux/device.h>
 #include <linux/fs.h>
-#include <linux/netfilter.h> //For ipv6 packets?
+//For ipv6 packets?
 #include <linux/netfilter_ipv4.h>
 #include <linux/ip.h>
 #include <linux/tcp.h>

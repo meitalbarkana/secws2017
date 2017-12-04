@@ -20,7 +20,7 @@ static void nullify_str(char* str, size_t start_index, size_t last_index){
 static bool does_rulename_already_exists(const char* rulename){
 	size_t i = 0;
 	for (i = 0; i < g_num_of_valid_rules; ++i){
-		if (strncmp(((g_all_rules_table)[i])->rule_name, rulename, MAX_LEN_OF_NAME_RULE+1) == 0){
+		if (strncmp(((g_all_rules_table)[i]).rule_name, rulename, MAX_LEN_OF_NAME_RULE+1) == 0){
 			return true; //rulename already exists
 		}
 	}
@@ -91,7 +91,6 @@ static bool is_ipv4_subnet_format(const char* const_str, unsigned int* ipv4value
 	//MIN_STRLEN_OF_IP_ADDR = strlen("X.X.X.X/Y") = 9
 	size_t strLength = strnlen(const_str, MAX_STRLEN_OF_IP_ADDR+2); //Because there's no need to check more chars than that..
 	
-	size_t i = 0;
 	//Initiating values to zero:	
 	*ipv4value = 0;
 	*prefixLength = 0;
@@ -157,7 +156,7 @@ static prot_t translate_str_to_protocol(const char* str){
 	 *	if str's length is more than 3 (3+'\0'), sure it can't represent a number in [0,255] range
 	 * 	[we send strnlen 5 because: 3+1(for '\0')+1(to make sure str isn't longer, because strnlen checks null-terminator char)]
 	 **/
-	if((strnlen(str,5) <= 3) && (sscanf(str,"%hhu", &temp) == 1) && (temp <= 255)){
+	if((strnlen(str,5) <= 3) && (sscanf(str,"%lu", &temp) == 1) && (temp <= 255)){
 		return PROT_OTHER;
 	}
 	
@@ -433,7 +432,7 @@ static bool tran_action_to_str(unsigned char action, char* str){
  * 
  * NOTE: str's length, should be: MAX_STRLEN_OF_RULE_FORMAT+1 (includs '\0')
  **/
-bool get_rule_as_str(rule_t* rule, char* str){
+static bool get_rule_as_str(rule_t* rule, char* str){
 	size_t ip_len_str = strlen("XXX.XXX.XXX.XXX")+1;
 	char ip_dst_str[ip_len_str];
 	char ip_src_str[ip_len_str];
@@ -457,41 +456,46 @@ bool get_rule_as_str(rule_t* rule, char* str){
 		return false;
 	}
 	
-	
-	//TODO:: continue fixing code from here
-	
-	
-	
-	
 	//<rule name> <direction> <src ip>/<nps> <dst ip>/<nps> <protocol> <source port> <dest port> <ack> <action>
-	num_of_chars_written = snprintf(str, MAX_STRLEN_OF_RULE_FORMAT+1, "%s %s %s/%u %s/%u %s %s %s %s %s", rule->rule_name, direc_str, ip_src_str, rule->src_prefix_size, 
-									ip_dst_str, rule->dst_prefix_size, protocol_str, s_port_str, d_port_str, ack_str, action_str);
+	num_of_chars_written = snprintf(str, MAX_STRLEN_OF_RULE_FORMAT+1,
+									"%s %s %s/%u %s/%u %s %s %s %s %s",
+									rule->rule_name,
+									direc_str,
+									ip_src_str,
+									rule->src_prefix_size,
+									ip_dst_str,
+									rule->dst_prefix_size,
+									protocol_str,
+									s_port_str,
+									d_port_str,
+									ack_str,
+									action_str);
 
-	free_unnecessary_strs(NULL, ip_src_str, ip_dst_str, direc_str, protocol_str, s_port_str, d_port_str, ack_str, action_str);
-	
 	if (num_of_chars_written < MIN_STRLEN_OF_RULE_FORMAT){
-		printk(KERN_ERR "Failed translating rule_t to string\n");
-		kfree(str);
-		return NULL;
+		printf("Failed translating rule_t to string\n");
+		return false;
 	}
 	
-	return str;
+	return true;
 }
 
 /**
  *	Gets a string that supposed to represent a proper rule
  *
- *  If g_num_of_valid_rules<MAX_NUM_OF_RULES,
- *  creates a rule according to str, inserts it to the rule table (g_all_rules_table) and updates g_num_of_valid_rules.
- * 	If succedded, returns the pointer to rule_t created & allocated & inserted to the rule table
- *	Otherwise - returns NULL
+ *  If g_num_of_valid_rules < MAX_NUM_OF_RULES:
+ *  	creates a rule according to str,
+ * 		inserts it to the relevant place in rule table (g_all_rules_table)
+ * 		and updates g_num_of_valid_rules.
+ * 
+ * 	If succedded, returns true
  * 	
  * 	NOTE:1. user of this funtion should free memory allocated by it.
- * 		 2. str will be ruined
- * 		 3. valid str format should be:
+ * 		 2. str (inside function) is ruined (by strsep)
+ * 		 3. valid str format should is:
  * 		    <rule name> <direction> <src ip>/<nps> <dst ip>/<nps> <protocol> <source port> <dest port> <ack> <action>
+ * 		 4. rules' logic is NOT tested here, user should check it!
  **/
-rule_t* get_rule_from_string(const char* const_str){
+static bool update_rule_from_string(const char* const_str){
 	
 	char *str, *pStr;
 	size_t i = 0;
@@ -499,18 +503,18 @@ rule_t* get_rule_from_string(const char* const_str){
 	char* curr_token = NULL;
 	int temp_val = 0;
 	
+	//Makes sure there aren't too much rules & that str isn't longer than MAX_STRLEN_OF_RULE_FORMAT
 	if ((g_num_of_valid_rules >= MAX_NUM_OF_RULES) || (const_str == NULL) ||
-		(strnlen(const_str, MAX_STRLEN_OF_RULE_FORMAT+2) > MAX_STRLEN_OF_RULE_FORMAT)){ //To make sure there aren't too much rules & that str isn't longer than MAX_STRLEN_OF_RULE_FORMAT
-		return NULL;
+		(strnlen(const_str, MAX_STRLEN_OF_RULE_FORMAT+2) > MAX_STRLEN_OF_RULE_FORMAT)){ 
+		return false;
 	}
-	if ((rule_ptr = kmalloc(sizeof(rule_t),GFP_KERNEL)) == NULL) {
-		return NULL;
-	}
+
+	rule_ptr = &g_all_rules_table[g_num_of_valid_rules];
 	
 	//Creating a copy of const_str:
-	if((str = kmalloc(sizeof(char)*(strlen(const_str)+1),GFP_KERNEL)) == NULL){
-		kfree(rule_ptr);
-		return NULL;
+	if((str = calloc((strlen(const_str)+1), sizeof(char))) == NULL){
+		printf("Error allocating memory for const_str copy inside update_rule_from_string().\n");
+		return false;
 	}
 	strncpy(str, const_str, strlen(const_str)+1);
 	pStr = str;
@@ -553,9 +557,9 @@ rule_t* get_rule_from_string(const char* const_str){
 				break;
 			}
 			if (i == 5){
-				rule_ptr->src_port = (__be16)temp_val; // Safe casting since temp_val!=PORT_ERROR
+				rule_ptr->src_port = (unsigned short)temp_val; // Safe casting since temp_val!=PORT_ERROR
 			} else { // i is 6, update dst_port:
-				rule_ptr->dst_port = (__be16)temp_val;
+				rule_ptr->dst_port = (unsigned short)temp_val;
 			}
 		}
 		else if (i == 7) { //Check curr_token is <ack>
@@ -573,84 +577,119 @@ rule_t* get_rule_from_string(const char* const_str){
 	}
 	
 	if ( i != NUM_OF_TOKENS_IN_FORMAT) { // Means loop was broken - str isn't a valid rule
-		kfree(pStr);
-		kfree(rule_ptr);
-		return NULL;		
+		free(pStr);
+		return false;		
 	}
 	
 	//Makes sure str didn't contain any invalid characters (at its end)
 	curr_token = strsep(&str, " ");
 	if (curr_token != NULL){
-		kfree(pStr);
-		kfree(rule_ptr);
-		return NULL;
+		free(pStr);
+		return false;
 	}
 
 	//If gets here, we have a valid rule:
-	kfree(pStr);
-	g_all_rules_table[g_num_of_valid_rules] = rule_ptr;
+	free(pStr);
 	++g_num_of_valid_rules;
-	printk(KERN_INFO "g_num_of_valid_rules is: %u \n",g_num_of_valid_rules);//TODO::DELETE THIS, TEST
-	return rule_ptr;
-
-}
-
-/**
- * 	Initiates (allocates space for)  g_all_rules_table, returns true on success
- **/
-static bool init_rules_table(){
-	if ((g_all_rules_table = kmalloc(sizeof(rule_t*)*MAX_NUM_OF_RULES, GFP_KERNEL)) == NULL) {
-		return false;
-	}
-	return true;
-}
-
-/**
- * Frees all memory allocated for g_all_rules_table 
- **/
-static void destroy_rule_table(){
-	size_t i = 0;
-	for (i = 0; i < g_num_of_valid_rules; i++){
-		kfree(g_all_rules_table[i]);//TODO:: check if * needed??
-	}
-	g_num_of_valid_rules = 0;
-	kree(g_all_rules_table);
-}
-
-/**
- * Gets a buffer containing all rules, initiates g_all_rules_table accordingly.
- * buffer should contain rules in format of: <rule>\n<rule>\n...
- * rule-format: <rule name> <direction> <src ip>/<nps> <dst ip>/<nps> <protocol> <source port> <dest port> <ack> <action>
- * Returns true on success.
- **/
-static bool read_rules_from_buffer(const char* buffer){
 	
+#ifdef USER_DEBUG_MODE
+	printf("g_num_of_valid_rules is updated y 1 to: %u.\n",g_num_of_valid_rules);
+#endif
+
+	return true;
+
 }
+
 
 /**
  * @rule - pointer to initialized rule_t that we check if 
- * 		   can indeed represent reasonable rule.
+ * 		   can indeed represent a reasonable rule.
  * 
  * Returns true if it is.
  **/
 static bool is_valid_rule_logic(rule_t* rule){
 	
-	//Rule that is NOT about TCP, has to have ACK == ACK_ANY to be considered valid:
-	if (rule->protocol != PROT_TCP) && (rule->ack != ACK_ANY) {
+	//Rule that is NOT about TCP / UDP, has to have
+	// dst_port==src_port==PORT_ANY to be considered valid:
+	if ( (rule->protocol != PROT_TCP) && (rule->protocol != PROT_UDP)
+		&& ((rule->src_port != PORT_ANY) || (rule->dst_port != PORT_ANY) )){
 		return false;
 	}
 	
-	//TODO::
-	//		probably more checks: direction and stuff
-	return true;
-
-/**
-USAGE:
-	if (!is_valid_rule_logic(rule)){
-		printk(KERN_ERR "Rule has no reasonable logic. It wasn't added to g_all_rules_table.\n");
+	//Rule that is NOT about TCP, has to have ACK == ACK_ANY 
+	//	or ACK == ACK_NO to be considered valid:
+	if ((rule->protocol != PROT_TCP) && (rule->ack == ACK_YES)) {
 		return false;
 	}
+	
+	//TODO:: think of more ideas to test..
+	return true;
+}
 
-**/
 
+/**
+ * Gets a path to file containing all rules,
+ * initiates g_all_rules_table accordingly.
+ * 
+ * File should contain rules in format of: <rule>\n<rule>\n...
+ * 
+ * Rule format: <rule name> <direction> <src ip>/<nps> <dst ip>/<nps> <protocol> <source port> <dest port> <ack> <action>
+ * 
+ * Returns: number of rules written to rules-table on success,
+ * 			(-1) if failed.
+ * 
+ * NOTE: if table already has rules, this function will discard all old rules!
+ **/
+static int read_rules_from_file(const char* file_path){
+	
+	g_num_of_valid_rules = 0;
+	
+	struct stat st;
+	
+	//st_size is of type off_t which is signed integer - so might be negative, if an error occurred..
+	if ((stat(file_path, &st) != 0) || (st.st_size <= 0)) { 
+		printf ("Error getting file's stat\n");
+		return -1;
+	}
+	
+	FILE* fp;
+	char* buffer = NULL; 
+	size_t bytes_allocated = 0;
+	ssize_t line_length = 0;
+	int lines_checked = 0;
+	
+	if((fp = fopen(file_path,"r")) == NULL){
+		printf ("Error opening rules-filet\n");
+		return -1;
+	}
+	
+	//Read file line-by-line:
+	while ((g_num_of_valid_rules < MAX_NUM_OF_RULES) && 
+			((line_length = getline(&buffer, &bytes_allocated, fp)) != -1)
+			&&(lines_checked < MAX_LINES_TO_CHECK_IN_FILE) )
+	{
+		if (line_length < MIN_STRLEN_OF_RULE_FORMAT) { 
+			printf("Invalid line in file, discarded it.\n");
+		} 
+		else {
+			if (!update_rule_from_string(buffer)) {
+				printf("Invalid format line in file, discarded it.\n");
+			} 
+			else { //A rule was added:
+				//Checks rule has reasonable logic:
+				if (!is_valid_rule_logic(&(g_all_rules_table[g_num_of_valid_rules]))){
+					printf("Rule has no reasonable logic. It wasn't added to g_all_rules_table.\n");
+					--g_num_of_valid_rules;
+				}
+			}
+		}
+		++lines_checked;
+		free(buffer);
+		buffer = NULL;
+	}
+	
+	free(buffer);
+	fclose(fp);
+
+	return g_num_of_valid_rules;
 }
