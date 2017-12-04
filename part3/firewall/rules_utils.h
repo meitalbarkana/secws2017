@@ -20,6 +20,9 @@
 
 #define MAX_LEN_ALL_RULES_BUFF ((MAX_NUM_OF_RULES*MAX_STRLEN_OF_RULE_FORMAT) + MAX_NUM_OF_RULES)
 //MAX_LEN_ALL_RULES_BUFF doesn't count the '\0'
+
+//Since each field has at least 1 character (length doesn't include '\n','\0'):
+#define MIN_RULE_FORMAT_LEN (NUM_OF_SPACES_IN_FORMAT+NUM_OF_FIELDS_IN_FORMAT)
 /*******************************/
 
 #define FW_ON 1

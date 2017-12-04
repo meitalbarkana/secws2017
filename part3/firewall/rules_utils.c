@@ -499,7 +499,7 @@ static int send_str_rule_to_buffer(rule_t* rulePtr, char* buffer){
 				rulePtr->protocol,
 				rulePtr->ack,
 				rulePtr->action)
-		) < NUM_OF_FIELDS_IN_RULE_T)
+		) < (MIN_RULE_FORMAT_LEN+1))
 	{
 		printk(KERN_ERR "Error formatting rule to its string representation\n"); //Should never get here..
 		return -1;
