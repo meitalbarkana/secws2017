@@ -15,6 +15,8 @@
 #include <ctype.h> //For isdigit()
 
 #define USER_DEBUG_MODE (1) //For debug-printing 
+
+#define PATH_TO_RULE_DEV "/dev/fw_rules"
 /**
 #include <linux/device.h>
 #include <linux/fs.h>

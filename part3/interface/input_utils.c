@@ -77,69 +77,6 @@ static direction_t translate_str_to_direction(const char* str){
 }
 
 /**
- *  Helper function for input-validation:
- * 	Gets a (non-NULL!) string and checks if it's in IPv4 format - including netmask
- * 	<XXX.XXX.XXX.XXX/YY>
- *  Assuming the input's format is Big-Endian!
- * 	Returns: true if it is, false otherwise.
- * 	If the string is valid, updates: 1. ipv4value to contain the unsigned-int value of the ip 
- * 									 2. prefixLength to contain the length of the subnet prefix
- **/
- /**
-static bool is_ipv4_subnet_format(const char* const_str, unsigned int* ipv4value, unsigned char* prefixLength){
-	
-	//MAX_STRLEN_OF_IP_ADDR = strlen("XXX.XXX.XXX.XXX/YY") = 18
-	//MIN_STRLEN_OF_IP_ADDR = strlen("X.X.X.X/Y") = 9
-	size_t strLength = strnlen(const_str, MAX_STRLEN_OF_IP_ADDR+2); //Because there's no need to check more chars than that..
-	
-	//Initiating values to zero:	
-	*ipv4value = 0;
-	*prefixLength = 0;
-	
-	//any IPv4 address <=> 0.0.0.0/0 :
-	if ((strLength == 3) && ((strcmp(const_str, "any") == 0) || (strcmp(const_str, "ANY") == 0)) ){
-		return true;
-	}
-	
-	if ((strLength < MIN_STRLEN_OF_IP_ADDR) || (strLength > MAX_STRLEN_OF_IP_ADDR)){
-		return false;
-	}
-	
-	char ip[strLength];
-	char rest[strLength];
-	int x = 0;
-	
-	if ( ((x = sscanf(const_str,"%s/%2hhu%s", ip, prefixLength,rest)) != 2) || 
-		 (*prefixLength > MAX_PREFIX_LEN_VALUE) )
-	{
-#ifdef USER_DEBUG_MODE
-		printf("sscanf failed - couldn't parse ip/prefixlength. x value is: %d\n", x);
-		if (x == 1) {
-			printf ("ip is: %s\n", ip);
-		}
-#endif
-		return false;
-	}
-	//If got here, 0<=*prefixLength<=32
-	
-	struct in_addr addr;
-
-    if (inet_pton(AF_INET, ip , &addr) == 1){ 
-		//Conerting string to ip address, network order, succeeded:
-        *ipv4value = ntohl(addr.s_addr);
-    } else {
-		
-#ifdef USER_DEBUG_MODE
-		printf("Conerting string: %s, to ip address failed\n", ip);
-#endif
-		return false; 
-    }
-	
-	return true;
-}
-**/
-
-/**
  *	Helper function: gets a string, 
  *	checks all str's characters are digits [no -,+]
  *	if they are - 
@@ -960,13 +897,50 @@ enum rules_recieved_t send_rules_to_fw(void){
 		return NO_RULE_RECIEVED;
 	}
 	
-	//TODO:: edit function to send fw all details
+	//TODO:: test!
+
+	int fd = open(PATH_TO_RULE_DEV,O_WRONLY); // Open device with write only permissions
+	if (fd < 0){
+		printf("Error accured trying to open fw_rules device, error number: %d\n", errno);
+		free (buff);
+		return NO_RULE_RECIEVED;
+	}
+	
+	int bytes_to_write = strlen(buff);
+	int bytes_written = -1;
+	
+#ifdef USER_DEBUG_MODE	
+	printf("Bytes supposed to be written to fw_rules: %d\n", bytes_to_write);
+#endif	
+
+	if ( (bytes_written = write(fd, buff, bytes_to_write)) <= 0){
+		printf("Error accured trying to write rules into fw_rules device\n");
+		close(fd);
+		free(buff);
+		return NO_RULE_RECIEVED;
+	}
+	close(fd);
+	
+#ifdef USER_DEBUG_MODE	
+	printf("Bytes supposed to be written to fw_rules: %d, acctually written: %d\n", bytes_to_write, bytes_written);
+#endif	
+	
 	
 #ifdef USER_DEBUG_MODE
 	printf ("BUFF IS:\n***********************************************************************\n");
 	printf("%s", buff);
+	/**
+	for (size_t i = 0; i < strlen(buff); ++i){
+		if ( buff[i] == CHAR_CR || buff[i] == CHAR_LF){
+			printf("**%d**\n",buff[i]);
+		} else {
+			printf("%c",buff[i]);
+		}
+	}
+	**/
 #endif		
 
 	free(buff);
-	return ALL_RULE_RECIEVED;
+	
+	return ((bytes_written < bytes_to_write) ? PARTIAL_RULE_RECIEVED : ALL_RULE_RECIEVED);
 }

@@ -25,13 +25,13 @@ int load_rules(const char* file_path){
 	enum rules_recieved_t rrcvd = send_rules_to_fw();
 	switch (rrcvd) {
 		case(NO_RULE_RECIEVED):
-			printf ("Failed loading rules to firewall. Previous rules, if any, were untouched.\n");
+			printf ("Failed loading rules to the firewall. Previous rules, if any, were untouched.\n");
 			return -1;
 		case(PARTIAL_RULE_RECIEVED):
 			printf ("Some of the rules weren't loaded, use show_rules command for details of those who were loaded");
 			return 0;
 		default: //ALL_RULE_RECIEVED
-			printf ("All %d rules loaded successfully.\n", rules_read);
+			printf ("All %d rules were loaded successfully to the firewall.\n", rules_read);
 			return 0;
 	}
 	
