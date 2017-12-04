@@ -36,7 +36,7 @@ static struct file_operations fops = {
 
 
 //For tests alone! prints rule to kernel
-/**
+///TODO:: comment it
 static void print_rule(rule_t* rulePtr){
 	
 	size_t add_to_len = strlen("rule name is: ,\ndirection: ,\nsrc_ip: ,\nsrc_prefix_mask: ,\nsrc_prefix_size: /,\ndst_ip: ,\ndst_prefix_mask: ,\ndst_prefix_size: ,\nsrc_port: ,\ndst_port: ,\nprotocol: ,\nack: ,\naction: \n");
@@ -66,7 +66,6 @@ static void print_rule(rule_t* rulePtr){
 		printk (KERN_INFO "%s",str);
 	}
 }
-**/
 
  /**
  *	This function will be called when user tries to read from the "active" device.
@@ -206,6 +205,10 @@ static bool does_rulename_already_exists(const char* rulename){
  * Returns true if rulename is valid, false otherwise
  **/
 static bool is_valid_rule_name(const char* rulename, rule_t* rule){
+	if (rulename == NULL){
+		printk (KERN_ERR "#####NULL - Function is_valid_rule_name got NULL argument (rulename)\n");
+		return false;
+	}
 	if( is_rule_name(rulename) && (!does_rulename_already_exists(rulename)) ){ 
 		strncpy(rule->rule_name, rulename, MAX_LEN_RULE_NAME);
 		return true;
@@ -353,7 +356,7 @@ static bool is_valid_action(unsigned char num, rule_t* rule){
  * Returns true on success. 
  **/
 static bool is_valid_rule(const char* rule_str){
-	
+	//TODO:: FIND WHY EVERYTHING CRASHES :'(
 	rule_t* rule = &(g_all_rules_table[g_num_of_valid_rules]);
 	//Declaring temporaries:
 	char t_rule_name[MAX_LEN_RULE_NAME];
@@ -365,10 +368,15 @@ static bool is_valid_rule(const char* rule_str){
 	__u8	t_action;
 
 #ifdef DEBUG_MODE
-	printk(KERN_INFO "In function is_valid_rule, testing rule number: %huu\n",g_num_of_valid_rules);
+	printk(KERN_INFO "In function is_valid_rule, testing rule number: %hhu. ",g_num_of_valid_rules);
+	if (rule_str != NULL){
+		printk(KERN_INFO "rule_str is: %s\n", rule_str);
+	} else {
+		printk(KERN_INFO "rule_str is: NULL!!!\n");
+	}
 #endif
 	
-	//Makea sure there aren't too much rules & that rule_str isn't longer than MAX_STRLEN_OF_RULE_FORMAT
+	//Makes sure there aren't too much rules & that rule_str isn't longer than MAX_STRLEN_OF_RULE_FORMAT
 	if ((g_num_of_valid_rules >= MAX_NUM_OF_RULES) || (rule_str == NULL) ||
 		(strnlen(rule_str, MAX_STRLEN_OF_RULE_FORMAT+2) > MAX_STRLEN_OF_RULE_FORMAT)){ 
 		printk(KERN_ERR "Rule format is invalid: too long or NULL accepted.\n");
@@ -400,7 +408,8 @@ static bool is_valid_rule(const char* rule_str){
 	++g_num_of_valid_rules;
 	
 #ifdef DEBUG_MODE
-	printk(KERN_INFO "In function is_valid_rule, done testing a VALID rule. Total valid rules so far: %huu, \n",g_num_of_valid_rules);
+	printk(KERN_INFO "In function is_valid_rule, done testing a VALID rule. Total valid rules so far: %hhu, \n",g_num_of_valid_rules);
+	print_rule(&(g_all_rules_table[(g_num_of_valid_rules-1)]));
 #endif	
 
 	return true;
@@ -429,7 +438,9 @@ static ssize_t rfw_dev_write(struct file* filp, const char* buffer, size_t len, 
 	size_t buff_len;
 	ssize_t written_bytes = 0;
 	char *buff_copy, *ptr_buff_copy, *rule_token; 
-	
+#ifdef DEBUG_MODE
+	printk (KERN_INFO "START OF rfw_dev_write()\n");
+#endif	
 	//Basic input checks:
 	if ((buffer == NULL) || (len == 0) || (len > MAX_LEN_ALL_RULES_BUFF)
 		|| ( (buff_len = strnlen(buffer, MAX_LEN_ALL_RULES_BUFF+2)) > MAX_LEN_ALL_RULES_BUFF ) ) 
@@ -447,6 +458,11 @@ static ssize_t rfw_dev_write(struct file* filp, const char* buffer, size_t len, 
 		printk(KERN_ERR "Failed allocating space for copying all-rules string\n");
 		return -1;
 	}
+	
+#ifdef DEBUG_MODE
+	printk (KERN_INFO "In rfw_dev_write(), allocated memory for buffer\n");
+#endif		
+	
 	//buffer is guaranteed to have '\0' at its end, from passing basic input check:
 	strncpy(buff_copy, buffer, MAX_LEN_ALL_RULES_BUFF+1); 
 	//Saving a ptr so we can free it later (strsep "ruins" buff_copy)
@@ -456,10 +472,13 @@ static ssize_t rfw_dev_write(struct file* filp, const char* buffer, size_t len, 
 			&& (g_num_of_valid_rules < MAX_NUM_OF_RULES) ) 
 	{
 		if(is_valid_rule(rule_token)){
-			written_bytes += strnlen(rule_token, MAX_STRLEN_OF_RULE_FORMAT+2);
+			written_bytes += (strnlen(rule_token, MAX_STRLEN_OF_RULE_FORMAT+2)+1); //+1 for the '\n' device "wrote"
 		}
 	}
 	
+#ifdef DEBUG_MODE
+	printk (KERN_INFO "Total bytes written to fw_rules: %d\n", written_bytes);
+#endif	
 	return written_bytes;
 	
 }
