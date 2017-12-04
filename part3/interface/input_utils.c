@@ -85,6 +85,7 @@ static direction_t translate_str_to_direction(const char* str){
  * 	If the string is valid, updates: 1. ipv4value to contain the unsigned-int value of the ip 
  * 									 2. prefixLength to contain the length of the subnet prefix
  **/
+ /**
 static bool is_ipv4_subnet_format(const char* const_str, unsigned int* ipv4value, unsigned char* prefixLength){
 	
 	//MAX_STRLEN_OF_IP_ADDR = strlen("XXX.XXX.XXX.XXX/YY") = 18
@@ -105,10 +106,18 @@ static bool is_ipv4_subnet_format(const char* const_str, unsigned int* ipv4value
 	}
 	
 	char ip[strLength];
+	char rest[strLength];
+	int x = 0;
 	
-	if ( (sscanf(const_str,"%15s/%2hhu", ip, prefixLength) != 2) || 
+	if ( ((x = sscanf(const_str,"%s/%2hhu%s", ip, prefixLength,rest)) != 2) || 
 		 (*prefixLength > MAX_PREFIX_LEN_VALUE) )
 	{
+#ifdef USER_DEBUG_MODE
+		printf("sscanf failed - couldn't parse ip/prefixlength. x value is: %d\n", x);
+		if (x == 1) {
+			printf ("ip is: %s\n", ip);
+		}
+#endif
 		return false;
 	}
 	//If got here, 0<=*prefixLength<=32
@@ -119,11 +128,141 @@ static bool is_ipv4_subnet_format(const char* const_str, unsigned int* ipv4value
 		//Conerting string to ip address, network order, succeeded:
         *ipv4value = ntohl(addr.s_addr);
     } else {
-       return false; 
+		
+#ifdef USER_DEBUG_MODE
+		printf("Conerting string: %s, to ip address failed\n", ip);
+#endif
+		return false; 
     }
 	
 	return true;
 }
+**/
+
+/**
+ *	Helper function: gets a string, 
+ *	checks all str's characters are digits [no -,+]
+ *	if they are - 
+ *	Updates *num to contain the unsigned long str represents.
+ * 
+ * @str - string to check, HAS TO BE OF LENGTH <= max_len, otherwise false is returned
+ * @max_len - str's length
+ * @num - value to be updated
+ * 
+ * 	Returns true on success.
+ **/
+static bool my_strict_strtoul(const char* str, size_t max_len, unsigned long* num){
+	
+	char* endPtr;
+	
+	if (max_len == 0){
+#ifdef USER_DEBUG_MODE
+		printf("Tried to convert an empty string to numeric value and failed\n");
+#endif
+		return false;
+	}
+	
+	if (strnlen(str, max_len+2) > max_len) {
+		return false;
+	}
+								
+	for (size_t i = 0; i < strlen(str); ++i){ //Safe to use strlen now
+		if (!isdigit(str[i])){
+			return false;
+		}
+	}
+	
+	//Safe to use strtoul:
+	unsigned long temp = strtoul(str, &endPtr,10);
+	if ((*endPtr == '\0') && (*str != '\0')){
+		*num = temp;
+		return true;
+	}
+#ifdef USER_DEBUG_MODE
+	printf ("strtoul failed, endPtr is: %c\n", *endPtr);
+#endif
+	return false;
+}
+
+
+/**
+ *  Helper function for input-validation:
+ * 	Gets a (non-NULL!) string and checks if it's in IPv4 format - including netmask
+ * 	<XXX.XXX.XXX.XXX/YY>
+ *  Assuming the input's format is Big-Endian!
+ * 	Returns: true if it is, false otherwise.
+ * 	If the string is valid, updates: 1. ipv4value to contain the unsigned-int value of the ip 
+ * 									 2. prefixLength to contain the length of the subnet prefix
+ **/
+static bool is_ipv4_subnet_format(const char* const_str, unsigned int* ipv4value, unsigned char* prefixLength){
+	
+	size_t strLength = strnlen(const_str, MAX_STRLEN_OF_IP_ADDR+2); //Because there's no need to check more chars than that..
+	
+	/** These variables are declared here only to avoid warning:"ISO C90 forbids mixed declarations and code"
+	 * (I'd put them after the first "if")**/
+	//currToken will contain "XXX" or "YY" string:
+	char *currToken, *str ,*pStr; 
+	//Will contain the value "XXX" or "YY" represent:
+	unsigned long temp = 0; 
+	//Will contain the relevant multiplicand needed for calculating ip address:
+	// 2^24 = 256^3 = 16,777,216 , 2^16 = 256^2 = 65536
+	// 2^8 = 256^1 = 256 , 2^0 = 256^0 = 1 
+	unsigned int multiplicand = 1; 
+	size_t i = 0;
+	//Initiating values to zero:	
+	*ipv4value = 0;
+	*prefixLength = 0;
+	
+	//any IPv4 address <=> 0.0.0.0/0 :
+	if ((strLength == 3) && ((strcmp(const_str, "any") == 0) || (strcmp(const_str, "ANY") == 0)) ){
+		return true;
+	}
+	
+	if ((strLength < MIN_STRLEN_OF_IP_ADDR) || (strLength > MAX_STRLEN_OF_IP_ADDR)){
+		return false;
+	}
+	
+	//Creating a copy of const_str:
+	if((str = calloc((strLength+1),sizeof(char))) == NULL){
+		printf("Failed allocating space for copying IPv4 string\n");
+		return false;
+	}
+	strncpy(str, const_str, strLength+1);
+	pStr = str;
+	
+	for (i = 0; i <= 4; ++i){
+		currToken = strsep(&str, "./");
+		if (currToken == NULL){
+			free(pStr);
+			return false;
+		}
+		if (i == 4) { //means we're at the part of the string representing the netmask length 		
+			if( (!my_strict_strtoul(currToken, strLength ,&temp)) || (temp > 32)){
+				free(pStr);
+				return false;
+			}
+			*prefixLength = (unsigned char)temp; //Safe casting, since temp <= 32
+		} else { // i is 0/1/2/3
+			if((!my_strict_strtoul(currToken, strLength ,&temp)) || (temp > 255)){
+				free(pStr);
+				return false;
+			}
+			multiplicand = 1 << (8*(3-i));
+			(*ipv4value)+= multiplicand*(unsigned int)temp; //Safe casting, since temp <= 255
+		}
+	}
+	
+	//Makes sure str didn't contain any invalid characters
+	currToken = strsep(&str, "./");
+	if (currToken != NULL){
+		free(pStr);
+		return false;
+	}
+
+	free(pStr);
+	return true;
+}
+
 
 /**
  * Gets a (non-NULL!) string that supposed to represent the protocol
@@ -235,7 +374,8 @@ static bool translate_str_to_ack(const char* str, ack_t* ack){
  **/
 static bool translate_str_to_action(const char* str, unsigned char* action){
 	//Since the maximum valid str length is MAX_STRLEN_OF_ACTION+1(for '\0')+1 (to make sure str isn't longer):
-	if((str != NULL) && strnlen(str,MAX_STRLEN_OF_ACTION+2) <= MAX_STRLEN_OF_ACTION){ 
+
+	if( (str != NULL) && (strnlen(str,MAX_STRLEN_OF_ACTION+2) <= MAX_STRLEN_OF_ACTION)){ 
 		if ((strcmp(str, "accept") == 0) || (strcmp(str, "ACCEPT") == 0)) {
 			*action = NF_ACCEPT;
 			return true;
@@ -245,6 +385,7 @@ static bool translate_str_to_action(const char* str, unsigned char* action){
 			return true;
 		}
 	}
+
 	return false;
 }
 
@@ -496,7 +637,11 @@ static bool get_rule_as_str(rule_t* rule, char* str){
  * 		 4. rules' logic is NOT tested here, user should check it!
  **/
 static bool update_rule_from_string(const char* const_str){
-	
+
+#ifdef USER_DEBUG_MODE
+	printf("str sent to update_rule_from_string() is: %s*********************\n", const_str);
+#endif	
+
 	char *str, *pStr;
 	size_t i = 0;
 	rule_t* rule_ptr = NULL;
@@ -513,7 +658,7 @@ static bool update_rule_from_string(const char* const_str){
 	
 	//Creating a copy of const_str:
 	if((str = calloc((strlen(const_str)+1), sizeof(char))) == NULL){
-		printf("Error allocating memory for const_str copy inside update_rule_from_string().\n");
+		printf("Error allocating memory for const_str copy inside update_rule_from_string(), ");
 		return false;
 	}
 	strncpy(str, const_str, strlen(const_str)+1);
@@ -527,33 +672,39 @@ static bool update_rule_from_string(const char* const_str){
 			if( is_rule_name(curr_token) && (!does_rulename_already_exists(curr_token)) ){ 
 				update_rule_name(rule_ptr, curr_token); //Updates current rule's name
 			} else { //not a valid rule name
+				printf("Invalid rule: invalid rule-name or a rule with the same name already exists, ");
 				break;
 			}
 		}
 		else if (i == 1) { //Checks curr_token is valid direction:
 			if ((rule_ptr->direction = translate_str_to_direction(curr_token)) == DIRECTION_ERROR){
+				printf("Invalid rule: direction is wrong, ");
 				break;
 			}
 		}
 		else if (i == 2) { //Check curr_token is <src ip>/<nps>
 			if (!is_ipv4_subnet_format(curr_token, &(rule_ptr->src_ip), &(rule_ptr->src_prefix_size))){
+				printf("Invalid rule: <src ip>/<nps> is wrong, ");
 				break;				
 			}
 			rule_ptr->src_prefix_mask = get_prefix_mask(rule_ptr->src_prefix_size);
 		}
 		else if (i == 3) { //Check curr_token is <dst ip>/<nps>
 			if (!is_ipv4_subnet_format(curr_token, &(rule_ptr->dst_ip), &(rule_ptr->dst_prefix_size))){
+				printf("Invalid rule: <dst ip>/<nps> is wrong, ");
 				break;				
 			}
 			rule_ptr->dst_prefix_mask = get_prefix_mask(rule_ptr->dst_prefix_size);	
 		}
 		else if (i == 4) { //Checks curr_token is <protocol>
 			if ((rule_ptr->protocol = translate_str_to_protocol(curr_token)) == PROT_ERROR){
+				printf("Invalid rule: <protocol> is wrong, ");
 				break;
 			}
 		}
 		else if ((i == 5) || (i == 6)) { //Check curr_token is <source port> / <dest port>
 			if ((temp_val = translate_str_to_int_port_number(curr_token)) == PORT_ERROR){
+				printf("Invalid rule: <dest/src port> is wrong, ");
 				break;
 			}
 			if (i == 5){
@@ -564,11 +715,13 @@ static bool update_rule_from_string(const char* const_str){
 		}
 		else if (i == 7) { //Check curr_token is <ack>
 			if (!translate_str_to_ack(curr_token, &(rule_ptr->ack))){
+				printf("Invalid rule: <ack> is wrong, ");
 				break;
 			}	
 		}
 		else { // i == 8, last index that is < NUM_OF_TOKENS_IN_FORMAT. Check curr_token is <action> 
 			if(!translate_str_to_action(curr_token, &(rule_ptr->action))){
+				printf("Invalid rule: <action> is wrong, ");
 				break;
 			}
 		}
@@ -593,7 +746,7 @@ static bool update_rule_from_string(const char* const_str){
 	++g_num_of_valid_rules;
 	
 #ifdef USER_DEBUG_MODE
-	printf("g_num_of_valid_rules is updated y 1 to: %u.\n",g_num_of_valid_rules);
+	printf("g_num_of_valid_rules is updated to: %u.\n",g_num_of_valid_rules);
 #endif
 
 	return true;
@@ -621,9 +774,34 @@ static bool is_valid_rule_logic(rule_t* rule){
 	if ((rule->protocol != PROT_TCP) && (rule->ack == ACK_YES)) {
 		return false;
 	}
-	
 	//TODO:: think of more ideas to test..
 	return true;
+}
+
+/**
+ *	Gets a NULL TERMINATED string,
+ *	Removes '\n' characters from the end of it
+ * (2 chars if str was created from windows-compatible source)
+ * 
+ **/
+static void delete_backslash_n(char* str){
+	size_t len = strlen(str);
+	if (len == 0){
+		return;
+	}
+	if (len == 1) {
+		if ((str[0] == CHAR_CR) || (str[0] == CHAR_LF)){
+			str[0] = '\0';
+		}
+		return;
+	}
+	//str length >=2:
+	if ((str[len-1] == CHAR_CR) || (str[len-1] == CHAR_LF)){
+		str[len-1] = '\0';
+	}
+	if ((str[len-2] == CHAR_CR) || (str[len-2] == CHAR_LF)){
+		str[len-2] = '\0';
+	}
 }
 
 
@@ -640,7 +818,7 @@ static bool is_valid_rule_logic(rule_t* rule){
  * 
  * NOTE: if table already has rules, this function will discard all old rules!
  **/
-static int read_rules_from_file(const char* file_path){
+int read_rules_from_file(const char* file_path){
 	
 	g_num_of_valid_rules = 0;
 	
@@ -672,15 +850,20 @@ static int read_rules_from_file(const char* file_path){
 			printf("Invalid line in file, discarded it.\n");
 		} 
 		else {
+			//Gets rid of '\n' at the end of buffer:
+			delete_backslash_n(buffer);
 			if (!update_rule_from_string(buffer)) {
 				printf("Invalid format line in file, discarded it.\n");
 			} 
-			else { //A rule was added:
-				//Checks rule has reasonable logic:
-				if (!is_valid_rule_logic(&(g_all_rules_table[g_num_of_valid_rules]))){
-					printf("Rule has no reasonable logic. It wasn't added to g_all_rules_table.\n");
+			else { 
+				
+				//A rule was added. checks rule has reasonable logic:
+				//the (-1) since g_num_of_valid_rules was already updated in update_rule_from_string
+				if (!is_valid_rule_logic(&(g_all_rules_table[g_num_of_valid_rules-1]))){ 
+					printf("Rule has no reasonable logic. It was removed from g_all_rules_table.\n");
 					--g_num_of_valid_rules;
 				}
+				
 			}
 		}
 		++lines_checked;
@@ -692,4 +875,98 @@ static int read_rules_from_file(const char* file_path){
 	fclose(fp);
 
 	return g_num_of_valid_rules;
+}
+
+/**
+ * Returns true if path is a file (not a directory)
+ **/
+bool valid_file_path(const char* path){
+	struct stat fileData;
+	if (stat(path, &fileData) == 0 && S_ISREG(fileData.st_mode)){
+		return true;
+	}
+	return false;
+} 
+
+
+/**
+ *	Build a buffer that contain all rules from g_all_rules_table,
+ * 	in format expected by the firewall:
+ * 
+ * 	FORMAT:
+ * 		Buffer := [RULE]\n...[RULE]\n
+ * 		RULE := <rule name> <direction> <src ip> <src prefix length> <dst ip> <dst prefix length> <protocol> <source port> <dest port> <ack> <action>
+ *
+ *	Returns: buffer on success, NULL if error happened 
+ *
+ *	Note: user should free memory allocated for string returned!
+ **/
+static char* build_all_rules_format(){
+	
+	size_t enough_len = (MAX_STRLEN_OF_FW_RULE_FORMAT*MAX_NUM_OF_RULES) + MAX_NUM_OF_RULES + 1; //for 50*'\n' & '\0' 
+	char* buffer = calloc(enough_len,sizeof(char));
+	if (buffer == NULL) {
+		printf("Error: allocation failed, couldn't build all-rule-format\n");
+		return NULL;
+	}
+	
+	size_t buff_offset = 0;
+	
+	rule_t* rulePtr;
+	
+	for (size_t i = 0; i < g_num_of_valid_rules; ++i){
+		rulePtr = &(g_all_rules_table[i]);
+		if ((sprintf( (buffer+buff_offset),		//pointer arithmetic
+				"%s %d %u %hhu %u %hhu %hu %hu %hhu %d %hhu\n",
+				rulePtr->rule_name,
+				rulePtr->direction,
+				rulePtr->src_ip,
+				rulePtr->src_prefix_size,
+				rulePtr->dst_ip,
+				rulePtr->dst_prefix_size,
+				rulePtr->src_port,
+				rulePtr->dst_port,
+				rulePtr->protocol,
+				rulePtr->ack,
+				rulePtr->action)
+		) < (NUM_OF_FIELDS_IN_FWRULE+SPACES_IN_FWFORMAT+1))
+		{
+			printf("Error formatting rule to its string representation\n"); //Should never get here..
+			free(buffer);
+			return NULL;
+		} 
+		
+		buff_offset = strlen(buffer);
+	}
+
+	return buffer;
+	
+}
+
+
+/**
+ *	Sends all rules in g_all_rules_table to fw.
+ * 
+ *	Returns:	1. NO_RULE_RECIEVED - if fw didn't add any rule
+ * 				2. PARTIAL_RULE_RECIEVED - if fw added some of the rules
+ * 				3. ALL_RULE_RECIEVED - if fw added all rule
+ **/
+enum rules_recieved_t send_rules_to_fw(void){
+	
+	char* buff = build_all_rules_format();
+	
+	if ((buff == NULL) || (strlen(buff) == 0)){
+		printf("Error: failed to create all-rules buffer.\n");
+		return NO_RULE_RECIEVED;
+	}
+	
+	//TODO:: edit function to send fw all details
+	
+#ifdef USER_DEBUG_MODE
+	printf ("BUFF IS:\n***********************************************************************\n");
+	printf("%s", buff);
+#endif		
+
+	free(buff);
+	return ALL_RULE_RECIEVED;
 }

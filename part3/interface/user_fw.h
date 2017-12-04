@@ -12,6 +12,7 @@
 #include <arpa/inet.h> //For inet_pton()
 #include <stdbool.h> //For bool
 #include <linux/netfilter.h> //For NF_ACCEPT, NF_DROP
+#include <ctype.h> //For isdigit()
 
 #define USER_DEBUG_MODE (1) //For debug-printing 
 /**
@@ -60,6 +61,13 @@ typedef enum {
 #define PORT_ABOVE_1023	(1023)
 #define PORT_ERROR (-1) 	//NOTE: not to be confused with "PROT_ERR"
 #define MAX_RULES		(50)
+
+// For knowing if all rules sent were recieved by fw:
+enum rules_recieved_t {
+	NO_RULE_RECIEVED,
+	PARTIAL_RULE_RECIEVED,
+	ALL_RULE_RECIEVED
+};
 
 // device minor numbers, for your convenience
 typedef enum {

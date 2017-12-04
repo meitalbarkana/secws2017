@@ -17,17 +17,43 @@
 #define MAX_STRLEN_OF_RULE_FORMAT (NUM_OF_SPACES_IN_FORMAT+MAX_LEN_OF_NAME_RULE+MAX_STRLEN_OF_DIRECTION+2*MAX_STRLEN_OF_IP_ADDR+MAX_STRLEN_OF_PROTOCOL+2*MAX_STRLEN_OF_PORT+MAX_STRLEN_OF_ACK+MAX_STRLEN_OF_ACTION)
 #define MAX_PREFIX_LEN_VALUE (32)
 
+
+/** CONSTANTS FOR FW FORMAT! **/
+/** FW format is: <rule name> <direction> <src ip> <src prefix length> <dst ip> <dst prefix length> <protocol> <source port> <dest port> <ack> <action>**/
+#define NUM_OF_FIELDS_IN_FWRULE (11)
+#define MAX_STRLEN_OF_BE32 (10)	//MAX_U_INT = 2^32-1 = 4294967295, 10 digits
+#define MAX_STRLEN_OF_BE16 (5)	//MAX_U_SHORT = 2^16-1 = 65535, 5 digits
+#define MAX_STRLEN_OF_U8 (3)	//MAX_U_CHAR = 2^8-1 = 255, 3 digits
+#define SPACES_IN_FWFORMAT	(10)
+#define LEN_FWRULE_NAME (20) //Including null-terminator byte 
+#define MAX_STRLEN_OF_FW_RULE_FORMAT (SPACES_IN_FWFORMAT+(LEN_FWRULE_NAME-1)+ 4*MAX_STRLEN_OF_BE32 + 2*MAX_STRLEN_OF_BE16 + 4*MAX_STRLEN_OF_U8)
+//MAX_STRLEN_OF_FW_RULE_FORMAT doesn't count the null-terminator and the '\n'.
+
+
 #define MAX_LINES_TO_CHECK_IN_FILE (200)//To avoid infinit loop
 
 #define MIN_LEN_OF_NAME_RULE (0) 
 #define MIN_STRLEN_OF_DIRECTION (2)		// minimum length value of("in","out","any) = 2
-#define MIN_STRLEN_OF_IP_ADDR (9)		// strlen("X.X.X.X/Y") = 9
+#define MIN_STRLEN_OF_IP_ADDR (3)		// "any"
 #define MIN_STRLEN_OF_PROTOCOL (3)		// minimum length value of("icmp","tcp","udp","any","other","XXX") = 3
-#define MIN_STRLEN_OF_PORT (3)			// minimum length value of(">1023","any","XXXXX") = 3
+#define MIN_STRLEN_OF_PORT (1)			// minimum length value of(">1023","any","X") = 1
 #define MIN_STRLEN_OF_ACK (2)			// minimum length value of("no","yes","any") = 2
 #define MIN_STRLEN_OF_ACTION (4)		// minimum length value of("accept","drop") = 4
 #define MIN_STRLEN_OF_RULE_FORMAT (NUM_OF_SPACES_IN_FORMAT+MIN_LEN_OF_NAME_RULE+MIN_STRLEN_OF_DIRECTION+2*MIN_STRLEN_OF_IP_ADDR+MIN_STRLEN_OF_PROTOCOL+2*MIN_STRLEN_OF_PORT+MIN_STRLEN_OF_ACK+MIN_STRLEN_OF_ACTION)
 
+#define STR_ACTIVATE "activate"
+#define STR_DEACTIVATE "deactivate"
+#define STR_SHOW_RULES "show_rules"
+#define STR_CLEAR_RULES "clear_rules"
+#define STR_LOAD_RULES "load_rules"
+#define STR_SHOW_LOG "show_log"
+#define STR_CLEAR_LOG "clear_log"
 
+#define CHAR_CR (13)
+#define CHAR_LF (10)
+
+int read_rules_from_file(const char* file_path);
+bool valid_file_path(const char* path);
+enum rules_recieved_t send_rules_to_fw(void);
 
 #endif // _INPUT_UTILS_H_
