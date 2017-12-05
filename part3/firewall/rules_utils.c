@@ -10,8 +10,11 @@ static unsigned char g_fw_is_active = FW_OFF;
 static int g_usage_counter = 0;
 
 /** Globals for reading/writing char device **/
+//Contains the data user wrote to device:
 static char* g_write_to_buff = NULL;
-static int g_write_buff_len = 0;
+//Will contain the current length of g_write_to_buff, NOT including '\0':
+static long g_write_buff_len = 0; //long to make sure it is signed and enough to contain all unsigned int values
+static int g_bytes_written_so_far = 0;
 static int g_num_rules_have_been_read = 0;
 
 static int rules_dev_major_number = 0; // Will contain rules-device's major number - its unique ID
@@ -437,6 +440,87 @@ static bool is_valid_rule(const char* rule_str){
  * 			 negative number if failed (zero if no rule was added)
  */
 static ssize_t rfw_dev_write(struct file* filp, const char* buffer, size_t len, loff_t *offset){
+
+	size_t len_to_allocate = 0;
+#ifdef DEBUG_MODE
+	printk (KERN_INFO "START OF rfw_dev_write(), length got from user is: %u\n", len);
+#endif	
+
+	//Basic input check:
+	if (len == 0){
+		return 0;
+	}
+	
+	if (g_bytes_written_so_far == 0){
+	//Means that's the first time asked to write to device:
+		
+		//Safe since MAX_LEN_ALL_RULES_BUFF << MAX_UINT
+		len_to_allocate = (len < (MAX_LEN_ALL_RULES_BUFF+1)) ? 
+						(len+1) : (MAX_LEN_ALL_RULES_BUFF+2);//+1 for '\0', 2 for '\0'&'\n'
+		//Sanity check:
+		if (g_write_to_buff != NULL) {
+			printk (KERN_ERR "Freeing allocated user-input buff, g_bytes_written_so_far was zero\n");
+			kfree(g_write_to_buff);
+		}
+		
+		//Allocate memory for user's input
+		if((g_write_to_buff = kmalloc(sizeof(char)*len_to_allocate,GFP_KERNEL)) == NULL){
+			printk(KERN_ERR "Failed allocating space for getting user input\n");
+			return -ENOMEM;
+		}
+		g_write_buff_len = len_to_allocate - 1; //>0 for sure.
+		memset(g_write_to_buff, 0, len_to_allocate);
+		
+#ifdef DEBUG_MODE
+		printk (KERN_INFO "In rfw_dev_write(), successfully allocated %u bytes for buffer\n", len_to_allocate);
+#endif	
+		//Now we're ready to write
+	
+	}//Otherwise, we're just continuing writing:
+	
+	if (len > g_write_buff_len - g_bytes_written_so_far) {
+#ifdef DEBUG_MODE
+		printk (KERN_INFO "In rfw_dev_write(), user asked to write more than possible, updates that value (len) \n");
+#endif	
+		//Sanity check, never supposed to get here:
+		if ((g_write_buff_len - g_bytes_written_so_far) < 0) {
+			printk (KERN_ERR "ERROR In rfw_dev_write(), number of bytes written is larger than buffer allocated\n");
+			if (g_write_to_buff != NULL) {
+				kfree(g_write_to_buff);
+			}
+			return -ENOMEM;
+		}
+		
+		len = g_write_buff_len - g_bytes_written_so_far;//Safe casting
+	}
+
+	if (copy_from_user(g_write_to_buff+g_bytes_written_so_far, buffer, len )){
+		//Copying from user failed - aborts.
+		kfree(g_write_to_buff);
+		g_write_buff_len = 0;
+		g_bytes_written_so_far = 0;
+		return -EFAULT;
+	}
+
+#ifdef DEBUG_MODE
+		printk (KERN_INFO "Total bytes written to fw_rules in current write: %u, total written so far: %u\n",
+				len, g_bytes_written_so_far);
+#endif	
+
+	g_bytes_written_so_far += len;
+	return len;
+	
+}
+
+
+///TODO:: add the acctual rule interpetation in .close function!!
+
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/**
+//OLD VERSION
+static ssize_t rfw_dev_write(struct file* filp, const char* buffer, size_t len, loff_t *offset){
 	//TODO:: fix!!!!
 	size_t buff_len;
 	ssize_t written_bytes = 0;
@@ -456,7 +540,7 @@ static ssize_t rfw_dev_write(struct file* filp, const char* buffer, size_t len, 
 		return len;
 	} 
 	
-	/*Create a copy of buffer (because it's const):*/
+	//Create a copy of buffer (because it's const):
 	if((buff_copy = kmalloc(sizeof(char)*(buff_len+1),GFP_KERNEL)) == NULL){
 		printk(KERN_ERR "Failed allocating space for copying all-rules string\n");
 		return -1;
@@ -485,6 +569,12 @@ static ssize_t rfw_dev_write(struct file* filp, const char* buffer, size_t len, 
 	return written_bytes;
 	
 }
+**/
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+
+
 
 /** 
  * 	This function is called whenever device is being read from user space
@@ -602,6 +692,7 @@ static int rfw_dev_release(struct inode *inodep, struct file *fp){
 	if (g_usage_counter != 0){
 		g_usage_counter--;
 	}
+	///TODO:: add allr rules to table
 	g_num_rules_have_been_read = 0;
 	
 #ifdef DEBUG_MODE 
