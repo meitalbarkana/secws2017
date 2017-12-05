@@ -4,12 +4,15 @@
  * Used: http://derekmolloy.ie/writing-a-linux-kernel-module-part-2-a-character-device/
  * as a reference.
  **/
-
 static unsigned char g_num_of_valid_rules = 0;
 static rule_t g_all_rules_table[MAX_NUM_OF_RULES];
 static unsigned char g_fw_is_active = FW_OFF;
 static int g_usage_counter = 0;
-static unsigned char g_num_rules_have_been_read = 0;
+
+/** Globals for reading/writing char device **/
+static char* g_write_to_buff = NULL;
+static int g_write_buff_len = 0;
+static int g_num_rules_have_been_read = 0;
 
 static int rules_dev_major_number = 0; // Will contain rules-device's major number - its unique ID
 static struct device* rules_device = NULL;
@@ -434,7 +437,7 @@ static bool is_valid_rule(const char* rule_str){
  * 			 negative number if failed (zero if no rule was added)
  */
 static ssize_t rfw_dev_write(struct file* filp, const char* buffer, size_t len, loff_t *offset){
-	
+	//TODO:: fix!!!!
 	size_t buff_len;
 	ssize_t written_bytes = 0;
 	char *buff_copy, *ptr_buff_copy, *rule_token; 
@@ -483,25 +486,48 @@ static ssize_t rfw_dev_write(struct file* filp, const char* buffer, size_t len, 
 	
 }
 
-
-/**
- * A helper function to dev_read: writes rulePrt representation
- * as string into buffer, using copy_to_user, in format:
+/** 
+ * 	This function is called whenever device is being read from user space
+ *  i.e. data is being sent from the device to the user. 
+ * 	We use copy_to_user() function to copy rules (in their string format)
+ * 	to buffer.
+ * 
+ *	rule format:
  * <rule name> <direction> <src ip> <src prefix length> <dst ip> <dst prefix length> <protocol> <source port> <dest port> <ack> <action>'\n'
  * 
- * @rulePtr - pointer to rule to be "printed" into buffer
- * @buffer
+ *  @filp - a pointer to a file object (here it's not relevant)
+ *  @buffer - pointer to the buffer to which this function will write the data
+ *  @len - length of the buffer, excluding '\0'. 
+ *  @offset - the offset if required (here it's not relevant)
  * 
- * Returns - on success: number of bytes written (sent) to buffer,
- * 			 on failure: -EFAULT if copy_to_user failed,
- * 						 -1 if other failure happened
- **/
-static int send_str_rule_to_buffer(rule_t* rulePtr, char* buffer){
+ * Note: 1. if len isn't enough for one rule, action will fail.
+ * 		 2. g_num_rules_have_been_read will be updated (+1) on success.
+ * 		 3. User should allocate enough space, and if he wants all rules - 
+ * 			read until EOF (0).
+ * 		 4. In case of consecutive calls, in USER's responsibility to 
+ * 			update buffer's pointer (offset is ignored).
+ * 
+ * Returns: 
+ * 		 1. In case there were rules to read 
+ * 			(i.e. g_num_rules_have_been_read < g_num_of_valid_rules)
+ *  		returns the number of bytes written (sent) to buffer.
+ * 		 2. In case there were NO rules left to read - returns 0 
+ * 		 3. (-EFAULT) if copy_to_user failed / (-1) if other failure happened
+ */
+static ssize_t rfw_dev_read(struct file *filp, char *buffer, size_t len, loff_t *offset){
 	
-	char str[MAX_STRLEN_OF_RULE_FORMAT+2]; //+2: for '\n' and '\0' 
+	rule_t* rulePtr;
+	char str[MAX_STRLEN_OF_RULE_FORMAT+2]; //+2: for '\n' and '\0'
 	
-	if (rulePtr == NULL){
-		printk(KERN_ERR "add_str_rule_to_buffer got NULL value\n");
+	//Checks if user already finished reading all rules:
+	if (g_num_rules_have_been_read == g_num_of_valid_rules) { 
+		return 0;
+	}
+	
+	rulePtr = &(g_all_rules_table[g_num_rules_have_been_read]);
+
+	if (rulePtr == NULL){ //Sanity check
+		printk(KERN_ERR "add_str_rule_to_buffer - NULL pointer\n");
 		return -1;
 	}
 	
@@ -520,78 +546,27 @@ static int send_str_rule_to_buffer(rule_t* rulePtr, char* buffer){
 				rulePtr->action)
 		) < (MIN_RULE_FORMAT_LEN+1))
 	{
-		printk(KERN_ERR "Error formatting rule to its string representation\n"); //Should never get here..
+		//Should never get here:
+		printk(KERN_ERR "Error formatting rule to its string representation\n");
 		return -1;
 	} 
 	
+	if (len < strlen(str)){
+		printk(KERN_ERR "Error: user provided too-small buffer\n");
+		return -EFAULT;
+	}
+	
 	// copy_to_user has the format ( * to, *from, size) and returns 0 on success
-	if ( copy_to_user(buffer, str, strnlen(str,MAX_STRLEN_OF_RULE_FORMAT+2)) != 0 ) {
+	if ( copy_to_user(buffer, str, strlen(str)) != 0 ) {
 		printk(KERN_INFO "Function copy_to_user failed - writing rule to user's buffer failed\n");
 		return -EFAULT; //Return a bad address message
 	}
 	
 #ifdef DEBUG_MODE
-	printk(KERN_INFO "In function add_str_rule_to_buffer, done adding it:\n%s\n",str);
+	printk(KERN_INFO "In function add_str_rule_to_buffer, done sending it:\n%s\n",str);
 #endif	
-	
-	return strnlen(str,MAX_STRLEN_OF_RULE_FORMAT+2);
-	
-}
-
-
-/** 
- * 	This function is called whenever device is being read from user space
- *  i.e. data is being sent from the device to the user. 
- * 	We use copy_to_user() function to copy rules (in their string format)
- * 	to buffer.
- * 
- *  @filp - a pointer to a file object (here it's not relevant)
- *  @buffer - pointer to the buffer to which this function will write the data
- *  @len - length of the buffer, excluding '\0'. 
- *  @offset - the offset if required (here it's not relevant)
- * 
- * Note: 1. if len isn't enough for all rules, buffer will be filled 
- * 			with as many rules as send_str_rule_to_buffer will succeed.
- * 		 2. g_num_rules_have_been_read will be updated according to
- * 			rules that have been read (for further reading)
- * 		 3. User should allocate enough space and check he got all rules.
- * 		 4. In case of consecutive calls, in USER's responsibility to 
- * 			update buffer's pointer (offset is ignored).
- * 
- * Returns: 
- * 		 1. In case there were rules to read 
- * 			(i.e. g_num_rules_have_been_read < g_num_of_valid_rules)
- *  		returns the number of bytes written (sent) to buffer.
- * 		 2. In case there were NO rules left to read - returns 0 
- * 		 3. (-EFAULT) if copy_to_user failed / (-1) if other failure happened
- */
-static ssize_t rfw_dev_read(struct file *filp, char *buffer, size_t len, loff_t *offset){
-	
-	int temp = 0;
-	size_t i = g_num_rules_have_been_read;
-	ssize_t bytes_read = 0;
-	
-	//Checks if user already finished reading all rules:
-	if (g_num_rules_have_been_read == g_num_of_valid_rules) { 
-		g_num_rules_have_been_read = 0; //To allow another reading if he wants
-		return 0;
-	}
-	
-	while ( (i < g_num_of_valid_rules) && (bytes_read < len) ) {
-		temp = send_str_rule_to_buffer(&(g_all_rules_table[i]), buffer+bytes_read );
-		if (temp <= 0){ //copy_to_user failed/other error: stop trying to copy all other rules
-			break;
-		}
-		bytes_read += temp;
-		++g_num_rules_have_been_read;
-		++i;
-	}
-	
-	if (bytes_read == 0 && temp < 0){ //No rules were written at all because of an error 
-		return -1;
-	}
-	
-	return bytes_read;
+	++g_num_rules_have_been_read;
+	return strlen(str);
 	
 }
 
