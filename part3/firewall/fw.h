@@ -18,7 +18,7 @@
 /**
  * If DEBUG_MODE is defined, code will print debug messages to KERN_INFO
  **/
-#define DEBUG_MODE (1) //For debug-printing 
+//#define DEBUG_MODE (1) //For debug-printing 
 
 #define NO_REASON (-777)
 /*For test-printing mainly:*/
