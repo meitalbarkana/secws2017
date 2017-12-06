@@ -212,10 +212,10 @@ static bool does_rulename_already_exists(const char* rulename){
 	unsigned char i = 0;
 	for (i = 0; i < g_num_of_valid_rules; ++i){
 		if (strncmp(((g_all_rules_table)[i]).rule_name, rulename, MAX_LEN_RULE_NAME) == 0){ 
+			printk(KERN_ERR "User tried to add rule with the same name as another rule.\n");
 			return true; //rulename already exists
 		}
 	}
-	printk(KERN_ERR "User tried to add rule with the same name as another rule.\n");
 	return false;
 }
 
@@ -308,6 +308,10 @@ static bool is_valid_mask_prefix_size(unsigned char num, rule_t* rule, enum src_
  * Returns true if num is valid protocol, false otherwise
  **/
 static bool is_valid_protocol(unsigned char num, rule_t* rule){
+#ifdef DEBUG_MODE
+	printk(KERN_INFO "In is_valid_protocol(), testing if %hhu is a valid protocol number\n", num);
+#endif
+	
 	if( (num == PROT_ICMP) || (num == PROT_TCP) || (num == PROT_UDP) || (num == PROT_OTHER) || (num == PROT_ANY) ){ 
 		rule->protocol = (prot_t)num; //Safe casting
 		return true;
@@ -407,9 +411,9 @@ static bool is_valid_rule(const char* rule_str){
 	
 	//Since any unsigned int represent a valid IPv4 address, src_ip & dst_ip are updated here
 	//Since any unsigned short represent a valid port number, src_port & dst_port are updated here:
-	if ( (sscanf(rule_str, "%19s %10d %u %hhu %u %hhu %hu %hu %hhu %d %hhu", t_rule_name, &t_direction,
-			&(rule->src_ip), &t_src_prefix_len, &(rule->dst_ip), &t_dst_prefix_size, &(rule->src_port), &(rule->dst_port),
-			&t_protocol, &t_ack, &t_action)) < NUM_OF_FIELDS_IN_FORMAT ) 
+	if ( (sscanf(rule_str, "%19s %10d %u %hhu %u %hhu %hhu %hu %hu %d %hhu", t_rule_name, &t_direction,
+			&(rule->src_ip), &t_src_prefix_len, &(rule->dst_ip), &t_dst_prefix_size, &t_protocol,
+			&(rule->src_port), &(rule->dst_port), &t_ack, &t_action)) < NUM_OF_FIELDS_IN_FORMAT ) 
 	{
 		printk(KERN_ERR "Couldn't parse rule to valid fields.\n");
 		return false;
@@ -670,7 +674,7 @@ static int rfw_dev_release(struct inode *inodep, struct file *fp){
 		if ((g_write_buff_len == 1) && g_write_to_buff[0]==CLEAR_RULES){
 			g_num_of_valid_rules = 0;
 			clean_g_write_buff(true);
-			printk(KERN_INFO "fw_rules: All rules were cleaned.\n");
+			printk(KERN_INFO "fw_rules: All rules were cleaned. Device successfully closed\n");
 			return 0;
 		} 	
 		
