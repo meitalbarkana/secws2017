@@ -17,6 +17,11 @@
 #define USER_DEBUG_MODE (1) //For debug-printing 
 
 #define PATH_TO_RULE_DEV "/dev/fw_rules"
+#define PATH_TO_ACTIVE_ATTR "/sys/class/fw/fw_rules/active"
+#define PATH_TO_RULES_SIZE_ATTR "/sys/class/fw/fw_rules/rules_size"
+#define DEACTIVATE_STRING "0"
+#define ACTIVATE_STRING "1"
+#define ACTIVE_STR_LEN (1)
 /**
 #include <linux/device.h>
 #include <linux/fs.h>

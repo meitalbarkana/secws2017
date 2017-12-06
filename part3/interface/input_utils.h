@@ -43,11 +43,13 @@
 
 #define STR_ACTIVATE "activate"
 #define STR_DEACTIVATE "deactivate"
+#define STR_GET_ACTIVE_STAT "show_active"
 #define STR_SHOW_RULES "show_rules"
 #define STR_CLEAR_RULES "clear_rules"
 #define STR_LOAD_RULES "load_rules"
 #define STR_SHOW_LOG "show_log"
 #define STR_CLEAR_LOG "clear_log"
+
 
 #define CHAR_CR (13)
 #define CHAR_LF (10)
@@ -55,5 +57,6 @@
 int read_rules_from_file(const char* file_path);
 bool valid_file_path(const char* path);
 enum rules_recieved_t send_rules_to_fw(void);
+int get_fw_active_stat();
 
 #endif // _INPUT_UTILS_H_

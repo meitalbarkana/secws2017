@@ -944,3 +944,43 @@ enum rules_recieved_t send_rules_to_fw(void){
 	
 	return ((bytes_written < bytes_to_write) ? PARTIAL_RULE_RECIEVED : ALL_RULE_RECIEVED);
 }
+
+/**
+ *	Reads active status from fw
+ * 
+ *	Returns: 0 - if fw is deactivated
+ * 			 1 - if fw is active
+ * 			-1 - if an error occured
+ * 
+ **/
+int get_fw_active_stat(){
+	
+	char* buff;
+	
+	if ( (buff = calloc(2,sizeof(char))) == NULL){
+		printf("Allocating buffer failed\n");
+		return -1;
+	} 
+	
+	int fd = open(PATH_TO_ACTIVE_ATTR,O_RDONLY); // Open device with read only permissions
+	if (fd < 0){
+		printf("Error accured trying to open the rules-device for reading status, error number: %d\n", errno);
+		return -1;
+	}
+	
+	if (read(fd, buff, 1) <= 0){
+		printf("Error accured trying to read firewall's active state, error number: %d\n", errno);
+		close(fd);
+		return -1;
+	}
+	close(fd);
+	if (strcmp(buff, DEACTIVATE_STRING) == 0) {
+		return 0;
+	} else if (strcmp(buff, ACTIVATE_STRING) == 0) {
+		return 1;
+	}
+	
+	//Never supposed to get here:
+	printf ("Error: buffer returned with unknown value\n");
+	return -1;
+}
