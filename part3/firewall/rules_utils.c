@@ -722,6 +722,10 @@ static int rfw_dev_release(struct inode *inodep, struct file *fp){
  *	Returns true is it is.
  **/
 static bool is_relevant_direction(direction_t rule_direction, direction_t packet_direction){
+#ifdef LOG_DEBUG_MODE	
+	printk(KERN_INFO "Inside is_relevant_direction, rule_direction is: %d, packet_direction is: %d.\n", rule_direction, packet_direction);
+#endif
+
 	return ( (rule_direction == packet_direction) || 
 			(rule_direction == DIRECTION_ANY) || 
 			(packet_direction == DIRECTION_ANY) );
@@ -741,7 +745,9 @@ static bool is_relevant_direction(direction_t rule_direction, direction_t packet
 static bool is_relevant_ip(__be32 rule_ip, __be32 rule_prefix_mask, __be32 packet_ip){
 	__be32 network_prefix = rule_ip & rule_prefix_mask; //Bitwise and. 
 	__be32 p_network_prefix = packet_ip & rule_prefix_mask;
-
+#ifdef LOG_DEBUG_MODE	
+	printk(KERN_INFO "Inside is_relevant_ip, p_network_prefix is: %u, network_prefix is: %u.\n", p_network_prefix, network_prefix);
+#endif
 	return ( p_network_prefix == network_prefix );
 }
 
@@ -755,6 +761,10 @@ static bool is_relevant_ip(__be32 rule_ip, __be32 rule_prefix_mask, __be32 packe
  * 			3. PORT_ABOVE_1023	(1023) for any port number > 1023 
  **/
 static bool is_relevant_port(__be16 rule_port, __be16 packet_port){
+#ifdef LOG_DEBUG_MODE	
+	printk(KERN_INFO "Inside is_relevant_port, rule_port is: %hu, packet_port is: %hu.\n", rule_port, packet_port);
+#endif
+	
 	return ( (rule_port == PORT_ANY) || 
 			((rule_port == PORT_ABOVE_1023)	&& (packet_port > PORT_ABOVE_1023))
 			|| (rule_port == packet_port) );
@@ -765,6 +775,9 @@ static bool is_relevant_port(__be16 rule_port, __be16 packet_port){
  *	Returns true is it is.
  **/
 static bool is_relevant_protocol(prot_t rule_protocol, __u8 packet_protocol){
+#ifdef LOG_DEBUG_MODE	
+	printk(KERN_INFO "Inside is_relevant_protocol, rule_protocol is: %hhu, packet_protocol is: %hhu.\n", rule_protocol, packet_protocol);
+#endif
 	return ( (rule_protocol == PROT_ANY) || 
 			(packet_protocol == (unsigned char)rule_protocol) ); //Safe casting 
 }
@@ -783,7 +796,10 @@ static bool is_relevant_protocol(prot_t rule_protocol, __u8 packet_protocol){
  *		 	accessing specific bits through struct fields is endian-safe.
  **/
 static bool is_relevant_ack(ack_t rule_ack, ack_t packet_ack){
-	
+#ifdef LOG_DEBUG_MODE	
+	printk(KERN_INFO "Inside is_relevant_ack, rule_ack is: %d, packet_ack is: %d.\n", rule_ack, packet_ack);
+#endif
+
 	if (packet_ack == ACK_ANY) { //Should never get here
 		printk (KERN_ERR "In function is_relevant_ack(), got invalid packet_ack argument (ACK_ANY)\n");
 	}
@@ -840,11 +856,18 @@ static bool is_XMAS(struct sk_buff* skb){
 				if ( ptr_tcp_hdr && (ptr_tcp_hdr->psh == 1) && (ptr_tcp_hdr->urg == 1)
 					&& (ptr_tcp_hdr->fin == 1) ) 
 				{
+#ifdef LOG_DEBUG_MODE
+						printk(KERN_INFO "Inside is_XMAS(), about to return true\n");
+#endif
 						return true;
 				}
 			}
 		}
 	}
+	
+#ifdef LOG_DEBUG_MODE
+	printk(KERN_INFO "Inside is_XMAS(), about to return false\n");
+#endif
 	return false;
 }
 
@@ -937,14 +960,14 @@ static int get_relevant_rule_num_from_table(log_row_t* ptr_pckt_lg_info,
 		{ 
 		//Rule is relevant, ptr_pckt_lg_info->action was updated in is_relevant_rule()
 			ptr_pckt_lg_info->reason = index;
-#ifdef DEBUG_MODE
+#ifdef LOG_DEBUG_MODE
 			printk(KERN_INFO "In function get_relevant_rule_num_from_table, found relevant rule, its index is: %u.\n",index);
 #endif
 			return index;
 		}
 	}
 	//No rule was found
-#ifdef DEBUG_MODE
+#ifdef LOG_DEBUG_MODE
 	printk(KERN_INFO "In function get_relevant_rule_num_from_table, NO relevant rule was found.\n");
 #endif
 	return (-1);
@@ -1008,9 +1031,15 @@ unsigned int decide_inner_packet_action(log_row_t* ptr_pckt_lg_info,
 	enum action_t answer = is_relevant_rule(&g_buildin_rule, ptr_pckt_lg_info, packet_ack, packet_direction);
 	if (answer == RULE_NOT_RELEVANT) {
 		//Since in those hook-points, we block any packet which doesn't fit g_buildin_rule:
+#ifdef LOG_DEBUG_MODE
+		printk(KERN_INFO "In decide_inner_packet_action(), returning NF_DROP\n");
+#endif
 		return NF_DROP;
 	}
 	//If gets here, ptr_pckt_lg_info->action must be NF_ACCEPT
+#ifdef LOG_DEBUG_MODE
+		printk(KERN_INFO "In decide_inner_packet_action(), returning NF_ACCEPT\n");
+#endif
 	return ptr_pckt_lg_info->action;
 }
 

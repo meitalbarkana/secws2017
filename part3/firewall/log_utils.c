@@ -56,7 +56,9 @@ bool init_log_row(struct sk_buff* skb, log_row_t* ptr_pckt_lg_info,
 			ip_h_protocol = ptr_ipv4_hdr->protocol; 
 			//Convert to local-endianness:
 			ip_h_protocol = ntohs(ip_h_protocol);
-			
+#ifdef LOG_DEBUG_MODE
+			printk(KERN_INFO "Packets protocol is: %hhu\n", ip_h_protocol);
+#endif			
 			switch (ip_h_protocol){
 				case (PROT_ICMP):
 				case (PROT_TCP):		
@@ -72,16 +74,30 @@ bool init_log_row(struct sk_buff* skb, log_row_t* ptr_pckt_lg_info,
 				ptr_tcp_hdr = (struct tcphdr*)((char*)ptr_ipv4_hdr + (ptr_ipv4_hdr->ihl * 4));
 				temp_port_num = ptr_tcp_hdr->source;
 				ptr_pckt_lg_info->src_port = ntohs(temp_port_num); //Convert to local-endianness
+#ifdef LOG_DEBUG_MODE
+				printk(KERN_INFO "TCP packets' source port is: %hu\n", ptr_pckt_lg_info->src_port);
+#endif
 				temp_port_num = ptr_tcp_hdr->dest;
 				ptr_pckt_lg_info->dst_port = ntohs(temp_port_num); //Convert to local-endianness
+#ifdef LOG_DEBUG_MODE
+				printk(KERN_INFO "TCP packets' dst port is: %hu\n", ptr_pckt_lg_info->dst_port);
+#endif				
 				*ack = ((ptr_tcp_hdr->ack) == 1) ? ACK_YES : ACK_NO; //Updates *ack
-				
+#ifdef LOG_DEBUG_MODE
+				printk(KERN_INFO "TCP packets' ack is: %d\n", *ack);
+#endif
 			} else if (ip_h_protocol == PROT_UDP) {
 				ptr_udp_hdr = (struct udphdr*)((char*)ptr_ipv4_hdr + (ptr_ipv4_hdr->ihl * 4));
 				temp_port_num = ptr_udp_hdr->source;
 				ptr_pckt_lg_info->src_port = ntohs(temp_port_num); //Convert to local-endianness
+#ifdef LOG_DEBUG_MODE
+				printk(KERN_INFO "UDP packets' source port is: %hu\n", ptr_pckt_lg_info->src_port);
+#endif
 				temp_port_num = ptr_udp_hdr->dest;
 				ptr_pckt_lg_info->dst_port = ntohs(temp_port_num); //Convert to local-endianness
+#ifdef LOG_DEBUG_MODE
+				printk(KERN_INFO "UDP packets' dest port is: %hu\n", ptr_pckt_lg_info->dst_port);
+#endif
 			}
 			return true;
 		}

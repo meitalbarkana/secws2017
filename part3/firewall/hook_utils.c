@@ -30,12 +30,13 @@ static unsigned int check_packet_hookp_forward(struct sk_buff* skb,
 		&packet_ack, &packet_direction, in, out))
 	{
 		//An error occured, never supposed to get here:
+		//(Error already been printed inside init_log_row)
 		return NF_ACCEPT;
 	}
 	
 	//Calls function that decides packet-action
 	decide_packet_action(skb, &pckt_lg_info, &packet_ack, &packet_direction);
-#ifdef DEBUG_MODE
+#ifdef LOG_DEBUG_MODE
 	print_log_row(&pckt_lg_info, 777);
 #endif
 	return pckt_lg_info.action;

@@ -36,9 +36,9 @@ static int __init my_init_func(void){
 		return -1;
 	}
 
-#ifdef DEBUG_MODE 
-	printk(KERN_INFO "Module firewall started successfully!\n");
-#endif	
+//#ifdef DEBUG_MODE 
+	printk(KERN_INFO "Module firewall started successfully.\n");
+//#endif	
 
 	return 0;
 }
@@ -50,9 +50,9 @@ static void __exit my_exit_func(void){
 	destroy_rules_device(fw_class);
 	class_destroy(fw_class);
 	
-#ifdef DEBUG_MODE
-	printk(KERN_INFO "Module firewall has left the building!\n");
-#endif
+//#ifdef DEBUG_MODE
+	printk(KERN_INFO "Module firewall was removed.\n");
+//#endif
 
 }
 
