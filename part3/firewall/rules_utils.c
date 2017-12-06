@@ -571,16 +571,16 @@ static ssize_t rfw_dev_read(struct file *filp, char *buffer, size_t len, loff_t 
 	}
 	
 	if ((sprintf(str,
-				"%s %d %u %hhu: %u %hhu %hu %hu %hhu %d %hhu\n",
+				"%s %d %u %hhu %u %hhu %hhu %hu %hu %d %hhu\n",
 				rulePtr->rule_name,
 				rulePtr->direction,
 				rulePtr->src_ip,
 				rulePtr->src_prefix_size,
 				rulePtr->dst_ip,
 				rulePtr->dst_prefix_size,
+				rulePtr->protocol,
 				rulePtr->src_port,
 				rulePtr->dst_port,
-				rulePtr->protocol,
 				rulePtr->ack,
 				rulePtr->action)
 		) < (MIN_RULE_FORMAT_LEN+1))
