@@ -40,6 +40,22 @@ static struct file_operations fops = {
 	.release = rfw_dev_release
 };
 
+/**
+ * Helper function: frees g_write_to_buff and initializes all relevant values
+ **/
+static void clean_g_write_buff(bool clear_g_num_rules_have_been_read){
+
+	if (g_write_to_buff != NULL) {
+		kfree(g_write_to_buff);
+		g_write_to_buff = NULL;
+	}
+	
+	g_write_buff_len = 0; 
+	g_bytes_written_so_far = 0;
+	if (clear_g_num_rules_have_been_read) {
+		g_num_rules_have_been_read = 0;
+	}
+}
 
 //For tests alone! prints rule to kernel
 ///TODO:: comment it
@@ -362,7 +378,7 @@ static bool is_valid_action(unsigned char num, rule_t* rule){
  * Returns true on success. 
  **/
 static bool is_valid_rule(const char* rule_str){
-	//TODO:: FIND WHY EVERYTHING CRASHES :'(
+
 	rule_t* rule = &(g_all_rules_table[g_num_of_valid_rules]);
 	//Declaring temporaries:
 	char t_rule_name[MAX_LEN_RULE_NAME];
@@ -430,14 +446,11 @@ static bool is_valid_rule(const char* rule_str){
  *  @len - the length of buffer (not includes '\0')
  *  @offset - the offset if required (here it's not relevant)
  * 
- * 	NOTE:	1. if user sends 1 as len & buffer[0] = CLEAR_RULES,
- * 				it means he wants to clear rules-table.
- * 			2. otherwise, we treat buffer as a "list" of rules, in format:
- *	<rule name> <direction> <src ip> <src prefix length> <dst ip> <dst prefix length> <protocol> <source port> <dest port> <ack> <action>'\n'			
- * 	<rule name> <direction> <src ip> <src prefix length> <dst ip> <dst prefix length> <protocol> <source port> <dest port> <ack> <action>'\n'...
- * 
  * 	Returns: number of bytes from buffer that have been "written" in our device,
  * 			 negative number if failed (zero if no rule was added)
+ * 
+ * 
+ *	Note: rules won't be updated here! only when closing the device (in rfw_dev_release())
  */
 static ssize_t rfw_dev_write(struct file* filp, const char* buffer, size_t len, loff_t *offset){
 
@@ -460,7 +473,7 @@ static ssize_t rfw_dev_write(struct file* filp, const char* buffer, size_t len, 
 		//Sanity check:
 		if (g_write_to_buff != NULL) {
 			printk (KERN_ERR "Freeing allocated user-input buff, g_bytes_written_so_far was zero\n");
-			kfree(g_write_to_buff);
+			clean_g_write_buff(false);
 		}
 		
 		//Allocate memory for user's input
@@ -485,9 +498,7 @@ static ssize_t rfw_dev_write(struct file* filp, const char* buffer, size_t len, 
 		//Sanity check, never supposed to get here:
 		if ((g_write_buff_len - g_bytes_written_so_far) < 0) {
 			printk (KERN_ERR "ERROR In rfw_dev_write(), number of bytes written is larger than buffer allocated\n");
-			if (g_write_to_buff != NULL) {
-				kfree(g_write_to_buff);
-			}
+			clean_g_write_buff(false);
 			return -ENOMEM;
 		}
 		
@@ -496,9 +507,7 @@ static ssize_t rfw_dev_write(struct file* filp, const char* buffer, size_t len, 
 
 	if (copy_from_user(g_write_to_buff+g_bytes_written_so_far, buffer, len )){
 		//Copying from user failed - aborts.
-		kfree(g_write_to_buff);
-		g_write_buff_len = 0;
-		g_bytes_written_so_far = 0;
+		clean_g_write_buff(false);
 		return -EFAULT;
 	}
 
@@ -511,69 +520,6 @@ static ssize_t rfw_dev_write(struct file* filp, const char* buffer, size_t len, 
 	return len;
 	
 }
-
-
-///TODO:: add the acctual rule interpetation in .close function!!
-
-
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/**
-//OLD VERSION
-static ssize_t rfw_dev_write(struct file* filp, const char* buffer, size_t len, loff_t *offset){
-	//TODO:: fix!!!!
-	size_t buff_len;
-	ssize_t written_bytes = 0;
-	char *buff_copy, *ptr_buff_copy, *rule_token; 
-#ifdef DEBUG_MODE
-	printk (KERN_INFO "START OF rfw_dev_write()\n");
-#endif	
-	//Basic input checks:
-	if ((buffer == NULL) || (len == 0) || (len > MAX_LEN_ALL_RULES_BUFF)
-		|| ( (buff_len = strnlen(buffer, MAX_LEN_ALL_RULES_BUFF+2)) > MAX_LEN_ALL_RULES_BUFF ) ) 
-	{
-		return -1;
-	}
-	//Case user wanted to clean rule-table:
-	if ((len == 1) && buffer[0]==CLEAR_RULES){
-		g_num_of_valid_rules = 0;
-		return len;
-	} 
-	
-	//Create a copy of buffer (because it's const):
-	if((buff_copy = kmalloc(sizeof(char)*(buff_len+1),GFP_KERNEL)) == NULL){
-		printk(KERN_ERR "Failed allocating space for copying all-rules string\n");
-		return -1;
-	}
-	
-#ifdef DEBUG_MODE
-	printk (KERN_INFO "In rfw_dev_write(), allocated memory for buffer\n");
-#endif		
-	
-	//buffer is guaranteed to have '\0' at its end, from passing basic input check:
-	strncpy(buff_copy, buffer, MAX_LEN_ALL_RULES_BUFF+1); 
-	//Saving a ptr so we can free it later (strsep "ruins" buff_copy)
-	ptr_buff_copy = buff_copy; 
-	
-	while ( ((rule_token = strsep(&buff_copy, DELIMETER_STR)) != NULL) 
-			&& (g_num_of_valid_rules < MAX_NUM_OF_RULES) ) 
-	{
-		if(is_valid_rule(rule_token)){
-			written_bytes += (strnlen(rule_token, MAX_STRLEN_OF_RULE_FORMAT+2)+1); //+1 for the '\n' device "wrote"
-		}
-	}
-	
-#ifdef DEBUG_MODE
-	printk (KERN_INFO "Total bytes written to fw_rules: %d\n", written_bytes);
-#endif	
-	return written_bytes;
-	
-}
-**/
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-
-
 
 
 /** 
@@ -670,10 +616,9 @@ static ssize_t rfw_dev_read(struct file *filp, char *buffer, size_t len, loff_t 
  */
 static int rfw_dev_open(struct inode *inodep, struct file *fp){
    g_usage_counter++;
-   g_num_rules_have_been_read = 0;
    
 #ifdef DEBUG_MODE 
-   printk(KERN_INFO "fw_rules: device has been opened %d time(s)\n", g_usage_counter);
+   printk(KERN_INFO "fw_rules: device is opened by %d process(es)\n", g_usage_counter);
 #endif
 
    return 0;
@@ -683,17 +628,79 @@ static int rfw_dev_open(struct inode *inodep, struct file *fp){
  * 	The device release function - called whenever the device is 
  *	closed/released by the userspace program.
  * 		1. Decrements g_usage_counter
- *  	2. Updates g_num_rules_have_been_read to 0.
- *
+ *		2. If g_write_to_buff - WRITES RULES by that buffer, continuing 
+ * 			from last rule.
+ * 			USER HAS TO CLEAR RULES BEFORE WRITING NEW ONES IF HE WANTS 
+ * 			A NEW LIST OF RULES!
+ * 			RULES WOULD BE APPENDED (AT THE LAST!)
+ *  	3. If wrote rules - updates g_num_rules_have_been_read to 0.
+ * 			 
  *  @inodep - pointer to an inode object
  *  @fp - pointer to a file object
+ * 
+ *  NOTE:	1. if user sent 1 as len (inside g_write_buff_len)
+ * 			   and buffer[0] (g_write_to_buff[0]) == CLEAR_RULES,
+ * 				it means he wanted to clear rules-table.
+ * 			2. otherwise, we treat g_write_to_buff as a "list" of rules, in format:
+ *	<rule name> <direction> <src ip> <src prefix length> <dst ip> <dst prefix length> <protocol> <source port> <dest port> <ack> <action>'\n'			
+ * 	<rule name> <direction> <src ip> <src prefix length> <dst ip> <dst prefix length> <protocol> <source port> <dest port> <ack> <action>'\n'...
+ *
  */
 static int rfw_dev_release(struct inode *inodep, struct file *fp){
+
+	char *ptr_buff_copy, *rule_token;
+	
+#ifdef DEBUG_MODE
+	printk (KERN_INFO "START OF rfw_dev_release(), In it - rules would be updated (if needed)\n");
+#endif
+	
 	if (g_usage_counter != 0){
 		g_usage_counter--;
 	}
-	///TODO:: add allr rules to table
-	g_num_rules_have_been_read = 0;
+	 
+	// Check if there's anything to write:
+	if ( (g_write_to_buff != NULL) && (g_write_buff_len != 0) ) 
+	{
+#ifdef DEBUG_MODE
+		printk (KERN_INFO "In rfw_dev_release(), updates rules. g_write_to_buff is: %s, g_write_buff_len is: %ld\n",
+				g_write_to_buff, g_write_buff_len);
+#endif
+		
+		//Case user wanted to clean rule-table:
+		if ((g_write_buff_len == 1) && g_write_to_buff[0]==CLEAR_RULES){
+			g_num_of_valid_rules = 0;
+			clean_g_write_buff(true);
+			printk(KERN_INFO "fw_rules: All rules were cleaned.\n");
+			return 0;
+		} 	
+		
+		//Saving a ptr so we can free it later (strsep "ruins" g_write_to_buff)
+		ptr_buff_copy = g_write_to_buff;
+		 
+		while( ((rule_token = strsep(&g_write_to_buff, DELIMETER_STR)) != NULL) 
+				&& (g_num_of_valid_rules < MAX_NUM_OF_RULES) )
+		{
+			if(is_valid_rule(rule_token)){
+#ifdef DEBUG_MODE
+				printk(KERN_INFO "Another rule added to device.\n");
+#endif
+			}
+		}
+		
+		//If g_write_to_buff!=NULL it means some rules weren't written
+		if (g_write_to_buff != NULL) {
+			printk(KERN_INFO "Some of the rules weren't written - probably no space left. Number of rules: %hhu\n", g_num_of_valid_rules);
+			g_write_to_buff = NULL;
+			g_write_buff_len = 0; 
+			g_bytes_written_so_far = 0;			
+		} else {
+			clean_g_write_buff(true);
+		}
+		
+		kfree(ptr_buff_copy);
+		g_num_rules_have_been_read = 0;	
+		
+	}
 	
 #ifdef DEBUG_MODE 
    printk(KERN_INFO "fw_rules: device successfully closed\n");
@@ -1032,6 +1039,10 @@ int init_rules_device(struct class* fw_class){
 	g_fw_is_active = FW_OFF;
 	g_usage_counter = 0;
 	g_num_rules_have_been_read = 0;
+	g_write_to_buff = NULL;
+	g_write_buff_len = 0;
+	g_bytes_written_so_far = 0;
+	g_num_rules_have_been_read = 0;
 	
 	//Create char device
 	rules_dev_major_number = register_chrdev(0, DEVICE_NAME_RULES, &fops);
@@ -1075,6 +1086,7 @@ int init_rules_device(struct class* fw_class){
  *	Destroys rule-device
  **/
 void destroy_rules_device(struct class* fw_class){
+	clean_g_write_buff(true);
 	destroyRulesDevice(fw_class, ALL_DES);
 #ifdef DEBUG_MODE 
 	printk(KERN_INFO "fw_rules: device destroyed.\n");
