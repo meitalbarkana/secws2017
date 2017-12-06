@@ -844,15 +844,26 @@ static bool is_XMAS(struct sk_buff* skb){
 	
 	struct iphdr* ptr_ipv4_hdr; //pointer to ipv4 header
 	struct tcphdr* ptr_tcp_hdr; //pointer to tcp header
-	__u8 ip_h_protocol = 0;
 	
 	if (skb){ 
 		ptr_ipv4_hdr = ip_hdr(skb);
 		if(ptr_ipv4_hdr){
-			ip_h_protocol = ptr_ipv4_hdr->protocol; //Network order!
-			if (ntohs(ip_h_protocol) == PROT_TCP) {	//Checks in local endianness
+			//Protocol is 1 byte - no need to consider Endianness
+			if (ptr_ipv4_hdr->protocol == PROT_TCP) {	//Checks in local endianness
 				ptr_tcp_hdr = (struct tcphdr*)((char*)ptr_ipv4_hdr + (ptr_ipv4_hdr->ihl * 4));
-				//accessing specific bits through struct fields is endian-safe:
+				//accessing specific bits through struct fields is Endian-safe:
+#ifdef LOG_DEBUG_MODE
+				if (ptr_tcp_hdr->psh){
+					printk(KERN_INFO "Inside is_XMAS(), psh is: %d \n", ptr_tcp_hdr->psh);
+				}
+				if (ptr_tcp_hdr->urg){
+					printk(KERN_INFO "Inside is_XMAS(), urg is: %d \n", ptr_tcp_hdr->urg);
+				}
+				if (ptr_tcp_hdr->fin){
+					printk(KERN_INFO "Inside is_XMAS(), fin is: %d \n", ptr_tcp_hdr->fin);
+				}
+#endif		
+				
 				if ( ptr_tcp_hdr && (ptr_tcp_hdr->psh == 1) && (ptr_tcp_hdr->urg == 1)
 					&& (ptr_tcp_hdr->fin == 1) ) 
 				{

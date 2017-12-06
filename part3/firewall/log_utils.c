@@ -52,13 +52,12 @@ bool init_log_row(struct sk_buff* skb, log_row_t* ptr_pckt_lg_info,
 			ptr_pckt_lg_info->src_ip = ntohl(ptr_ipv4_hdr->saddr);
 			ptr_pckt_lg_info->dst_ip = ntohl(ptr_ipv4_hdr->daddr);
 			
-			//Network order. convertion done in 2 stages since there's a casting from ushort to uchar:
+			//Protocol is 1 byte - no need to convert Endianness.
 			ip_h_protocol = ptr_ipv4_hdr->protocol; 
-			//Convert to local-endianness:
-			ip_h_protocol = ntohs(ip_h_protocol);
 #ifdef LOG_DEBUG_MODE
 			printk(KERN_INFO "Packets protocol is: %hhu\n", ip_h_protocol);
-#endif			
+#endif
+		
 			switch (ip_h_protocol){
 				case (PROT_ICMP):
 				case (PROT_TCP):		
