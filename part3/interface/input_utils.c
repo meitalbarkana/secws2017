@@ -505,11 +505,14 @@ static bool tran_action_to_str(unsigned char action, char* str){
 }
 
 /**
+ * ONLY FOR TESTS.
+ * 
  * Updates str to contain a representation of a rule as a string.
  * Returns true on success.
  * 
  * NOTE: str's length, should be: MAX_STRLEN_OF_RULE_FORMAT+1 (includs '\0')
  **/
+ /**
 static bool get_rule_as_str(rule_t* rule, char* str){
 	size_t ip_len_str = strlen("XXX.XXX.XXX.XXX")+1;
 	char ip_dst_str[ip_len_str];
@@ -556,6 +559,7 @@ static bool get_rule_as_str(rule_t* rule, char* str){
 	
 	return true;
 }
+**/
 
 /**
  *	Gets a string that supposed to represent a proper rule
@@ -896,8 +900,6 @@ enum rules_recieved_t send_rules_to_fw(void){
 		printf("Error: failed to create all-rules buffer.\n");
 		return NO_RULE_RECIEVED;
 	}
-	
-	//TODO:: test!
 
 	int fd = open(PATH_TO_RULE_DEV,O_WRONLY); // Open device with write only permissions
 	if (fd < 0){
@@ -1192,3 +1194,32 @@ int print_all_rules_from_fw(){
 		
 }
 
+/**
+ *	Sends firewall the "clear rules" sign
+ * 
+ *	Returns 0 on success, -1 if failed (prints relevant errors to screen)
+ **/
+int clear_rules(){
+	
+	char* buff = CLEAR_RULES_STRING;
+
+	int fd = open(PATH_TO_RULE_DEV,O_WRONLY); // Open device with write only permissions
+	if (fd < 0){
+		printf("Error accured trying to open fw_rules device for clearing all rules, error number: %d\n", errno);
+		return -1;
+	}
+	
+#ifdef USER_DEBUG_MODE	
+	printf("Bytes supposed to be written to fw_rules: %d\n", strlen(buff));
+#endif	
+
+	if ( write(fd, buff, strlen(buff)) <= 0){
+		printf("Error accured trying to clear all fw rules\n");
+		close(fd);
+		return -1;
+	}
+	close(fd);
+
+	printf("Successfully sent fw command to clear all rules. Use show_rules to make sure everything was deleted.\n");
+	return 0;
+}

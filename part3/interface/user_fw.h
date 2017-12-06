@@ -22,6 +22,7 @@
 #define DEACTIVATE_STRING "0"
 #define ACTIVATE_STRING "1"
 #define ACTIVE_STR_LEN (1)
+#define CLEAR_RULES_STRING "0"
 
 // the protocols we will work with
 typedef enum {

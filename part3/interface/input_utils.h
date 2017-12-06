@@ -60,5 +60,6 @@ bool valid_file_path(const char* path);
 enum rules_recieved_t send_rules_to_fw(void);
 int get_fw_active_stat();
 int print_all_rules_from_fw();
+int clear_rules();
 
 #endif // _INPUT_UTILS_H_
