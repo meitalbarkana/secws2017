@@ -93,7 +93,7 @@ static void print_rule(rule_t* rulePtr){
  *	This function will be called when user tries to read from the "active" device.
  * 	
  *  NOTE: writes to "buf" the value of of g_fw_is_active, in (string) format:
- * 		<g_fw_is_active>
+ * 		<g_fw_is_active> (would be "0" or "1")
  * 
  * [writes minimal amount of characters, as it's a kernel function]
  **/
@@ -560,6 +560,7 @@ static ssize_t rfw_dev_read(struct file *filp, char *buffer, size_t len, loff_t 
 	
 	//Checks if user already finished reading all rules:
 	if (g_num_rules_have_been_read == g_num_of_valid_rules) { 
+		g_num_rules_have_been_read = 0;//So next user could read
 		return 0;
 	}
 	
@@ -681,7 +682,8 @@ static int rfw_dev_release(struct inode *inodep, struct file *fp){
 		ptr_buff_copy = g_write_to_buff;
 		 
 		while( ((rule_token = strsep(&g_write_to_buff, DELIMETER_STR)) != NULL) 
-				&& (g_num_of_valid_rules < MAX_NUM_OF_RULES) )
+				&& (g_num_of_valid_rules < MAX_NUM_OF_RULES)
+				&& (strlen(rule_token) > 0) ) //Last token is empty, in a valid format
 		{
 			if(is_valid_rule(rule_token)){
 #ifdef DEBUG_MODE
