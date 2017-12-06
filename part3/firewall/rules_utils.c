@@ -141,12 +141,14 @@ ssize_t change_active_stat(struct device* dev, struct device_attribute* attr, co
 		if (g_fw_is_active == FW_OFF){
 			printk(KERN_INFO "User tried do deactivate already-off firewall\n");
 		} else {
+			printk(KERN_INFO "User successfully deactivated firewall\n");
 			g_fw_is_active = FW_OFF;
 		}
 	} else { //buf[0] =='1'
 		if (g_fw_is_active == FW_ON){
 			printk(KERN_INFO "User tried do activate already-on firewall\n");
 		} else {
+			printk(KERN_INFO "User successfully activated firewall\n");
 			g_fw_is_active = FW_ON;
 		}
 	}
@@ -308,9 +310,6 @@ static bool is_valid_mask_prefix_size(unsigned char num, rule_t* rule, enum src_
  * Returns true if num is valid protocol, false otherwise
  **/
 static bool is_valid_protocol(unsigned char num, rule_t* rule){
-#ifdef DEBUG_MODE
-	printk(KERN_INFO "In is_valid_protocol(), testing if %hhu is a valid protocol number\n", num);
-#endif
 	
 	if( (num == PROT_ICMP) || (num == PROT_TCP) || (num == PROT_UDP) || (num == PROT_OTHER) || (num == PROT_ANY) ){ 
 		rule->protocol = (prot_t)num; //Safe casting
@@ -723,7 +722,7 @@ static int rfw_dev_release(struct inode *inodep, struct file *fp){
 static bool is_relevant_direction(direction_t rule_direction, direction_t packet_direction){
 	return ( (rule_direction == packet_direction) || 
 			(rule_direction == DIRECTION_ANY) || 
-			(packet_direction == DIRECTION_ANY) ); //TODO::check about this line - since packet_direction supposed to be final(??)
+			(packet_direction == DIRECTION_ANY) );
 }
 
 /**
