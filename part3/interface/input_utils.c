@@ -854,16 +854,16 @@ static char* build_all_rules_format(){
 	for (size_t i = 0; i < g_num_of_valid_rules; ++i){
 		rulePtr = &(g_all_rules_table[i]);
 		if ((sprintf( (buffer+buff_offset),		//pointer arithmetic
-				"%s %d %u %hhu %u %hhu %hu %hu %hhu %d %hhu\n",
+				"%s %d %u %hhu %u %hhu %hhu %hu %hu %d %hhu\n",
 				rulePtr->rule_name,
 				rulePtr->direction,
 				rulePtr->src_ip,
 				rulePtr->src_prefix_size,
 				rulePtr->dst_ip,
 				rulePtr->dst_prefix_size,
+				rulePtr->protocol,
 				rulePtr->src_port,
 				rulePtr->dst_port,
-				rulePtr->protocol,
 				rulePtr->ack,
 				rulePtr->action)
 		) < (NUM_OF_FIELDS_IN_FWRULE+SPACES_IN_FWFORMAT+1))
@@ -913,7 +913,7 @@ enum rules_recieved_t send_rules_to_fw(void){
 	printf("Bytes supposed to be written to fw_rules: %d\n", bytes_to_write);
 #endif	
 
-	if ( (bytes_written = write(fd, buff, bytes_to_write)) <= 0){
+	if ( (bytes_written = write(fd, buff, bytes_to_write)) < 0){
 		printf("Error accured trying to write rules into fw_rules device\n");
 		close(fd);
 		free(buff);
