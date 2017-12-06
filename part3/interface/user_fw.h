@@ -7,7 +7,7 @@
 #include <sys/types.h> // For open()
 #include <sys/stat.h> // For open()
 #include <errno.h>
-#include <unistd.h> // For close()
+#include <unistd.h> // For close(), write(), read()
 #include <stdlib.h> // For calloc()
 #include <arpa/inet.h> //For inet_pton()
 #include <stdbool.h> //For bool
@@ -22,16 +22,6 @@
 #define DEACTIVATE_STRING "0"
 #define ACTIVATE_STRING "1"
 #define ACTIVE_STR_LEN (1)
-/**
-#include <linux/device.h>
-#include <linux/fs.h>
-//For ipv6 packets?
-#include <linux/netfilter_ipv4.h>
-#include <linux/ip.h>
-#include <linux/tcp.h>
-#include <linux/udp.h>
-#include <linux/types.h> //For bool type
-**/
 
 // the protocols we will work with
 typedef enum {

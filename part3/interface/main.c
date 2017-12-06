@@ -62,9 +62,9 @@ int change_active_state_fw(bool to_active_state){
 	}
 	close(fd);
 	if (to_active_state) {
-		printf ("Sent activate string to firewall successfully. Use show_activate command to get firewall status (active/inactive)\n");
+		printf ("Sent activate string to firewall successfully. Use show_active command to get firewall status (active/inactive)\n");
 	} else {
-		printf ("Sent deactivate string to firewall successfully. Use show_activate command to get firewall status (active/inactive)\n");
+		printf ("Sent deactivate string to firewall successfully. Use show_active command to get firewall status (active/inactive)\n");
 	}
 	return 0;
 }

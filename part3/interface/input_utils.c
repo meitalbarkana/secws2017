@@ -984,3 +984,65 @@ int get_fw_active_stat(){
 	printf ("Error: buffer returned with unknown value\n");
 	return -1;
 }
+
+/**
+ *	Gets a buffer that contain all rules from g_all_rules_table,
+ * 	in format:
+ * 
+ * 	FORMAT:
+ * 		Buffer := [RULE]\n...[RULE]\n
+ * 		RULE := <rule name> <direction> <src ip> <src prefix length> <dst ip> <dst prefix length> <protocol> <source port> <dest port> <ack> <action>
+ *
+ *	Returns: buffer on success, NULL if error happened 
+ *
+ *	Note: user should free memory allocated for string returned!
+ **/
+static char* get_all_rules_from_fw(){
+	
+	int curr_read_bytes = 0;
+	size_t total_bytes_read = 0;
+	
+	//Allocates room for MAX_NUM_OF_RULES+1 rules (to make sure there's enough room)
+	//the "+ MAX_NUM_OF_RULES + 1" is for all seperating'\n' and for '\0': 
+	size_t enough_len = (MAX_STRLEN_OF_FW_RULE_FORMAT*(MAX_NUM_OF_RULES+1))
+							+ MAX_NUM_OF_RULES + 1; 
+	char* buffer = calloc(enough_len,sizeof(char));
+	if (buffer == NULL) {
+		printf("Error: allocation failed, couldn't get all rules from fw\n");
+		return NULL;
+	}
+	
+	size_t len_to_read = enough_len-1;
+	int fd = open(PATH_TO_RULE_DEV,O_RDONLY); // Open device with read only permissions
+	if (fd < 0){
+		printf("Error accured trying to open the rules-device for reading all rules, error number: %d\n", errno);
+		free(buffer);
+		return NULL;
+	}
+
+	while ( (len_to_read >= MAX_STRLEN_OF_FW_RULE_FORMAT+1 ) &&
+			((curr_read_bytes = read(fd, buffer+total_bytes_read, len_to_read)) > 0) )
+	{
+		total_bytes_read+=curr_read_bytes;
+		if (curr_read_bytes <= len_to_read){
+			len_to_read = len_to_read - curr_read_bytes;
+		} else {
+			printf("No room to read any more data from fw\n");
+			len_to_read = 0;
+		}
+		
+	}
+
+	close(fd);
+	
+	if (curr_read_bytes < 0) {
+		//Some error accured
+		printf("Failed reading all rules from fw.\n");
+		free(buffer);
+		return NULL;
+	}
+	
+	return buffer;
+}
+
+
