@@ -965,23 +965,28 @@ int get_fw_active_stat(){
 	int fd = open(PATH_TO_ACTIVE_ATTR,O_RDONLY); // Open device with read only permissions
 	if (fd < 0){
 		printf("Error accured trying to open the rules-device for reading status, error number: %d\n", errno);
+		free(buff);
 		return -1;
 	}
 	
 	if (read(fd, buff, 1) <= 0){
 		printf("Error accured trying to read firewall's active state, error number: %d\n", errno);
+		free(buff);
 		close(fd);
 		return -1;
 	}
 	close(fd);
 	if (strcmp(buff, DEACTIVATE_STRING) == 0) {
+		free(buff);
 		return 0;
 	} else if (strcmp(buff, ACTIVATE_STRING) == 0) {
+		free(buff);
 		return 1;
 	}
 	
 	//Never supposed to get here:
 	printf ("Error: buffer returned with unknown value\n");
+	free(buff);
 	return -1;
 }
 
@@ -1045,4 +1050,145 @@ static char* get_all_rules_from_fw(){
 	return buffer;
 }
 
+/**
+ *	Gets a string representing rule, in format:
+ *	<rule name> <direction> <src ip> <src prefix length> <dst ip> <dst prefix length> <protocol> <source port> <dest port> <ack> <action>
+ *	and print it in format:
+ *	<rule name> <direction> <src ip>/<nps> <dst ip>/<nps> <protocol> <source port> <dest port> <ack> <action>'\n'
+ *	
+ *	Returns true on success.
+ **/
+static bool print_token_rule(char* rule_token){
+	
+	//Temporeries:
+	char str[MAX_STRLEN_OF_RULE_FORMAT+1];
+	char t_rule_name[MAX_LEN_OF_NAME_RULE+1];
+	int t_direction = 0;
+	unsigned int t_src_ip = 0;
+	unsigned char t_src_prefix_length = 0;
+	unsigned int t_dst_ip = 0;
+	unsigned char t_dst_prefix_length = 0;
+	unsigned char t_protocol = 0;
+	unsigned short t_src_port = 0;
+	unsigned short t_dst_port = 0;
+	int t_ack = 0;
+	unsigned char t_action = 0;
+	
+	size_t ip_len_str = strlen("XXX.XXX.XXX.XXX")+1;
+	char ip_dst_str[ip_len_str];
+	char ip_src_str[ip_len_str];
+	char direc_str[MAX_STRLEN_OF_DIRECTION+1];
+	char protocol_str[MAX_STRLEN_OF_PROTOCOL+1];
+	char s_port_str[MAX_STRLEN_OF_PORT+1];
+	char d_port_str[MAX_STRLEN_OF_PORT+1];
+	char ack_str[MAX_STRLEN_OF_ACK+1];
+	char action_str[MAX_STRLEN_OF_ACTION+1];
+	
+	if(rule_token == NULL) {
+#ifdef USER_DEBUG_MODE
+		printf("function print_token_rule() got NULL argument\n");
+#endif
+		return false;
+	}
+	
+	if ( (sscanf(rule_token, "%19s %10d %u %hhu %u %hhu %hhu %hu %hu %d %hhu",
+			t_rule_name,
+			&t_direction,
+			&t_src_ip,
+			&t_src_prefix_length,
+			&t_dst_ip,
+			&t_dst_prefix_length,
+			&t_protocol,
+			&t_src_port,
+			&t_dst_port,
+			&t_ack,
+			&t_action)) < NUM_OF_FIELDS_IN_FWRULE ) 
+	{
+		
+#ifdef USER_DEBUG_MODE
+		printf("Couldn't parse rule_token to valid fields.\n");
+#endif
+		return false;
+	}
+	
+	if ( !(tran_uint_to_ipv4str(t_src_ip, ip_src_str, ip_len_str))
+		|| !(tran_uint_to_ipv4str(t_dst_ip, ip_dst_str, ip_len_str))
+		|| !(tran_direction_t_to_str(t_direction,direc_str)) 
+		|| !(tran_prot_t_to_str(t_protocol, protocol_str))
+		|| !(tran_port_to_str(t_src_port,s_port_str))
+		|| !(tran_port_to_str(t_dst_port,d_port_str))
+		|| !(tran_ack_to_str(t_ack,ack_str)) 
+		|| !(tran_action_to_str(t_action,action_str)) )
+	{
+		return false;
+	}
+	
+	//<rule name> <direction> <src ip>/<nps> <dst ip>/<nps> <protocol> <source port> <dest port> <ack> <action>
+	int num_of_chars_written = snprintf(str, MAX_STRLEN_OF_RULE_FORMAT+1,
+									"%s %s %s/%u %s/%u %s %s %s %s %s",
+									t_rule_name,
+									direc_str,
+									ip_src_str,
+									t_src_prefix_length,
+									ip_dst_str,
+									t_dst_prefix_length,
+									protocol_str,
+									s_port_str,
+									d_port_str,
+									ack_str,
+									action_str);
+
+	if (num_of_chars_written < MIN_STRLEN_OF_RULE_FORMAT){
+#ifdef USER_DEBUG_MODE
+		printf("Failed translating rule to string\n");
+#endif
+		return false;
+	}
+	
+	printf("%s\n", str);
+	
+	return true;
+	
+}
+
+
+
+/**
+ *	Reads all rules from fw and prints them by format:
+ *	<rule name> <direction> <src ip>/<nps> <dst ip>/<nps> <protocol> <source port> <dest port> <ack> <action>'\n'...
+ *	
+ *	Returns 0 on success, -1 if failed
+ **/
+int print_all_rules_from_fw(){
+	
+	char* rule_token = NULL;
+	char* ptr_copy_buffer;
+	char* buffer = get_all_rules_from_fw();
+	bool error_occured = false;
+
+	if (buffer == NULL) {
+		return -1;
+	}
+	
+	//Since strsep ruin buffer:
+	ptr_copy_buffer = buffer;
+	
+	while ((rule_token = strsep(&buffer, DELIMETER_STR)) != NULL
+			&& (strlen(rule_token) > 0)) //Last token is empty if valid format recieved
+	{
+		if (!print_token_rule(rule_token)) {
+			error_occured = true;
+		}
+	}	
+	
+	free(ptr_copy_buffer);
+	
+	if (error_occured) {
+		printf("Some of the rules weren't printed.\n");
+		return -1;
+	}
+	
+	return 0;
+		
+}
 

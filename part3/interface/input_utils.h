@@ -53,10 +53,12 @@
 
 #define CHAR_CR (13)
 #define CHAR_LF (10)
+#define DELIMETER_STR "\n"
 
 int read_rules_from_file(const char* file_path);
 bool valid_file_path(const char* path);
 enum rules_recieved_t send_rules_to_fw(void);
 int get_fw_active_stat();
+int print_all_rules_from_fw();
 
 #endif // _INPUT_UTILS_H_

@@ -14,7 +14,7 @@
 #include <linux/netfilter.h> //For NF_ACCEPT, NF_DROP
 #include <ctype.h> //For isdigit()
 
-#define USER_DEBUG_MODE (1) //For debug-printing 
+//#define USER_DEBUG_MODE (1) //For debug-printing 
 
 #define PATH_TO_RULE_DEV "/dev/fw_rules"
 #define PATH_TO_ACTIVE_ATTR "/sys/class/fw/fw_rules/active"

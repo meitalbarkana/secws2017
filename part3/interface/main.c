@@ -123,11 +123,11 @@ int main(int argc, char* argv[]){
 	if (strcmp(argv[1],STR_GET_ACTIVE_STAT) == 0) {
 		return get_active_stat();
 	}
-/**	
+
 	if (strcmp(argv[1], STR_SHOW_RULES) == 0) {
-		return show_rules();
+		return print_all_rules_from_fw();
 	}
-	
+/**		
 	if (strcmp(argv[1], STR_CLEAR_RULES) == 0) {
 		return clear_rules();
 	}
