@@ -117,7 +117,7 @@ typedef struct {
 enum action_t {
 	RULE_ACCEPTS_PACKET = NF_ACCEPT,
 	RULE_DROPS_PACKET = NF_DROP,
-	RULE_NOT_RELEVANT
+	RULE_NOT_RELEVANT = 66
 };
 
 direction_t get_direction(const struct net_device* in, const struct net_device* out);

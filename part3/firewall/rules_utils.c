@@ -934,6 +934,9 @@ static enum action_t is_relevant_rule(const rule_t* rule, log_row_t* ptr_pckt_lg
 		} else { //Not a tcp/udp rule&packet, and they fit:
 			//Set packets' action according to this rule:
 			ptr_pckt_lg_info->action = rule->action;
+#ifdef LOG_DEBUG_MODE
+			printk (KERN_INFO "inside is_relevant_rule(), packet fits rule, rule's action is: %d\n", rule->action);
+#endif
 			return (enum action_t)rule->action;
 		}	
 	}
@@ -963,10 +966,17 @@ static enum action_t is_relevant_rule(const rule_t* rule, log_row_t* ptr_pckt_lg
 static int get_relevant_rule_num_from_table(log_row_t* ptr_pckt_lg_info,
 		ack_t* packet_ack, direction_t* packet_direction)
 {
+
 	size_t index = 0;
 	for (index = 0; index < g_num_of_valid_rules; ++index) {
-		if ( is_relevant_rule(&(g_all_rules_table[index]),
-				ptr_pckt_lg_info,packet_ack, packet_direction)
+#ifdef LOG_DEBUG_MODE
+	printk(KERN_INFO "In function get_relevant_rule_num_from_table, current index is: %u.\n",index);
+	printk(KERN_INFO "Values of constants are: RULE_ACCEPTS_PACKET = %d, RULE_DROPS_PACKET = %d, RULE_NOT_RELEVANT = %d.\n"
+					,RULE_ACCEPTS_PACKET, RULE_DROPS_PACKET, RULE_NOT_RELEVANT);
+#endif	
+
+		if ( (is_relevant_rule(&(g_all_rules_table[index]),
+				ptr_pckt_lg_info,packet_ack, packet_direction))
 			!= RULE_NOT_RELEVANT )
 		{ 
 		//Rule is relevant, ptr_pckt_lg_info->action was updated in is_relevant_rule()
