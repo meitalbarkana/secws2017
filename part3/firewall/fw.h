@@ -14,6 +14,7 @@
 #include <linux/types.h> //For bool type
 #include <linux/uaccess.h> //For allowing user-space access
 #include <linux/time.h> //For timestamp value
+#include <linux/list.h> //For log's list
 
 /**
  * If DEBUG_MODE is defined, code will print debug messages to KERN_INFO
@@ -62,7 +63,7 @@ typedef enum {
 #define PORT_ABOVE_1023	(1023)
 #define PORT_ERROR 		(-1) //NOTE: not to be confused with "PROT_ERR"
 #define MAX_RULES		(50)
-#define MAX_LOG_ROWS	(1000)
+#define MAX_LOG_ROWS	(5) ///TODO:: change to 1000, just for tests
 
 // device minor numbers, for your convenience
 typedef enum {
@@ -112,13 +113,14 @@ typedef struct {
 	__be16 			dst_port;	  	// if you use this struct in userspace, change the type to unsigned short
 	reason_t     	reason;       	// rule#index, or values from: reason_t
 	unsigned int   	count;        	// counts this line's hits
+	struct list_head list;			// For saving kernel-list of all log-rows
 } log_row_t;
 
 //Enum to help deciding about packets
 enum action_t {
 	RULE_ACCEPTS_PACKET = NF_ACCEPT,
 	RULE_DROPS_PACKET = NF_DROP,
-	RULE_NOT_RELEVANT = 66
+	RULE_NOT_RELEVANT = 66,
 };
 
 direction_t get_direction(const struct net_device* in, const struct net_device* out);

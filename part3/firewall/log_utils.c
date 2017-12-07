@@ -1,8 +1,21 @@
 #include "log_utils.h"
 
 //Global counter of number of rows, to make sure < MAX_LOG_ROWS
-static g_num_of_rows = 0;
+static int g_num_of_rows = 0;
 
+/**
+ *	Variables that will hold all log-row's list:
+ *	g_logs_list is the head of the list [it's some kind of a Dummy, won't
+ *	contain "real" log-row information].
+ * 
+ *	New elements will always be inserted first (list is ordered from newest to oldest)
+ **/
+static LIST_HEAD(g_logs_list); // Declares (static) g_logs_list of type struct list_head
+static int g_num_rows_read = 0;
+
+// Will contain log-device's major number - its unique ID:
+static int log_dev_major_number = 0; 
+static struct device* log_device = NULL;
 
 /**
  *	Updates:
@@ -26,7 +39,8 @@ static g_num_of_rows = 0;
  **/
 bool init_log_row(struct sk_buff* skb, log_row_t* ptr_pckt_lg_info,
 		unsigned char hooknumber, ack_t* ack, direction_t* direction,
-		const struct net_device* in, const struct net_device* out){
+		const struct net_device* in, const struct net_device* out)
+{
 	
 	struct iphdr* ptr_ipv4_hdr;		//pointer to ipv4 header
 	struct tcphdr* ptr_tcp_hdr;		//pointer to tcp header
@@ -40,6 +54,7 @@ bool init_log_row(struct sk_buff* skb, log_row_t* ptr_pckt_lg_info,
     ptr_pckt_lg_info->timestamp = ts.tv_sec;
 	ptr_pckt_lg_info->hooknum = hooknumber;
 	*direction = get_direction(in, out);
+	INIT_LIST_HEAD(&(ptr_pckt_lg_info->list));
 	
 	//Initiates default values:
 	ptr_pckt_lg_info->count = 1;
@@ -72,7 +87,7 @@ bool init_log_row(struct sk_buff* skb, log_row_t* ptr_pckt_lg_info,
 				default: //PROT_OTHER
 					ptr_pckt_lg_info->protocol = PROT_OTHER;
 			}
-			
+
 			if (ip_h_protocol == PROT_TCP){
 				ptr_tcp_hdr = (struct tcphdr*)((char*)ptr_ipv4_hdr + (ptr_ipv4_hdr->ihl * 4));
 				temp_port_num = ptr_tcp_hdr->source;
@@ -135,7 +150,7 @@ void print_log_row(log_row_t* logrowPtr, int logrow_num){
  * 				hooknum,  action, reason are equal.] 
  * 
  **/
-bool are_similar(log_row_t* row_a, log_row_t* row_b) {
+static bool are_similar(log_row_t* row_a, log_row_t* row_b) {
 
 	if (row_a == NULL || row_b == NULL){
 		printk(KERN_ERR "Function are_similar() got NULL argument.\n");
@@ -152,3 +167,62 @@ bool are_similar(log_row_t* row_a, log_row_t* row_b) {
 	
 }
 
+/**
+ *	Gets a pointer to a new log_row_t which was ALREADY initiated (in
+ *	init_log_row()) and allocated (dynamically).
+ *	searches g_logs_list for a similar log-row: if finds one, 
+ *	UPDATES row's count (by the count of the similar) and deletes 
+ *	the old log_row.
+ * 
+ *	Inserts row at the start of g_logs_list,
+ *	to maintain the order from newest (first) to oldest (last element) 
+ *	in g_logs_list.
+ *	
+ *	Returns: true on success, false if any error happened.
+ **/
+bool insert_row(log_row_t* row){
+	
+	struct list_head *pos, *q;
+	log_row_t* temp_row;
+	
+	if (row == NULL) {
+		printk(KERN_ERR "In get_similar_row(), function got NULL argument.\n");
+		return false;
+	}
+	
+	list_for_each_safe(pos, q, &g_logs_list){
+		temp_row = list_entry(pos, log_row_t, list);
+		if (are_similar(temp_row, row)) {
+			row->count = 1+temp_row->count;
+#ifdef LOG_DEBUG_MODE
+			printk(KERN_INFO "Found similar row in list, about to delete it. Its details:\n");
+			print_log_row(temp_row, -1);
+#endif
+			list_del(pos);
+			kfree(temp_row);
+			--g_num_of_rows; //Since we deleted one (will be updated later)
+			break;
+		}
+	}
+	
+	if (g_num_of_rows >= MAX_LOG_ROWS) { //Note: it was enough just to check "=="
+	
+		//Delete old row before inserting - the last row is the oldest:
+		if ( (g_logs_list.prev) != &g_logs_list) { 
+			//^ Makes sure last element in list isn't the head (empty list)
+			temp_row = list_entry((g_logs_list.prev), log_row_t, list);
+			list_del(g_logs_list.prev);
+			kfree(temp_row);
+			--g_num_of_rows;
+		} else {
+			printk(KERN_ERR "In insert_row(), large number of rows but list is empty!\n");
+			return false;
+		}
+	}
+	
+	list_add(&(row->list), &g_logs_list);
+	
+	++g_num_of_rows;
+	return true;
+	
+}
