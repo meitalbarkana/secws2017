@@ -1,5 +1,9 @@
 #include "log_utils.h"
 
+//Global counter of number of rows, to make sure < MAX_LOG_ROWS
+static g_num_of_rows = 0;
+
+
 /**
  *	Updates:
  * 			1. *ptr_pckt_lg_info fields to contain the packet information
@@ -124,4 +128,27 @@ void print_log_row(log_row_t* logrowPtr, int logrow_num){
 	}
 }
 
+/**
+ *	Gets 2 pointers to log-rows, returns true if they're similar
+ * 
+ *	[Similar := source ip, destination ip, source port, destination port, protocol,
+ * 				hooknum,  action, reason are equal.] 
+ * 
+ **/
+bool are_similar(log_row_t* row_a, log_row_t* row_b) {
+
+	if (row_a == NULL || row_b == NULL){
+		printk(KERN_ERR "Function are_similar() got NULL argument.\n");
+	}
+
+	return (row_b->protocol == row_a->protocol &&
+			row_b->action == row_a->action &&
+			row_b->hooknum == row_a->hooknum &&
+			row_b->src_ip == row_a->src_ip &&
+			row_b->dst_ip == row_a->dst_ip &&
+			row_b->src_port == row_a->src_port &&
+			row_b->dst_port == row_a->dst_port &&	
+			row_b->reason == row_a->reason);
+	
+}
 

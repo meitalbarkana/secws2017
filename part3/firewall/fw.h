@@ -60,8 +60,9 @@ typedef enum {
 #define IP_VERSION		(4)
 #define PORT_ANY		(0)
 #define PORT_ABOVE_1023	(1023)
-#define PORT_ERROR (-1) 	//NOTE: not to be confused with "PROT_ERR"
+#define PORT_ERROR 		(-1) //NOTE: not to be confused with "PROT_ERR"
 #define MAX_RULES		(50)
+#define MAX_LOG_ROWS	(1000)
 
 // device minor numbers, for your convenience
 typedef enum {
