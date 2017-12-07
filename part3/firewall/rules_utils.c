@@ -619,13 +619,11 @@ static ssize_t rfw_dev_read(struct file *filp, char *buffer, size_t len, loff_t 
  *  @fp - pointer to a file object
  */
 static int rfw_dev_open(struct inode *inodep, struct file *fp){
-   g_usage_counter++;
-   
+	g_usage_counter++;
 #ifdef DEBUG_MODE 
    printk(KERN_INFO "fw_rules: device is opened by %d process(es)\n", g_usage_counter);
 #endif
-
-   return 0;
+	return 0;
 }
 
 /** 
@@ -722,10 +720,6 @@ static int rfw_dev_release(struct inode *inodep, struct file *fp){
  *	Returns true is it is.
  **/
 static bool is_relevant_direction(direction_t rule_direction, direction_t packet_direction){
-#ifdef LOG_DEBUG_MODE	
-	printk(KERN_INFO "Inside is_relevant_direction, rule_direction is: %d, packet_direction is: %d.\n", rule_direction, packet_direction);
-#endif
-
 	return ( (rule_direction == packet_direction) || 
 			(rule_direction == DIRECTION_ANY) || 
 			(packet_direction == DIRECTION_ANY) );
@@ -745,9 +739,6 @@ static bool is_relevant_direction(direction_t rule_direction, direction_t packet
 static bool is_relevant_ip(__be32 rule_ip, __be32 rule_prefix_mask, __be32 packet_ip){
 	__be32 network_prefix = rule_ip & rule_prefix_mask; //Bitwise and. 
 	__be32 p_network_prefix = packet_ip & rule_prefix_mask;
-#ifdef LOG_DEBUG_MODE	
-	printk(KERN_INFO "Inside is_relevant_ip, p_network_prefix is: %u, network_prefix is: %u.\n", p_network_prefix, network_prefix);
-#endif
 	return ( p_network_prefix == network_prefix );
 }
 
@@ -761,10 +752,6 @@ static bool is_relevant_ip(__be32 rule_ip, __be32 rule_prefix_mask, __be32 packe
  * 			3. PORT_ABOVE_1023	(1023) for any port number > 1023 
  **/
 static bool is_relevant_port(__be16 rule_port, __be16 packet_port){
-#ifdef LOG_DEBUG_MODE	
-	printk(KERN_INFO "Inside is_relevant_port, rule_port is: %hu, packet_port is: %hu.\n", rule_port, packet_port);
-#endif
-	
 	return ( (rule_port == PORT_ANY) || 
 			((rule_port == PORT_ABOVE_1023)	&& (packet_port > PORT_ABOVE_1023))
 			|| (rule_port == packet_port) );
@@ -775,9 +762,6 @@ static bool is_relevant_port(__be16 rule_port, __be16 packet_port){
  *	Returns true is it is.
  **/
 static bool is_relevant_protocol(prot_t rule_protocol, __u8 packet_protocol){
-#ifdef LOG_DEBUG_MODE	
-	printk(KERN_INFO "Inside is_relevant_protocol, rule_protocol is: %hhu, packet_protocol is: %hhu.\n", rule_protocol, packet_protocol);
-#endif
 	return ( (rule_protocol == PROT_ANY) || 
 			(packet_protocol == (unsigned char)rule_protocol) ); //Safe casting 
 }
@@ -796,9 +780,6 @@ static bool is_relevant_protocol(prot_t rule_protocol, __u8 packet_protocol){
  *		 	accessing specific bits through struct fields is endian-safe.
  **/
 static bool is_relevant_ack(ack_t rule_ack, ack_t packet_ack){
-#ifdef LOG_DEBUG_MODE	
-	printk(KERN_INFO "Inside is_relevant_ack, rule_ack is: %d, packet_ack is: %d.\n", rule_ack, packet_ack);
-#endif
 
 	if (packet_ack == ACK_ANY) { //Should never get here
 		printk (KERN_ERR "In function is_relevant_ack(), got invalid packet_ack argument (ACK_ANY)\n");
@@ -851,34 +832,17 @@ static bool is_XMAS(struct sk_buff* skb){
 			//Protocol is 1 byte - no need to consider Endianness
 			if (ptr_ipv4_hdr->protocol == PROT_TCP) {	//Checks in local endianness
 				ptr_tcp_hdr = (struct tcphdr*)((char*)ptr_ipv4_hdr + (ptr_ipv4_hdr->ihl * 4));
-				//accessing specific bits through struct fields is Endian-safe:
-#ifdef LOG_DEBUG_MODE
-				if (ptr_tcp_hdr->psh){
-					printk(KERN_INFO "Inside is_XMAS(), psh is: %d \n", ptr_tcp_hdr->psh);
-				}
-				if (ptr_tcp_hdr->urg){
-					printk(KERN_INFO "Inside is_XMAS(), urg is: %d \n", ptr_tcp_hdr->urg);
-				}
-				if (ptr_tcp_hdr->fin){
-					printk(KERN_INFO "Inside is_XMAS(), fin is: %d \n", ptr_tcp_hdr->fin);
-				}
-#endif		
+				//accessing specific bits through struct fields is Endian-safe:	
 				
 				if ( ptr_tcp_hdr && (ptr_tcp_hdr->psh == 1) && (ptr_tcp_hdr->urg == 1)
 					&& (ptr_tcp_hdr->fin == 1) ) 
 				{
-#ifdef LOG_DEBUG_MODE
-						printk(KERN_INFO "Inside is_XMAS(), about to return true\n");
-#endif
 						return true;
 				}
 			}
 		}
 	}
 	
-#ifdef LOG_DEBUG_MODE
-	printk(KERN_INFO "Inside is_XMAS(), about to return false\n");
-#endif
 	return false;
 }
 
@@ -971,8 +935,6 @@ static int get_relevant_rule_num_from_table(log_row_t* ptr_pckt_lg_info,
 	for (index = 0; index < g_num_of_valid_rules; ++index) {
 #ifdef LOG_DEBUG_MODE
 	printk(KERN_INFO "In function get_relevant_rule_num_from_table, current index is: %u.\n",index);
-	printk(KERN_INFO "Values of constants are: RULE_ACCEPTS_PACKET = %d, RULE_DROPS_PACKET = %d, RULE_NOT_RELEVANT = %d.\n"
-					,RULE_ACCEPTS_PACKET, RULE_DROPS_PACKET, RULE_NOT_RELEVANT);
 #endif	
 
 		if ( (is_relevant_rule(&(g_all_rules_table[index]),
