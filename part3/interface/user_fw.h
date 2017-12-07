@@ -83,7 +83,7 @@ typedef enum {
 	DIRECTION_IN 	= 0x01,
 	DIRECTION_OUT 	= 0x02,
 	DIRECTION_ANY 	= DIRECTION_IN | DIRECTION_OUT,
-	DIRECTION_ERROR
+	DIRECTION_ERROR = 0x04
 } direction_t;
 
 // rule base
