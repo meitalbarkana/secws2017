@@ -31,7 +31,9 @@ typedef enum {
 	PROT_UDP	= 17,
 	PROT_OTHER 	= 255,
 	PROT_ANY	= 143,
-	PROT_ERROR
+//Only the above are considered valid procotol when setting the rules
+//Added for catching "errors" (invalid protocol):
+	PROT_ERROR = 144 
 } prot_t;
 
 
