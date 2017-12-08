@@ -11,8 +11,10 @@ static int g_num_of_rows = 0;
  *	New elements will always be inserted first (list is ordered from newest to oldest)
  **/
 static LIST_HEAD(g_logs_list); // Declares (static) g_logs_list of type struct list_head
+
 static int g_num_rows_read = 0;
 static int g_log_usage_counter = 0;
+static struct list_head* g_last_row_read = NULL; 
 
 // Will contain log-device's major number - its unique ID:
 static int log_dev_major_number = 0; 
@@ -32,14 +34,19 @@ static struct file_operations log_fops = {
 
 /** 
  * 	The device open function (called each time the device is opened):
- * 	
- *	Increments g_log_usage_counter
- *  
+ * 		1. Increments g_log_usage_counter
+ *  	2. Updates g_num_rows_read to 0, and g_last_row_read to point
+ * 		   the head of the list 
+ * 
  *	@inodep - pointer to an inode object)
  *  @fp - pointer to a file object
  */
 static int lfw_dev_open(struct inode *inodep, struct file *fp){
+	
 	g_log_usage_counter++;
+	g_num_rows_read = 0;
+	g_last_row_read = &g_logs_list;
+	
 #ifdef LOG_DEBUG_MODE 
 	printk(KERN_INFO "fw_log: device is opened by %d process(es)\n", g_log_usage_counter);
 #endif
@@ -49,8 +56,8 @@ static int lfw_dev_open(struct inode *inodep, struct file *fp){
 /** 
  * 	The device release function - called whenever the device is 
  *	closed/released by the userspace program.
- *		1. Decrements g_log_usage_counter
- * 		2. Updates g_num_rows_read to 0.
+ *
+ *	Decrements g_log_usage_counter	
  * 	 
  *  @inodep - pointer to an inode object
  *  @fp - pointer to a file object
@@ -61,8 +68,6 @@ static int lfw_dev_release(struct inode *inodep, struct file *fp){
 	if (g_log_usage_counter != 0){
 		g_log_usage_counter--;
 	}
-	
-	g_num_rows_read = 0;
 
 #ifdef LOG_DEBUG_MODE 
    printk(KERN_INFO "fw_log: device successfully closed\n");
@@ -101,74 +106,65 @@ static int lfw_dev_release(struct inode *inodep, struct file *fp){
  * 		 3. (-EFAULT) if copy_to_user failed / (-1) if other failure happened
  */
 static ssize_t lfw_dev_read(struct file *filp, char *buffer, size_t len, loff_t *offset){
-	//TODO:: change to fit logger
-	
-	/**
-	rule_t* rulePtr;
-	char str[MAX_STRLEN_OF_RULE_FORMAT+2]; //+2: for '\n' and '\0'
-	
-	//Checks if user already finished reading all rules:
-	if (g_num_rules_have_been_read == g_num_of_valid_rules) { 
-		g_num_rules_have_been_read = 0;//So next user could read
+
+	log_row_t* rowPtr = NULL;
+	char str[MAX_STRLEN_OF_LOGROW_FORMAT+1]; //for '\0'
+		
+	//Checks if user already finished reading all rows:
+	if ((g_num_rows_read == g_num_of_rows) || (g_num_of_rows == 0)){ 
+		g_num_rows_read = 0;//So next user could read
+		g_last_row_read = &g_logs_list; 
 		return 0;
 	}
 	
-	rulePtr = &(g_all_rules_table[g_num_rules_have_been_read]);
+	rowPtr = list_entry(g_last_row_read->next, log_row_t, list);
 
-	if (rulePtr == NULL){ //Sanity check
-		printk(KERN_ERR "add_str_rule_to_buffer - NULL pointer\n");
-		return -1;
-	}
-	
 	if ((sprintf(str,
-				"%s %d %u %hhu %u %hhu %hhu %hu %hu %d %hhu\n",
-				rulePtr->rule_name,
-				rulePtr->direction,
-				rulePtr->src_ip,
-				rulePtr->src_prefix_size,
-				rulePtr->dst_ip,
-				rulePtr->dst_prefix_size,
-				rulePtr->protocol,
-				rulePtr->src_port,
-				rulePtr->dst_port,
-				rulePtr->ack,
-				rulePtr->action)
-		) < (MIN_RULE_FORMAT_LEN+1))
+				"%lu %hhu %hhu %hhu %u %u %hu %hu %d %u\n",
+				rowPtr->timestamp,
+				rowPtr->protocol,
+				rowPtr->action,
+				rowPtr->hooknum,
+				rowPtr->src_ip,
+				rowPtr->dst_ip,
+				rowPtr->src_port,
+				rowPtr->dst_port,
+				rowPtr->reason,
+				rowPtr->count)
+		) < (MIN_LOGROW_FORMAT_LEN))
 	{
 		//Should never get here:
-		printk(KERN_ERR "Error formatting rule to its string representation\n");
+		printk(KERN_ERR "Error formatting log-row to its string representation\n");
 		return -1;
 	} 
 	
 	if (len < strlen(str)){
-		printk(KERN_ERR "Error: user provided too-small buffer\n");
+		printk(KERN_ERR "Error: user provided a buffer too small for log-row format\n");
 		return -EFAULT;
 	}
 	
 	// copy_to_user has the format ( * to, *from, size) and returns 0 on success
 	if ( copy_to_user(buffer, str, strlen(str)) != 0 ) {
-		printk(KERN_INFO "Function copy_to_user failed - writing rule to user's buffer failed\n");
+		printk(KERN_INFO "Function copy_to_user failed - writing log-row to user's buffer failed\n");
 		return -EFAULT; //Return a bad address message
 	}
-	
-#ifdef DEBUG_MODE
-	printk(KERN_INFO "In function add_str_rule_to_buffer, done sending it:\n%s\n",str);
-#endif	
-	++g_num_rules_have_been_read;
+
+		
+#ifdef LOG_DEBUG_MODE
+	printk(KERN_INFO "In function lfw_dev_read, done sending it:\n%s\n",str);
+#endif
+
+	g_last_row_read = g_last_row_read->next;
+	++g_num_rows_read;
 	return strlen(str);
-**/	
 }
-
-
-
-
 
 
 /**
  *	Deletes all log-rows from g_logs_list
  *	(frees all allocated memory)
  **/
-static void delete_all_rows(){
+static void delete_all_rows(void){
 
 	log_row_t *row, *temp_row;
 	
@@ -178,9 +174,9 @@ static void delete_all_rows(){
 	}
 	g_num_of_rows = 0;
 	g_num_rows_read = 0;
-	
+#ifdef LOG_DEBUG_MODE
 	printk(KERN_INFO "All log-rows were deleted from list\n"); 
-
+#endif
 }
 
 
@@ -197,7 +193,7 @@ static void delete_all_rows(){
  **/
 ssize_t clear_log_list(struct device* dev, struct device_attribute* attr, const char* buf, size_t count){
 
-	if( (buf==NULL) || (count != 1) || (strnlen(buffer,3)!=1) ){
+	if( (buf == NULL) || (count != 1) || (strnlen(buf,3) != 1) ){
 		printk(KERN_ERR "*** Error: user sent invalid input to clear log ***\n");
 		return -EPERM; // Returns an error of operation not permitted
 	}
@@ -455,3 +451,84 @@ bool insert_row(log_row_t* row){
 	return true;
 	
 }
+
+/**
+ * Help function that cleans up everything associated with creating our device,
+ * According to the state that's been given.
+ **/
+static void destroyLogDevice(struct class* fw_class, enum l_state_to_fold stateToFold){
+	switch (stateToFold){
+		case(L_ALL_DES):
+			device_remove_file(log_device, (const struct device_attribute *)&dev_attr_log_size.attr);
+		case(L_FIRST_FILE_DES):
+			device_remove_file(log_device, (const struct device_attribute *)&dev_attr_log_clear.attr);
+		case(L_DEVICE_DES):
+			device_destroy(fw_class, MKDEV(log_dev_major_number, MINOR_LOG));
+		case (L_UNREG_DES):
+			unregister_chrdev(log_dev_major_number, DEVICE_NAME_LOG);
+	}
+}
+
+
+/**
+ *	Initiates log-device.
+ *	Returns: 0 on success, -1 if failed. 
+ * 
+ *	Note: user should destroy fw_class if this function returned -1!
+ **/
+int init_log_device(struct class* fw_class){
+	
+	//Initiates global values, just to make sure:
+	g_num_of_rows = 0;
+	g_num_rows_read = 0;
+	g_log_usage_counter = 0;
+	g_last_row_read = NULL; 
+	
+	//Create char device
+	log_dev_major_number = register_chrdev(0, DEVICE_NAME_LOG, &log_fops);
+	if (log_dev_major_number < 0){
+		printk(KERN_ERR "Error: failed registering log-char-device.\n");
+		return -1;
+	}
+	
+	//Create log-sysfs device:
+	log_device = device_create(fw_class, NULL, MKDEV(log_dev_major_number, MINOR_LOG), NULL, CLASS_NAME "_" DEVICE_NAME_LOG);
+	if (IS_ERR(log_device))
+	{
+		printk(KERN_ERR "Error: failed creating log-char-device.\n");
+		destroyLogDevice(fw_class,L_UNREG_DES);
+		return -1;
+	}
+	
+	//Create "log_clear"-sysfs file attributes:
+	if (device_create_file(log_device, (const struct device_attribute *)&dev_attr_log_clear.attr))
+	{
+		printk(KERN_ERR "Error: failed creating log_clear-sysfs-file inside log-char-device.\n");
+		destroyLogDevice(fw_class, L_DEVICE_DES);
+		return -1;
+	}
+	
+	//Create "log_size"-sysfs file attributes:
+	if (device_create_file(log_device, (const struct device_attribute *)&dev_attr_log_size.attr))
+	{
+		printk(KERN_ERR "Error: failed creating log_size-sysfs-file inside log-char-device.\n");
+		destroyLogDevice(fw_class, L_FIRST_FILE_DES);
+		return -1;
+	}
+	
+	printk(KERN_INFO "fw_log: device successfully initiated.\n");
+
+	return 0;
+}
+
+/**
+ *	Destroys log-device
+ **/
+void destroy_log_device(struct class* fw_class){
+	
+	delete_all_rows();
+	destroyLogDevice(fw_class, L_ALL_DES);
+	printk(KERN_INFO "fw_log: device destroyed.\n");
+
+}
+

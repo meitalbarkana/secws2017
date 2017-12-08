@@ -1093,9 +1093,9 @@ int init_rules_device(struct class* fw_class){
 		return -1;
 	}
 	
-#ifdef DEBUG_MODE 
-   printk(KERN_INFO "fw_rules: device successfully initiated.\n");
-#endif
+
+	printk(KERN_INFO "fw_rules: device successfully initiated.\n");
+
 	return 0;
 }
 
