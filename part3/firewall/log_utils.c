@@ -12,10 +12,239 @@ static int g_num_of_rows = 0;
  **/
 static LIST_HEAD(g_logs_list); // Declares (static) g_logs_list of type struct list_head
 static int g_num_rows_read = 0;
+static int g_log_usage_counter = 0;
 
 // Will contain log-device's major number - its unique ID:
 static int log_dev_major_number = 0; 
 static struct device* log_device = NULL;
+
+// Prototype functions declarations for the character driver - must come before the struct definition
+static ssize_t lfw_dev_read(struct file *filp, char *buffer, size_t len, loff_t *offset);
+static int lfw_dev_open(struct inode *inodep, struct file *fp);
+static int lfw_dev_release(struct inode *inodep, struct file *fp);
+ 
+static struct file_operations log_fops = {
+	.owner = THIS_MODULE,
+	.open = lfw_dev_open,
+	.read = lfw_dev_read,
+	.release = lfw_dev_release
+};
+
+/** 
+ * 	The device open function (called each time the device is opened):
+ * 	
+ *	Increments g_log_usage_counter
+ *  
+ *	@inodep - pointer to an inode object)
+ *  @fp - pointer to a file object
+ */
+static int lfw_dev_open(struct inode *inodep, struct file *fp){
+	g_log_usage_counter++;
+#ifdef LOG_DEBUG_MODE 
+	printk(KERN_INFO "fw_log: device is opened by %d process(es)\n", g_log_usage_counter);
+#endif
+	return 0;
+}
+
+/** 
+ * 	The device release function - called whenever the device is 
+ *	closed/released by the userspace program.
+ *		1. Decrements g_log_usage_counter
+ * 		2. Updates g_num_rows_read to 0.
+ * 	 
+ *  @inodep - pointer to an inode object
+ *  @fp - pointer to a file object
+ * 
+ */
+static int lfw_dev_release(struct inode *inodep, struct file *fp){
+	
+	if (g_log_usage_counter != 0){
+		g_log_usage_counter--;
+	}
+	
+	g_num_rows_read = 0;
+
+#ifdef LOG_DEBUG_MODE 
+   printk(KERN_INFO "fw_log: device successfully closed\n");
+#endif
+
+   return 0;
+}
+
+
+/** 
+ * 	This function is called whenever device is being read from user space
+ *  i.e. data is being sent from the device to the user. 
+ * 	We use copy_to_user() function to copy log-rows 
+ * (as numbers in their string format) to buffer.
+ * 
+ *	log-row format:
+ * <timestamp> <protocol> <action> <hooknum> <src ip> <dst ip> <source port> <dest port> <reason> <count>'\n'
+ * 
+ *  @filp - a pointer to a file object (here it's not relevant)
+ *  @buffer - pointer to the buffer to which this function will write data
+ *  @len - length of the buffer, excluding '\0'. 
+ *  @offset - the offset if required (here it's not relevant)
+ * 
+ * Note: 1. if len isn't enough for one row, action will fail.
+ * 		 2. g_num_rows_read will be updated (+1) on success.
+ * 		 3. User should allocate enough space, and if he wants all rows - 
+ * 			read until EOF (0).
+ * 		 4. In case of consecutive calls, in USER's responsibility to 
+ * 			update buffer's pointer (offset is ignored).
+ * 
+ * Returns: 
+ * 		 1. In case there were log-rows to read 
+ * 			(i.e. g_num_rows_read < g_num_of_rows) returns the number
+ *			of bytes written (sent) to buffer.
+ * 		 2. In case there were NO rows left to read - returns 0 
+ * 		 3. (-EFAULT) if copy_to_user failed / (-1) if other failure happened
+ */
+static ssize_t lfw_dev_read(struct file *filp, char *buffer, size_t len, loff_t *offset){
+	//TODO:: change to fit logger
+	
+	/**
+	rule_t* rulePtr;
+	char str[MAX_STRLEN_OF_RULE_FORMAT+2]; //+2: for '\n' and '\0'
+	
+	//Checks if user already finished reading all rules:
+	if (g_num_rules_have_been_read == g_num_of_valid_rules) { 
+		g_num_rules_have_been_read = 0;//So next user could read
+		return 0;
+	}
+	
+	rulePtr = &(g_all_rules_table[g_num_rules_have_been_read]);
+
+	if (rulePtr == NULL){ //Sanity check
+		printk(KERN_ERR "add_str_rule_to_buffer - NULL pointer\n");
+		return -1;
+	}
+	
+	if ((sprintf(str,
+				"%s %d %u %hhu %u %hhu %hhu %hu %hu %d %hhu\n",
+				rulePtr->rule_name,
+				rulePtr->direction,
+				rulePtr->src_ip,
+				rulePtr->src_prefix_size,
+				rulePtr->dst_ip,
+				rulePtr->dst_prefix_size,
+				rulePtr->protocol,
+				rulePtr->src_port,
+				rulePtr->dst_port,
+				rulePtr->ack,
+				rulePtr->action)
+		) < (MIN_RULE_FORMAT_LEN+1))
+	{
+		//Should never get here:
+		printk(KERN_ERR "Error formatting rule to its string representation\n");
+		return -1;
+	} 
+	
+	if (len < strlen(str)){
+		printk(KERN_ERR "Error: user provided too-small buffer\n");
+		return -EFAULT;
+	}
+	
+	// copy_to_user has the format ( * to, *from, size) and returns 0 on success
+	if ( copy_to_user(buffer, str, strlen(str)) != 0 ) {
+		printk(KERN_INFO "Function copy_to_user failed - writing rule to user's buffer failed\n");
+		return -EFAULT; //Return a bad address message
+	}
+	
+#ifdef DEBUG_MODE
+	printk(KERN_INFO "In function add_str_rule_to_buffer, done sending it:\n%s\n",str);
+#endif	
+	++g_num_rules_have_been_read;
+	return strlen(str);
+**/	
+}
+
+
+
+
+
+
+/**
+ *	Deletes all log-rows from g_logs_list
+ *	(frees all allocated memory)
+ **/
+static void delete_all_rows(){
+
+	log_row_t *row, *temp_row;
+	
+	list_for_each_entry_safe(row, temp_row, &g_logs_list, list) {
+		list_del(&row->list);
+		kfree(row);
+	}
+	g_num_of_rows = 0;
+	g_num_rows_read = 0;
+	
+	printk(KERN_INFO "All log-rows were deleted from list\n"); 
+
+}
+
+
+/**
+ * 	This function will be called when user tries to write to "log_clear"
+ *  Returns:	count on success,
+ * 				a negative number otherwise.
+ * 
+ * 	Buffer should contain exactly one character to clear all log-rows.
+ * 
+ * 	If user provided buffer containing something other that valid value,
+ * 	or passed a "count" value that is different from 1 - will fail! 
+ * 	[count represent the length of buf ('\0' not included)]
+ **/
+ssize_t clear_log_list(struct device* dev, struct device_attribute* attr, const char* buf, size_t count){
+
+	if( (buf==NULL) || (count != 1) || (strnlen(buffer,3)!=1) ){
+		printk(KERN_ERR "*** Error: user sent invalid input to clear log ***\n");
+		return -EPERM; // Returns an error of operation not permitted
+	}
+	
+	delete_all_rows();
+	
+	return count;
+
+}
+
+
+ /**
+ *	This function will be called when user tries to read from "log_size"
+ * 	
+ *  NOTE: writes to "buf" the value of of g_num_of_rows, in (string) format:
+ * 		<g_num_of_rows>
+ * 
+ * [writes minimal amount of characters, as it's a kernel function]
+ **/
+ssize_t read_log_size(struct device* dev, struct device_attribute* attr, char* buf){
+		ssize_t ret = scnprintf(buf, PAGE_SIZE, "%d", g_num_of_rows);
+		if (ret <= 0){
+			printk(KERN_ERR "*** Error: failed writing to user's buffer in function read_log_size() ***\n");
+		}
+		return ret;
+}
+
+
+/**
+ * 	Declaring a variable of type struct device_attribute, its name would be "dev_attr_log_clear",
+ * 	will be used to link device to the "log_clear" attribute
+ * 		.attr.name = "log_clear" (access it through: dev_attr_log_clear)
+ * 		.attr.mode = S_IWUSR | S_IWOTH, giving the owner and other user write permissions
+ * 		.show = NULL (no reading function)
+ * 		.store = clear_log_list
+ **/
+static DEVICE_ATTR(log_clear, S_IRUSR | S_IWUSR | S_IROTH | S_IWOTH, NULL, clear_log_list);
+/**
+ * 	Declaring a variable of type struct device_attribute, its name would be "dev_attr_log_size",
+ * 	will be used to link device to the "log_size" attribute
+ * 		.attr.name = "log_size" (access it through: dev_attr_log_size)
+ * 		.attr.mode = S_IRUSR | S_IROTH, giving the owner and other user read permissions
+ * 		.show = read_log_size
+ * 		.store = NULL (no writing function)
+ **/
+static DEVICE_ATTR(log_size, S_IRUSR | S_IROTH, read_log_size, NULL);
+
 
 /**
  *	Updates:

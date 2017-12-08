@@ -612,8 +612,8 @@ static ssize_t rfw_dev_read(struct file *filp, char *buffer, size_t len, loff_t 
 
 /** 
  * 	The device open function (called each time the device is opened):
- * 		1. Increments g_usage_counter (although ".owner" is defined so it's not mandatory)
- *  	2. Updates g_num_rules_have_been_read to 0.
+ * 	
+ *	Increments g_usage_counter (although ".owner" is defined so it's not mandatory)
  * 
  *	@inodep - pointer to an inode object)
  *  @fp - pointer to a file object
