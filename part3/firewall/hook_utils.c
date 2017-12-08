@@ -8,6 +8,8 @@ static struct nf_hook_ops	nfho_to_fw,
  *	This function would be called as a helper function,
  *  when hooknum is NF_INET_FORWARD for IPv4 packets
  *
+ *	Inserts relevant row to log.
+ * 
  *	@skb - contains all of packet's data
  *	@in - pointer to net_device representing the network interface
  * 		  the packet pass through. NULL if packet traversal is "out".
@@ -15,13 +17,17 @@ static struct nf_hook_ops	nfho_to_fw,
  * 		  the packet pass through. NULL if packet traversal is "in".
  * 
  *	Returns: NF_ACCEPT/NF_DROP according to packet data & firewall's status
+ * 
+ * 
+ *	Note:	1. In case of allocation error - default is to pass the packet.
+ * 			2. User of this function should free memory located for
+ * 			   pckt_lg_info (allocated in init_log_row())
  **/
 static unsigned int check_packet_hookp_forward(struct sk_buff* skb, 
 		const struct net_device* in, const struct net_device* out)
 {
-	//TODO:: after finishing user-space, MAYBE change to dynamic allocation
-	//TODO:: add write to logger
-	log_row_t pckt_lg_info; 
+	
+	log_row_t* pckt_lg_info = NULL; 
 	ack_t packet_ack;
 	direction_t packet_direction;
 	
@@ -35,11 +41,18 @@ static unsigned int check_packet_hookp_forward(struct sk_buff* skb,
 	}
 	
 	//Calls function that decides packet-action
-	decide_packet_action(skb, &pckt_lg_info, &packet_ack, &packet_direction);
+	decide_packet_action(skb, pckt_lg_info, &packet_ack, &packet_direction);
 #ifdef LOG_DEBUG_MODE
-	print_log_row(&pckt_lg_info, 777);
+	print_log_row(pckt_lg_info);
 #endif
-	return pckt_lg_info.action;
+	
+	//Inserts row to log-rows:
+	if (!insert_row(pckt_lg_info)){
+		//An error occured, error already printed in isert_row()
+		kfree(pckt_lg_info);
+		return NF_ACCEPT;
+	}
+	return pckt_lg_info->action;
 }
 
 /**
@@ -60,20 +73,25 @@ static unsigned int check_packet_hookp_in_out(struct sk_buff* skb,
 		const struct net_device* in, const struct net_device* out,
 		unsigned int hooknum)
 {
-	//NOTE: NO NEED TO LOG
-	log_row_t pckt_lg_info; 
+	//NOTE: NO NEED TO LOG - so memory allocated is freed at the end
+	log_row_t* pckt_lg_info; 
 	ack_t packet_ack;
 	direction_t packet_direction;
+	unsigned int ans;
 	
 	//Initiate: pckt_lg_info, packet_ack , packet_direction
 	if(!init_log_row(skb, &pckt_lg_info, hooknum,
 		&packet_ack, &packet_direction, in, out))
 	{
-		return NF_ACCEPT;//An error occured, never supposed to get here:
+		return NF_ACCEPT;//An error occured, never supposed to get here.
 	}
 	
-	return ( decide_inner_packet_action(&pckt_lg_info, &packet_ack,
-			&packet_direction) );
+	ans = decide_inner_packet_action(pckt_lg_info, &packet_ack,
+									&packet_direction);
+	
+	//Frees memory allocated in init_log_row
+	kfree(pckt_lg_info);
+	return ans;
 }
 
 /**

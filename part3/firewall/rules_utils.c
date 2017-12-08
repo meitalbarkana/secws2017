@@ -58,7 +58,7 @@ static void clean_g_write_buff(bool clear_g_num_rules_have_been_read){
 }
 
 //For tests alone! prints rule to kernel
-///TODO:: comment it
+/**
 static void print_rule(rule_t* rulePtr){
 	
 	size_t add_to_len = strlen("rule name is: ,\ndirection: ,\nsrc_ip: ,\nsrc_prefix_mask: ,\nsrc_prefix_size: /,\ndst_ip: ,\ndst_prefix_mask: ,\ndst_prefix_size: ,\nsrc_port: ,\ndst_port: ,\nprotocol: ,\nack: ,\naction: \n");
@@ -88,7 +88,7 @@ static void print_rule(rule_t* rulePtr){
 		printk (KERN_INFO "%s",str);
 	}
 }
-
+**/
  /**
  *	This function will be called when user tries to read from the "active" device.
  * 	

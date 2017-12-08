@@ -28,8 +28,8 @@ enum l_state_to_fold {
 };
 
 
-void print_log_row(log_row_t* logrowPtr, int logrow_num);
-bool init_log_row(struct sk_buff* skb, log_row_t* ptr_pckt_lg_info,
+void print_log_row(log_row_t* logrowPtr);
+bool init_log_row(struct sk_buff* skb, log_row_t** ptr_ptr_pckt_lg_info,
 		unsigned char hooknumber, ack_t* ack, direction_t* direction,
 		const struct net_device* in, const struct net_device* out);
 bool insert_row(log_row_t* row);
