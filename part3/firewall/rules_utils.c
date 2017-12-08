@@ -867,7 +867,8 @@ static enum action_t is_relevant_rule(const rule_t* rule, log_row_t* ptr_pckt_lg
 	//Makes sure the packet isn't checked twice if it's action have
 	//already been set (never supposed to get in)
 	if (ptr_pckt_lg_info->action != RULE_NOT_RELEVANT) {
-		printk(KERN_ERR "In is_relevant_rule(), invalid argument - packet with already set action\n");
+		printk(KERN_ERR "In is_relevant_rule(), invalid argument - packet with already set action: %hhu\n",
+				ptr_pckt_lg_info->action);
 		return (enum action_t)ptr_pckt_lg_info->action;
 	}
 	

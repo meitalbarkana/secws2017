@@ -32,8 +32,8 @@ static unsigned int check_packet_hookp_forward(struct sk_buff* skb,
 	direction_t packet_direction;
 	
 	//Initiate: pckt_lg_info, packet_ack , packet_direction
-	if(!init_log_row(skb, &pckt_lg_info, NF_INET_FORWARD,
-		&packet_ack, &packet_direction, in, out))
+	if( (pckt_lg_info = init_log_row(skb, NF_INET_FORWARD,
+		&packet_ack, &packet_direction, in, out)) == NULL)
 	{
 		//An error occured, never supposed to get here:
 		//(Error already been printed inside init_log_row)
@@ -74,14 +74,14 @@ static unsigned int check_packet_hookp_in_out(struct sk_buff* skb,
 		unsigned int hooknum)
 {
 	//NOTE: NO NEED TO LOG - so memory allocated is freed at the end
-	log_row_t* pckt_lg_info; 
+	log_row_t* pckt_lg_info = NULL; 
 	ack_t packet_ack;
 	direction_t packet_direction;
 	unsigned int ans;
 	
 	//Initiate: pckt_lg_info, packet_ack , packet_direction
-	if(!init_log_row(skb, &pckt_lg_info, hooknum,
-		&packet_ack, &packet_direction, in, out))
+	if( (pckt_lg_info = init_log_row(skb, hooknum,
+		&packet_ack, &packet_direction, in, out)) == NULL)
 	{
 		return NF_ACCEPT;//An error occured, never supposed to get here.
 	}

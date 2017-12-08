@@ -250,7 +250,6 @@ static DEVICE_ATTR(log_size, S_IRUSR | S_IROTH, read_log_size, NULL);
  * 			3. *direction to contain the packets direction
  * 
  *	@skb - the packet
- *	@ptr_pckt_lg_info - a pointer to a pointer of log_row_t to be initiated
  *	@hooknumber - as received from netfilter hook
  *	@ack - a pointer to ack_t to be updated
  *	@direction - a pointer to direction_t to be updated
@@ -261,29 +260,25 @@ static DEVICE_ATTR(log_size, S_IRUSR | S_IROTH, read_log_size, NULL);
  * 
  * 	Note: fields: action, reason, count are only initiallized to default!
  *
- *	Returns true on success, false if an error happened (skb==NULL)
+ *	Returns a pointer to log_row_t on success, NULL if an error happened
  **/
-bool init_log_row(struct sk_buff* skb, log_row_t** ptr_ptr_pckt_lg_info,
-		unsigned char hooknumber, ack_t* ack, direction_t* direction,
-		const struct net_device* in, const struct net_device* out)
+log_row_t* init_log_row(struct sk_buff* skb, unsigned char hooknumber,
+		ack_t* ack, direction_t* direction,	const struct net_device* in,
+		const struct net_device* out)
 {
-
+	log_row_t* ptr_pckt_lg_info = NULL;
 	struct iphdr* ptr_ipv4_hdr;		//pointer to ipv4 header
 	struct tcphdr* ptr_tcp_hdr;		//pointer to tcp header
 	struct udphdr* ptr_udp_hdr;		//pointer to udp header
 	__u8 ip_h_protocol = 0;
 	__be16 temp_port_num;
-	//Make it easier to read:
-    log_row_t* ptr_pckt_lg_info = *ptr_ptr_pckt_lg_info;
 	struct timespec ts = { .tv_sec = 0,.tv_nsec = 0};
 	getnstimeofday(&ts);
-    
-
     
     //Allocates memory for log-row:
     if((ptr_pckt_lg_info = kmalloc(sizeof(log_row_t),GFP_KERNEL)) == NULL){
 		printk(KERN_ERR "Failed allocating space for packet's info (log_row_t)\n");
-		return false;
+		return NULL;
 	}
 	memset(ptr_pckt_lg_info, 0, sizeof(log_row_t)); 
     
@@ -341,14 +336,14 @@ bool init_log_row(struct sk_buff* skb, log_row_t** ptr_ptr_pckt_lg_info,
 				ptr_pckt_lg_info->dst_port = ntohs(temp_port_num); //Convert to local-endianness
 
 			}
-			return true;
+			return ptr_pckt_lg_info;
 		}
 		
 	} 
 	
 	printk(KERN_ERR "In init_log_row, skb or ptr_ipv4_hdr is NULL\n"); 
 	kfree(ptr_pckt_lg_info);
-	return false;
+	return NULL;
 	
 }
 
