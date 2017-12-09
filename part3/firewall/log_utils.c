@@ -276,7 +276,7 @@ log_row_t* init_log_row(struct sk_buff* skb, unsigned char hooknumber,
 	getnstimeofday(&ts);
     
     //Allocates memory for log-row:
-    if((ptr_pckt_lg_info = kmalloc(sizeof(log_row_t),GFP_KERNEL)) == NULL){
+    if((ptr_pckt_lg_info = kmalloc(sizeof(log_row_t),GFP_ATOMIC)) == NULL){
 		printk(KERN_ERR "Failed allocating space for packet's info (log_row_t)\n");
 		return NULL;
 	}
@@ -336,6 +336,9 @@ log_row_t* init_log_row(struct sk_buff* skb, unsigned char hooknumber,
 				ptr_pckt_lg_info->dst_port = ntohs(temp_port_num); //Convert to local-endianness
 
 			}
+#ifdef LOG_DEBUG_MODE
+			printk(KERN_INFO "Successfully created and updated packet info:\n");
+#endif
 			return ptr_pckt_lg_info;
 		}
 		
@@ -424,7 +427,7 @@ bool insert_row(log_row_t* row){
 	list_for_each_safe(pos, q, &g_logs_list){
 		temp_row = list_entry(pos, log_row_t, list);
 		if (are_similar(temp_row, row)) {
-			row->count = 1+temp_row->count;
+			row->count = 1+(temp_row->count);
 #ifdef LOG_DEBUG_MODE
 			printk(KERN_INFO "Found similar row in list, about to delete it. Its details:\n");
 			print_log_row(temp_row);

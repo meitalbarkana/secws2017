@@ -863,7 +863,10 @@ static bool is_XMAS(struct sk_buff* skb){
 static enum action_t is_relevant_rule(const rule_t* rule, log_row_t* ptr_pckt_lg_info,
 		ack_t* packet_ack, direction_t* packet_direction)
 {
-	
+	if (ptr_pckt_lg_info == NULL) {
+		printk (KERN_ERR "In is_relevant_rule(), invalid argument - ptr_pckt_lg_info is NULL\n");
+		return RULE_NOT_RELEVANT;
+	}
 	//Makes sure the packet isn't checked twice if it's action have
 	//already been set (never supposed to get in)
 	if (ptr_pckt_lg_info->action != RULE_NOT_RELEVANT) {
@@ -933,6 +936,12 @@ static int get_relevant_rule_num_from_table(log_row_t* ptr_pckt_lg_info,
 {
 
 	size_t index = 0;
+	
+	if (ptr_pckt_lg_info == NULL){
+		printk(KERN_INFO "In function get_relevant_rule_num_from_table, got NULL argument: ptr_pckt_lg_info.\n");
+		return (-1);
+	}
+	
 	for (index = 0; index < g_num_of_valid_rules; ++index) {
 #ifdef LOG_DEBUG_MODE
 	printk(KERN_INFO "In function get_relevant_rule_num_from_table, current index is: %u.\n",index);
@@ -971,6 +980,11 @@ static int get_relevant_rule_num_from_table(log_row_t* ptr_pckt_lg_info,
 void decide_packet_action(struct sk_buff* skb, log_row_t* ptr_pckt_lg_info,
 		ack_t* packet_ack, direction_t* packet_direction)
 {
+	if (ptr_pckt_lg_info == NULL){
+		printk(KERN_ERR "Inside decide_packet_action(), got NULL argument: ptr_pckt_lg_info\n");
+		return;
+	}
+	
 	if (g_fw_is_active == FW_OFF) {
 		ptr_pckt_lg_info->action = NF_ACCEPT;
 		ptr_pckt_lg_info->reason = REASON_FW_INACTIVE;
@@ -991,7 +1005,7 @@ void decide_packet_action(struct sk_buff* skb, log_row_t* ptr_pckt_lg_info,
 		ptr_pckt_lg_info->reason = REASON_NO_MATCHING_RULE;	
 			
 	} //Otherwise, ptr_pckt_lg_info->action & reason were updated during get_relevant_rule_num_from_table()
-	
+
 }
 
 

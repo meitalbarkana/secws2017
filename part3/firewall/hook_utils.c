@@ -45,7 +45,7 @@ static unsigned int check_packet_hookp_forward(struct sk_buff* skb,
 #ifdef LOG_DEBUG_MODE
 	print_log_row(pckt_lg_info);
 #endif
-	
+
 	//Inserts row to log-rows:
 	if (!insert_row(pckt_lg_info)){
 		//An error occured, error already printed in isert_row()
@@ -110,10 +110,16 @@ static unsigned int hook_func_callback(unsigned int hooknum,
 
 	if (hooknum == NF_INET_FORWARD) 
 	{
+#ifdef LOG_DEBUG_MODE
+		printk(KERN_INFO "IN hook_func_callback, hooknum is NF_INET_FORWARD\n");
+#endif
 		return check_packet_hookp_forward(skb, in, out);
 	}
 	else if( (hooknum == NF_INET_LOCAL_IN) || (hooknum == NF_INET_LOCAL_OUT) )
-	{	
+	{
+#ifdef LOG_DEBUG_MODE
+		printk(KERN_INFO "IN hook_func_callback, hooknum is NF_INET_LOCAL_IN or NF_INET_LOCAL_OUT\n");
+#endif	
 		return check_packet_hookp_in_out(skb, in, out, hooknum);	
 	}
 	
