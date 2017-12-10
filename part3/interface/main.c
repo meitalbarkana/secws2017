@@ -94,6 +94,26 @@ int get_active_stat(){
 	}
 }
 
+/**
+ *	Gets number of rows in fw_log
+ *	(reads from PATH_TO_LOG_SIZE_ATTR)
+ * 
+ *	Returns 0 on success, -1 if failed
+ *	
+ * Note: function prints errors, if any, to screen
+ **/
+int get_log_size(){
+	int num = get_num_log_rows();
+	if (num < 0) {
+		printf("Some error occured when trying to get log size\n");
+		return -1;
+	}
+	
+	printf("Number of rows in fw_log: %d\n", get_num_log_rows());
+	
+	return 0;
+}
+
 
 int main(int argc, char* argv[]){
 
@@ -138,6 +158,10 @@ int main(int argc, char* argv[]){
 			
 	if (strcmp(argv[1], STR_CLEAR_LOG) == 0) {
 		return clear_log();
+	}
+	
+	if (strcmp(argv[1], STR_GET_LOG_SIZE) == 0) {
+		return get_log_size();
 	}
 
 	printf ("Invalid command.\n");

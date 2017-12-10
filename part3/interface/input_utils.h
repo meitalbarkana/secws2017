@@ -41,6 +41,7 @@
 #define MIN_STRLEN_OF_ACTION (4)		// minimum length value of("accept","drop") = 4
 #define MIN_STRLEN_OF_RULE_FORMAT (NUM_OF_SPACES_IN_FORMAT+MIN_LEN_OF_NAME_RULE+MIN_STRLEN_OF_DIRECTION+2*MIN_STRLEN_OF_IP_ADDR+MIN_STRLEN_OF_PROTOCOL+2*MIN_STRLEN_OF_PORT+MIN_STRLEN_OF_ACK+MIN_STRLEN_OF_ACTION)
 
+//All legal commands:
 #define STR_ACTIVATE "activate"
 #define STR_DEACTIVATE "deactivate"
 #define STR_GET_ACTIVE_STAT "show_active"
@@ -49,7 +50,7 @@
 #define STR_LOAD_RULES "load_rules"
 #define STR_SHOW_LOG "show_log"
 #define STR_CLEAR_LOG "clear_log"
-#define STR_GET_LOG_SIZE "get_log_size"		//To add later
+#define STR_GET_LOG_SIZE "get_log_size"
 #define STR_GET_RULES_SIZE "get_rules_size" //To add later
 
 /**
@@ -59,7 +60,7 @@
  * 
  * NOTE: MAX_STRLEN_OF_LOGROW_FORMAT includes '\n' and spaces (thats why I added NUM_OF_FIELDS_IN_LOF_ROW_T)
  **/
-#define MAX_NUM_OF_LOG_ROWS (5) ///TODO:: change to 1000, just for tests
+#define MAX_NUM_OF_LOG_ROWS (1000)
 #define NUM_OF_FIELDS_IN_LOG_ROW_T (10)
 #define MAX_STRLEN_OF_ULONG (20)			//MAX_U_LONG = 2^64-1 = 18446744073709551615, 20 digits
 #define MAX_STRLEN_OF_LOGROW_FORMAT (MAX_STRLEN_OF_ULONG + 3*MAX_STRLEN_OF_U8 + 4*MAX_STRLEN_OF_BE32 + 2*MAX_STRLEN_OF_BE16 + NUM_OF_FIELDS_IN_LOG_ROW_T)
@@ -78,5 +79,6 @@ int print_all_rules_from_fw(void);
 int clear_rules(void);
 int clear_log(void);
 int print_all_log_rows(void);
+int get_num_log_rows(void);
 
 #endif // _INPUT_UTILS_H_

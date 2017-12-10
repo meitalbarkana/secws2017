@@ -745,6 +745,7 @@ static bool is_valid_rule_logic(rule_t* rule){
 	if ((rule->protocol != PROT_TCP) && (rule->ack == ACK_YES)) {
 		return false;
 	}
+	
 	//TODO:: think of more ideas to test..
 	return true;
 }
@@ -1479,3 +1480,41 @@ int print_all_log_rows(void){
 		
 }
 
+/**
+ *	Reads fw_log_size to get its size.
+ *	On success - returns size,
+ * 	Otherwise returns -1.
+ * 
+ **/
+int get_num_log_rows(void){
+	
+	char* buff;
+	
+	if ( (buff = calloc(MAX_STRLEN_OF_BE32+2,sizeof(char))) == NULL){ //+2 for '\0', +/- sign
+		printf("Allocating buffer for getting number of rows from fw_log failed\n");
+		return -1;
+	} 
+	
+	// Open device with read only permissions:
+	int fd = open(PATH_TO_LOG_SIZE_ATTR,O_RDONLY);
+	if (fd < 0){
+		printf("Error accured trying to open the log-device for reading number of rows, error number: %d\n", errno);
+		free(buff);
+		return -1;
+	}
+	
+	if (read(fd, buff, 1) <= 0){
+		printf("Error accured trying to read number of rows in firewall's log, error number: %d\n", errno);
+		free(buff);
+		close(fd);
+		return -1;
+	}
+	close(fd);
+	
+	int num = -1;
+	//If sscanf failes, num is already initiated to -1:
+	sscanf(buff, "%11d",&num);
+
+	return num;
+	
+}
