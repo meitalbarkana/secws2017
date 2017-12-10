@@ -505,6 +505,37 @@ static bool tran_action_to_str(unsigned char action, char* str){
 }
 
 /**
+ *	Gets an int representing reason, 
+ *  updates str to contain its string representation
+ * 	If succeeds, returns true
+ * 
+ *  @str - string to be updated
+ *	NOTE: str's length, should be: MAX_STRLEN_OF_REASON+1 (includs '\0')
+ **/
+static bool tran_reason_to_str(int reason, char* str){
+
+	switch (reason) {	
+		case (REASON_FW_INACTIVE):
+			strncpy(str, "Fw's not active", MAX_STRLEN_OF_REASON+1);
+			break;
+		case(REASON_NO_MATCHING_RULE):
+			strncpy(str, "No matching rule", MAX_STRLEN_OF_REASON+1);
+			break;
+		case(REASON_XMAS_PACKET):
+			strncpy(str, "XMAS packet", MAX_STRLEN_OF_REASON+1);
+			break;
+		case(REASON_ILLEGAL_VALUE):
+			strncpy(str, "Illegal value", MAX_STRLEN_OF_REASON+1);
+			break;
+		default:
+			printf("Error - tried translating wrong action\n");
+			return false;
+	}
+	return true;
+}
+
+
+/**
  * ONLY FOR TESTS.
  * 
  * Updates str to contain a representation of a rule as a string.
@@ -1344,6 +1375,7 @@ static bool print_log_row_format(char* log_token){
 	char s_port_str[MAX_STRLEN_OF_PORT+1];
 	char d_port_str[MAX_STRLEN_OF_PORT+1];
 	char action_str[MAX_STRLEN_OF_ACTION+1];
+	char reason_str[MAX_STRLEN_OF_REASON+1];
 	
 	if(log_token == NULL) {
 #ifdef USER_DEBUG_MODE
@@ -1376,14 +1408,15 @@ static bool print_log_row_format(char* log_token){
 		|| !(tran_prot_t_to_str(t_protocol, protocol_str))
 		|| !(tran_port_to_str(t_src_port,s_port_str))
 		|| !(tran_port_to_str(t_dst_port,d_port_str))
-		|| !(tran_action_to_str(t_action,action_str)) )
+		|| !(tran_action_to_str(t_action,action_str))
+		|| !(tran_reason_to_str(t_reason, reason_str)) )
 	{
 		return false;
 	}
 	
 	//<timestamp> <protocol> <action> <hooknum> <src ip> <dst ip> <source port> <dest port> <reason> <count>'\n'
 	int num_of_chars_written = snprintf(str, MAX_STRLEN_OF_LOGROW_FORMAT+1,
-									"%lu %s %s %hhu %s %s %s %s	%d %u",
+									"%lu %s %s %hhu %s %s %s %s	%s %u",
 									t_timestamp,
 									protocol_str,
 									action_str,
@@ -1392,7 +1425,7 @@ static bool print_log_row_format(char* log_token){
 									ip_dst_str,
 									s_port_str,
 									d_port_str,
-									t_reason,
+									reason_str,
 									t_count);
 
 	if (num_of_chars_written < MIN_STRLEN_OF_RULE_FORMAT){
