@@ -131,15 +131,15 @@ int main(int argc, char* argv[]){
 	if (strcmp(argv[1], STR_CLEAR_RULES) == 0) {
 		return clear_rules();
 	}
-/**	
+
 	if (strcmp(argv[1], STR_SHOW_LOG) == 0) {
-		return show_log();
+		return print_all_log_rows();
 	}
-	
+			
 	if (strcmp(argv[1], STR_CLEAR_LOG) == 0) {
 		return clear_log();
 	}
-**/	
+
 	printf ("Invalid command.\n");
 	return -1;
 	

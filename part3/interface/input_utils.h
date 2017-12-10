@@ -17,15 +17,15 @@
 #define MAX_STRLEN_OF_RULE_FORMAT (NUM_OF_SPACES_IN_FORMAT+MAX_LEN_OF_NAME_RULE+MAX_STRLEN_OF_DIRECTION+2*MAX_STRLEN_OF_IP_ADDR+MAX_STRLEN_OF_PROTOCOL+2*MAX_STRLEN_OF_PORT+MAX_STRLEN_OF_ACK+MAX_STRLEN_OF_ACTION)
 #define MAX_PREFIX_LEN_VALUE (32)
 
-
-/** CONSTANTS FOR FW FORMAT! **/
+#define MAX_ADD_LEN_TRANSLATE (10)		//When translating from int ip to string "XXX.XXX.XXX.XXX" * 2
+/** CONSTANTS FOR FW RULE FORMAT! **/
 /** FW format is: <rule name> <direction> <src ip> <src prefix length> <dst ip> <dst prefix length> <protocol> <source port> <dest port> <ack> <action>**/
 #define NUM_OF_FIELDS_IN_FWRULE (11)
-#define MAX_STRLEN_OF_BE32 (10)	//MAX_U_INT = 2^32-1 = 4294967295, 10 digits
-#define MAX_STRLEN_OF_BE16 (5)	//MAX_U_SHORT = 2^16-1 = 65535, 5 digits
-#define MAX_STRLEN_OF_U8 (3)	//MAX_U_CHAR = 2^8-1 = 255, 3 digits
+#define MAX_STRLEN_OF_BE32 (10)			//MAX_U_INT = 2^32-1 = 4294967295, 10 digits
+#define MAX_STRLEN_OF_BE16 (5)			//MAX_U_SHORT = 2^16-1 = 65535, 5 digits
+#define MAX_STRLEN_OF_U8 (3)			//MAX_U_CHAR = 2^8-1 = 255, 3 digits
 #define SPACES_IN_FWFORMAT	(10)
-#define LEN_FWRULE_NAME (20) //Including null-terminator byte 
+#define LEN_FWRULE_NAME (20) 			//Including null-terminator byte 
 #define MAX_STRLEN_OF_FW_RULE_FORMAT (SPACES_IN_FWFORMAT+(LEN_FWRULE_NAME-1)+ 4*MAX_STRLEN_OF_BE32 + 2*MAX_STRLEN_OF_BE16 + 4*MAX_STRLEN_OF_U8)
 //MAX_STRLEN_OF_FW_RULE_FORMAT doesn't count the null-terminator and the '\n'.
 
@@ -49,6 +49,21 @@
 #define STR_LOAD_RULES "load_rules"
 #define STR_SHOW_LOG "show_log"
 #define STR_CLEAR_LOG "clear_log"
+#define STR_GET_LOG_SIZE "get_log_size"		//To add later
+#define STR_GET_RULES_SIZE "get_rules_size" //To add later
+
+/**
+ * LOGROW format:
+ * <timestamp> <protocol> <action> <hooknum> <src ip> <dst ip> <source port> <dest port> <reason> <count>'\n'. 
+ * Therefore:
+ * 
+ * NOTE: MAX_STRLEN_OF_LOGROW_FORMAT includes '\n' and spaces (thats why I added NUM_OF_FIELDS_IN_LOF_ROW_T)
+ **/
+#define MAX_NUM_OF_LOG_ROWS (5) ///TODO:: change to 1000, just for tests
+#define NUM_OF_FIELDS_IN_LOG_ROW_T (10)
+#define MAX_STRLEN_OF_ULONG (20)			//MAX_U_LONG = 2^64-1 = 18446744073709551615, 20 digits
+#define MAX_STRLEN_OF_LOGROW_FORMAT (MAX_STRLEN_OF_ULONG + 3*MAX_STRLEN_OF_U8 + 4*MAX_STRLEN_OF_BE32 + 2*MAX_STRLEN_OF_BE16 + NUM_OF_FIELDS_IN_LOG_ROW_T)
+#define MIN_STRLEN_OF_LOGROW_FORMAT ((NUM_OF_FIELDS_IN_LOF_ROW_T-1)+2*MIN_STRLEN_OF_IP_ADDR+MIN_STRLEN_OF_PROTOCOL+2*MIN_STRLEN_OF_PORT+MIN_STRLEN_OF_ACTION+4)
 
 
 #define CHAR_CR (13)
@@ -58,8 +73,10 @@
 int read_rules_from_file(const char* file_path);
 bool valid_file_path(const char* path);
 enum rules_recieved_t send_rules_to_fw(void);
-int get_fw_active_stat();
-int print_all_rules_from_fw();
-int clear_rules();
+int get_fw_active_stat(void);
+int print_all_rules_from_fw(void);
+int clear_rules(void);
+int clear_log(void);
+int print_all_log_rows(void);
 
 #endif // _INPUT_UTILS_H_

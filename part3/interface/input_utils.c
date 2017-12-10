@@ -955,7 +955,7 @@ enum rules_recieved_t send_rules_to_fw(void){
  * 			-1 - if an error occured
  * 
  **/
-int get_fw_active_stat(){
+int get_fw_active_stat(void){
 	
 	char* buff;
 	
@@ -1004,7 +1004,7 @@ int get_fw_active_stat(){
  *
  *	Note: user should free memory allocated for string returned!
  **/
-static char* get_all_rules_from_fw(){
+static char* get_all_rules_from_fw(void){
 	
 	int curr_read_bytes = 0;
 	size_t total_bytes_read = 0;
@@ -1063,7 +1063,7 @@ static char* get_all_rules_from_fw(){
 static bool print_token_rule(char* rule_token){
 	
 	//Temporeries:
-	char str[MAX_STRLEN_OF_RULE_FORMAT+1];
+	char str[MAX_STRLEN_OF_RULE_FORMAT+MAX_ADD_LEN_TRANSLATE+1];
 	char t_rule_name[MAX_LEN_OF_NAME_RULE+1];
 	int t_direction = 0;
 	unsigned int t_src_ip = 0;
@@ -1161,7 +1161,7 @@ static bool print_token_rule(char* rule_token){
  *	
  *	Returns 0 on success, -1 if failed
  **/
-int print_all_rules_from_fw(){
+int print_all_rules_from_fw(void){
 	
 	char* rule_token = NULL;
 	char* ptr_copy_buffer;
@@ -1199,7 +1199,7 @@ int print_all_rules_from_fw(){
  * 
  *	Returns 0 on success, -1 if failed (prints relevant errors to screen)
  **/
-int clear_rules(){
+int clear_rules(void){
 	
 	char* buff = CLEAR_RULES_STRING;
 
@@ -1223,3 +1223,227 @@ int clear_rules(){
 	printf("Successfully sent fw command to clear all rules. Use show_rules to make sure everything was deleted.\n");
 	return 0;
 }
+
+
+/**
+ * Sends relevant clear-log string to fw.
+ * 
+ * Returns 0 on success, -1 if failed
+ *	
+ * Note: function prints errors, if any, to screen
+ **/
+int clear_log(void){
+	char* buff = DELETE_LOG_STRING;
+
+	// Open device with write only permissions:
+	int fd = open(PATH_TO_LOG_CLEAR_ATTR,O_WRONLY); 
+	if (fd < 0){
+		printf("Error accured trying to open fw_log device for clearing all log-rows, error number: %d\n", errno);
+		return -1;
+	}
+
+	if ( write(fd, buff, strlen(buff)) <= 0){
+		printf("Error accured trying to clear log-rows\n");
+		close(fd);
+		return -1;
+	}
+	close(fd);
+
+	printf("Successfully sent fw command to clear log. Use show_log to make sure everything was deleted.\n");
+	return 0;
+}
+
+/**
+ *	Gets a buffer that contain all fw's log-rows,
+ * 	in format:
+ * 
+ * 	FORMAT:
+ * 		Buffer := [log_row]\n...[log_row]\n
+ * 		log_row := <timestamp> <protocol> <action> <hooknum> <src ip> <dst ip> <source port> <dest port> <reason> <count>
+ *
+ *	Returns: buffer on success, NULL if error happened 
+ *
+ *	Note: user should free memory allocated for string returned!
+ **/
+static char* get_log_rows_from_fw(){
+	int curr_read_bytes = 0;
+	size_t total_bytes_read = 0;
+	
+	//Allocates room for MAX_NUM_OF_LOG_ROWS+1 (to make sure there's enough room)
+	//+1 is for '\0': 
+	size_t enough_len = (MAX_STRLEN_OF_LOGROW_FORMAT*(MAX_NUM_OF_LOG_ROWS+1)) + 1; 
+	char* buffer = calloc(enough_len,sizeof(char));
+	if (buffer == NULL) {
+		printf("Error: allocation failed, couldn't get all rules from fw\n");
+		return NULL;
+	}
+	
+	size_t len_to_read = enough_len-1;
+	// Open device with read only permissions:
+	int fd = open(PATH_TO_LOG_DEV,O_RDONLY);
+	if (fd < 0){
+		printf("Error accured trying to open the log-device for reading all log-rows, error number: %d\n", errno);
+		free(buffer);
+		return NULL;
+	}
+
+	while ( (len_to_read >= MAX_STRLEN_OF_LOGROW_FORMAT+1 ) &&
+			((curr_read_bytes = read(fd, buffer+total_bytes_read, len_to_read)) > 0) )
+	{
+		total_bytes_read+=curr_read_bytes;
+		if (curr_read_bytes <= len_to_read){
+			len_to_read = len_to_read - curr_read_bytes;
+		} else {
+			printf("No room to read any more data from fw (log device)\n");
+			len_to_read = 0;
+		}
+		
+	}
+
+	close(fd);
+	
+	if (curr_read_bytes < 0) {
+		//Some error accured
+		printf("Failed reading log-rows from fw.\n");
+		free(buffer);
+		return NULL;
+	}
+	
+	return buffer;
+}
+
+
+/**
+ *	Gets a string representing log-row, in format:
+ *	<timestamp> <protocol> <action> <hooknum> <src ip> <dst ip> <source port> <dest port> <reason> <count>
+ *	and print it in format:
+ *	<timestamp> <protocol> <action> <hooknum> <src ip> <dst ip> <source port> <dest port> <reason> <count>'\n'
+ *	(in their string representation)
+ * 
+ *	Returns true on success.
+ **/
+static bool print_log_row_format(char* log_token){
+		
+	//Temporeries:
+	char str[MAX_STRLEN_OF_LOGROW_FORMAT+MAX_ADD_LEN_TRANSLATE+1];
+	unsigned long t_timestamp = 0;
+	unsigned char t_protocol = 0;
+	unsigned char t_action = 0;
+	unsigned char t_hooknum = 0;
+	unsigned int t_src_ip = 0;
+	unsigned int t_dst_ip = 0;
+	unsigned short t_src_port = 0;
+	unsigned short t_dst_port = 0;
+	int t_reason = 0;
+	unsigned int t_count = 0;
+	
+	size_t ip_len_str = strlen("XXX.XXX.XXX.XXX")+1;
+	char ip_dst_str[ip_len_str];
+	char ip_src_str[ip_len_str];
+	char protocol_str[MAX_STRLEN_OF_PROTOCOL+1];
+	char s_port_str[MAX_STRLEN_OF_PORT+1];
+	char d_port_str[MAX_STRLEN_OF_PORT+1];
+	char action_str[MAX_STRLEN_OF_ACTION+1];
+	
+	if(log_token == NULL) {
+#ifdef USER_DEBUG_MODE
+		printf("function print_log_row_format() got NULL argument\n");
+#endif
+		return false;
+	}
+	
+	if ( (sscanf(log_token, "%lu %hhu %hhu %hhu %u %u %hu %hu %d %u\n",
+			&t_timestamp,
+			&t_protocol,
+			&t_action,
+			&t_hooknum,
+			&t_src_ip,
+			&t_dst_ip,
+			&t_src_port,
+			&t_dst_port,
+			&t_reason,
+			&t_count)) < NUM_OF_FIELDS_IN_LOG_ROW_T ) 
+	{
+		
+#ifdef USER_DEBUG_MODE
+		printf("Couldn't parse log_token to valid fields.\n");
+#endif
+		return false;
+	}
+	
+	if ( !(tran_uint_to_ipv4str(t_src_ip, ip_src_str, ip_len_str))
+		|| !(tran_uint_to_ipv4str(t_dst_ip, ip_dst_str, ip_len_str)) 
+		|| !(tran_prot_t_to_str(t_protocol, protocol_str))
+		|| !(tran_port_to_str(t_src_port,s_port_str))
+		|| !(tran_port_to_str(t_dst_port,d_port_str))
+		|| !(tran_action_to_str(t_action,action_str)) )
+	{
+		return false;
+	}
+	
+	//<timestamp> <protocol> <action> <hooknum> <src ip> <dst ip> <source port> <dest port> <reason> <count>'\n'
+	int num_of_chars_written = snprintf(str, MAX_STRLEN_OF_LOGROW_FORMAT+1,
+									"%lu %s %s %hhu %s %s %s %s	%d %u",
+									t_timestamp,
+									protocol_str,
+									action_str,
+									t_hooknum,
+									ip_src_str,
+									ip_dst_str,
+									s_port_str,
+									d_port_str,
+									t_reason,
+									t_count);
+
+	if (num_of_chars_written < MIN_STRLEN_OF_RULE_FORMAT){
+#ifdef USER_DEBUG_MODE
+		printf("Failed translating log-row to string\n");
+#endif
+		return false;
+	}
+	
+	printf("%s\n", str);
+	
+	return true;
+	
+}
+
+/**
+ *	Reads all log-rows from fw and prints them by format:
+ *	<rule name> <direction> <src ip>/<nps> <dst ip>/<nps> <protocol> <source port> <dest port> <ack> <action>'\n'...
+ *	
+ *	Returns 0 on success, -1 if failed
+ **/
+int print_all_log_rows(void){
+	
+	char* log_token = NULL;
+	char* ptr_copy_buffer;
+	char* buffer = get_log_rows_from_fw();
+	bool error_occured = false;
+
+	if (buffer == NULL) {
+		return -1;
+	}
+	
+	//Since strsep ruin buffer:
+	ptr_copy_buffer = buffer;
+	
+	while ((log_token = strsep(&buffer, DELIMETER_STR)) != NULL
+			&& (strlen(log_token) > 0)) //Last token is empty if valid format recieved
+	{
+		if (!print_log_row_format(log_token)) {
+			error_occured = true;
+		}
+	}	
+	
+	free(ptr_copy_buffer);
+	
+	if (error_occured) {
+		printf("Some of the log-rows weren't printed.\n");
+		return -1;
+	}
+	
+	return 0;
+		
+}
+

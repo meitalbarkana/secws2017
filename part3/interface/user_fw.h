@@ -19,10 +19,14 @@
 #define PATH_TO_RULE_DEV "/dev/fw_rules"
 #define PATH_TO_ACTIVE_ATTR "/sys/class/fw/fw_rules/active"
 #define PATH_TO_RULES_SIZE_ATTR "/sys/class/fw/fw_rules/rules_size"
+#define PATH_TO_LOG_DEV "/dev/fw_log"
+#define PATH_TO_LOG_SIZE_ATTR "/sys/class/fw/fw_log/log_size"
+#define PATH_TO_LOG_CLEAR_ATTR "/sys/class/fw/fw_log/log_clear"
 #define DEACTIVATE_STRING "0"
 #define ACTIVATE_STRING "1"
 #define ACTIVE_STR_LEN (1)
 #define CLEAR_RULES_STRING "0"
+#define DELETE_LOG_STRING "D"
 
 // the protocols we will work with
 typedef enum {
