@@ -527,9 +527,8 @@ static bool tran_reason_to_str(int reason, char* str){
 		case(REASON_ILLEGAL_VALUE):
 			strncpy(str, "Illegal value", MAX_STRLEN_OF_REASON+1);
 			break;
-		default:
-			printf("Error - tried translating wrong action\n");
-			return false;
+		default: //reason is an index
+			snprintf(str, MAX_STRLEN_OF_REASON, "Rule number: %d", reason);
 	}
 	return true;
 }
@@ -1416,7 +1415,7 @@ static bool print_log_row_format(char* log_token){
 	
 	//<timestamp> <protocol> <action> <hooknum> <src ip> <dst ip> <source port> <dest port> <reason> <count>'\n'
 	int num_of_chars_written = snprintf(str, MAX_STRLEN_OF_LOGROW_FORMAT+1,
-									"%lu %s %s %hhu %s %s %s %s	%s %u",
+									"%lu %s %s %hhu %s %s %s %s %s %u",
 									t_timestamp,
 									protocol_str,
 									action_str,
