@@ -1120,7 +1120,5 @@ int init_rules_device(struct class* fw_class){
 void destroy_rules_device(struct class* fw_class){
 	clean_g_write_buff(true);
 	destroyRulesDevice(fw_class, ALL_DES);
-#ifdef DEBUG_MODE 
 	printk(KERN_INFO "fw_rules: device destroyed.\n");
-#endif
 }

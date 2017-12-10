@@ -367,7 +367,7 @@ void print_log_row(log_row_t* logrowPtr){
 				logrowPtr->dst_port,
 				logrowPtr->reason,
 				logrowPtr->count )
-		) < NUM_OF_FIELDS_IN_LOF_ROW_T + 1)
+		) < NUM_OF_FIELDS_IN_LOG_ROW_T + 1)
 	{
 		printk(KERN_INFO "Error printing log-row presentation");
 	} 

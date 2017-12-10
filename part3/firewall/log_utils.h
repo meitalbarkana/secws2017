@@ -3,7 +3,7 @@
 
 #include "fw.h"
 
-#define NUM_OF_FIELDS_IN_LOF_ROW_T (10)
+#define NUM_OF_FIELDS_IN_LOG_ROW_T (10)
 
 /**
  * LOGROW format:
@@ -12,10 +12,10 @@
  * 
  * NOTE: MAX_STRLEN_OF_LOGROW_FORMAT includes '\n' and spaces (thats why I added NUM_OF_FIELDS_IN_LOF_ROW_T)
  **/
-#define MAX_STRLEN_OF_LOGROW_FORMAT (MAX_STRLEN_OF_ULONG + 3*MAX_STRLEN_OF_U8 + 4*MAX_STRLEN_OF_BE32 + 2*MAX_STRLEN_OF_BE16 + NUM_OF_FIELDS_IN_LOF_ROW_T)
+#define MAX_STRLEN_OF_LOGROW_FORMAT (MAX_STRLEN_OF_ULONG + 3*MAX_STRLEN_OF_U8 + 4*MAX_STRLEN_OF_BE32 + 2*MAX_STRLEN_OF_BE16 + NUM_OF_FIELDS_IN_LOG_ROW_T)
 
 /** Each field is at least 1 character long + spaces and '\n': **/
-#define MIN_LOGROW_FORMAT_LEN (2*NUM_OF_FIELDS_IN_LOF_ROW_T) 
+#define MIN_LOGROW_FORMAT_LEN (2*NUM_OF_FIELDS_IN_LOG_ROW_T) 
 
 //Enum that helps "folding" up stages, 
 //used when: - initiating device stopped because of some error 

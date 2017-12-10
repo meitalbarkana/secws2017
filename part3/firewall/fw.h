@@ -17,10 +17,10 @@
 #include <linux/list.h> //For log's list
 
 /**
- * If DEBUG_MODE is defined, code will print debug messages to KERN_INFO
+ * If DEBUG_MODE/LOG_DEBUG_MODE defined, code will print debug messages to KERN_INFO
  **/
 //#define DEBUG_MODE (1) 	//For debug-printing 
-#define LOG_DEBUG_MODE (1)	//For logger-debug-printing
+//#define LOG_DEBUG_MODE (1)	//For logger-debug-printing
 
 #define NO_REASON (-777)
 /*For test-printing mainly:*/
