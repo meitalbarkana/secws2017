@@ -1,0 +1,16 @@
+#old flags:gcc -std=c99 -Wall -Werror -pedantic-errors
+all: main
+
+main: main.o input_utils.o
+	gcc -std=c99 -Wall -pedantic-errors $^ -o $@
+
+main.o: main.c input_utils.h user_fw.h
+	gcc -std=c99 -Wall -pedantic-errors -c $<
+
+input_utils.o: input_utils.c input_utils.h user_fw.h
+	gcc -std=c99 -Wall -pedantic-errors -c $<
+
+.PHONY: clean
+clean:	
+	rm -f *.o main
+
