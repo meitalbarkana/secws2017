@@ -19,8 +19,9 @@
 /**
  * If DEBUG_MODE/LOG_DEBUG_MODE defined, code will print debug messages to KERN_INFO
  **/
-//#define DEBUG_MODE (1) 	//For debug-printing 
+//#define DEBUG_MODE (1) 		//For debug-printing 
 //#define LOG_DEBUG_MODE (1)	//For logger-debug-printing
+//#define CONN_DEBUG_MODE (1)	//For connection-table debug printing
 
 #define NO_REASON (-777)
 /*For test-printing mainly:*/
@@ -131,7 +132,7 @@ enum action_t {
  * 
  *	Names were defined based on Dr. David Movshovitz's lecture: "Network Firewalls"
  **/
-enum tcp_state_t {	 
+typedef enum{	 
 
 	//"State" before a connection actually begins OR after it's closed:
 	TCP_CLOSED = 1,
@@ -167,10 +168,10 @@ enum tcp_state_t {
 	//State of the initiating client that received the final FIN and has sent
 	// an ACK to close the connection:
 	TCP_TIME_WAIT = 10
-};
+}tcp_state_t;
 
 //Struct representing a row in connection-table:
-struct connection_row_t{
+typedef struct {
 	
 	__be32	 		src_ip;	
 	__be16			src_port;
@@ -183,7 +184,7 @@ struct connection_row_t{
 
 	struct list_head list;			// For saving kernel-list of all connection-rows
 
-};
+}connection_row_t;
 
 
 direction_t get_direction(const struct net_device* in, const struct net_device* out);
