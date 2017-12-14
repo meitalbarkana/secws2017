@@ -810,6 +810,32 @@ bool is_ipv4_packet(struct sk_buff* skb){
 **/
 
 /**
+ * 	Checks if a given IPv4 packet is a TCP packet,
+ *  Returns: its tcp header if it is,
+ * 			 NULL otherwise.
+ *	
+ *	@skb - pointer to struct sk_buff that represents current packet
+ *
+ **/
+static struct tcphdr* get_tcp_header(struct sk_buff* skb){
+	
+	struct iphdr* ptr_ipv4_hdr; //pointer to ipv4 header
+	struct tcphdr* ptr_tcp_hdr; //pointer to tcp header
+	
+	if (skb){ 
+		ptr_ipv4_hdr = ip_hdr(skb);
+		if(ptr_ipv4_hdr){
+			//Protocol is 1 byte - no need to consider Endianness
+			if (ptr_ipv4_hdr->protocol == PROT_TCP) {	//Checks in local endianness
+				return ((struct tcphdr*)((char*)ptr_ipv4_hdr + (ptr_ipv4_hdr->ihl * 4)));
+			}
+		}
+	}
+	
+	return NULL;
+}
+
+/**
  * 	Checks if a given IPv4 packet is XMAS packet.
  *	
  *	@skb - pointer to struct sk_buff that represents current packet
@@ -822,6 +848,31 @@ bool is_ipv4_packet(struct sk_buff* skb){
  *	here we're only interested in values that appear in enum prot_t. 
  **/
 static bool is_XMAS(struct sk_buff* skb){
+	
+	struct tcphdr* ptr_tcp_hdr = get_tcp_header(skb); //pointer to tcp header
+	
+	if (ptr_tcp_hdr){ //Means it's a TCP packet, ptr_tcp_hdr isn't NULL
+		if ( (ptr_tcp_hdr->psh == 1) && (ptr_tcp_hdr->urg == 1)
+			&& (ptr_tcp_hdr->fin == 1) ) 
+		{
+				return true;
+		}
+	}
+	
+	return false;
+}
+
+/**
+ * 	Checks if a given IPv4 packet is SYN packet.
+ *	
+ *	@skb - pointer to struct sk_buff that represents current packet
+ *	
+ *	Returns true if it represents a SYN Packet
+ *	(TCP packet with ack==0,SYN==1)
+ *
+ **/
+ /**
+static bool is_SYN_packet(struct sk_buff* skb){
 	
 	struct iphdr* ptr_ipv4_hdr; //pointer to ipv4 header
 	struct tcphdr* ptr_tcp_hdr; //pointer to tcp header
@@ -845,7 +896,7 @@ static bool is_XMAS(struct sk_buff* skb){
 	
 	return false;
 }
-
+**/
 /**
  *	Checks if rule is relevant to packet represented by ptr_pckt_lg_info.
  *	
