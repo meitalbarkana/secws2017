@@ -135,39 +135,39 @@ enum action_t {
 typedef enum{	 
 
 	//"State" before a connection actually begins OR after it's closed:
-	TCP_CLOSED = 1,
+	TCP_STATE_CLOSED = 1,
 	
 	//State a server is in when waiting for a request to start a connection:
-	TCP_LISTEN = 2,
+	TCP_STATE_LISTEN = 2,
 	
 	//State after client sent a SYN packet and is waiting for SYN-ACK reply:
-	TCP_SYN_SENT = 3,
+	TCP_STATE_SYN_SENT = 3,
 	
 	//State a server is in after receiving a SYN packet and replying with its SYN-ACK reply:
-	TCP_SYN_RCVD = 4,
+	TCP_STATE_SYN_RCVD = 4,
 	
 	//State a connection is in after its necessary ACK packet has been received - 
 	// client goes into this state after receiving a SYN-ACK,
 	// server goes into this state after receiving the lone ACK:
-	TCP_ESTABLISHED = 5,
+	TCP_STATE_ESTABLISHED = 5,
 	
 	//Client's state after he sent an initial FIN packet asking for a graceful close of the TCP connection:
-	TCP_FIN_WAIT_1 = 6,
+	TCP_STATE_FIN_WAIT_1 = 6,
 	
 	//Server's state after it receives an initial FIN and sends back an ACK to acknowledge the FIN:
-	TCP_CLOSE_WAIT = 7,
+	TCP_STATE_CLOSE_WAIT = 7,
 	
 	//Client's state when receiving the ACK response to its initial FIN,
 	// as it waits for a final FIN from server:
-	TCP_FIN_WAIT_2 = 8,
+	TCP_STATE_FIN_WAIT_2 = 8,
 	
 	//Server's state when just sent the second FIN needed to gracefully
 	// close the TCP connection back to (initiating) client, while it waits for acknowledgment:
-	TCP_LAST_ACK = 9,
+	TCP_STATE_LAST_ACK = 9,
 	
 	//State of the initiating client that received the final FIN and has sent
 	// an ACK to close the connection:
-	TCP_TIME_WAIT = 10
+	TCP_STATE_TIME_WAIT = 10
 }tcp_state_t;
 
 //Struct representing a row in connection-table:
