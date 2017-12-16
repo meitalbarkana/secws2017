@@ -57,3 +57,26 @@ static void delete_all_conn_rows(void){
 	printk(KERN_INFO "All connection-rows were deleted from list\n"); 
 #endif
 }
+
+
+/**
+ *	Checks if the given row has timedout (at least TIMEOUT_SECONDS
+ *	passed since it was written)
+ * 
+ *	Returns true if it is, false otherwise.
+ **/
+static bool is_row_timedout(connection_row_t* row){
+	struct timespec ts = { .tv_sec = 0,.tv_nsec = 0};
+	getnstimeofday(&ts);
+	return ( (ts.tv_sec - (row->timestamp)) >= TIMEOUT_SECONDS ); 
+}
+
+/**
+ *	Gets a pointer to a SYN packet's log_row_t, 
+ *	adds a relevant NEW connection to g_connections_list.
+ * 
+ *	Returns true on success, false if any error occured.
+ **/
+bool add_new_connection(log_row_t* syn_pckt_lg_info){
+	///TODO::
+}

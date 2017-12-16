@@ -73,5 +73,4 @@ void decide_packet_action(struct sk_buff* skb, log_row_t* ptr_pckt_lg_info, ack_
 unsigned int decide_inner_packet_action(log_row_t* ptr_pckt_lg_info, ack_t* packet_ack, direction_t* packet_direction);
 int init_rules_device(struct class* fw_class);
 void destroy_rules_device(struct class* fw_class);
-
 #endif /* RULES_UTILS_H */

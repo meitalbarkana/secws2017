@@ -820,7 +820,6 @@ bool is_ipv4_packet(struct sk_buff* skb){
 static struct tcphdr* get_tcp_header(struct sk_buff* skb){
 	
 	struct iphdr* ptr_ipv4_hdr; //pointer to ipv4 header
-	struct tcphdr* ptr_tcp_hdr; //pointer to tcp header
 	
 	if (skb){ 
 		ptr_ipv4_hdr = ip_hdr(skb);
@@ -863,40 +862,25 @@ static bool is_XMAS(struct sk_buff* skb){
 }
 
 /**
- * 	Checks if a given IPv4 packet is SYN packet.
- *	
+ * 	Checks if a given IPv4 packet is (the first) SYN packet.
+ *	[SYN in 1, ACK is 0]
  *	@skb - pointer to struct sk_buff that represents current packet
  *	
  *	Returns true if it represents a SYN Packet
  *	(TCP packet with ack==0,SYN==1)
  *
  **/
- /**
 static bool is_SYN_packet(struct sk_buff* skb){
 	
-	struct iphdr* ptr_ipv4_hdr; //pointer to ipv4 header
-	struct tcphdr* ptr_tcp_hdr; //pointer to tcp header
+	struct tcphdr* ptr_tcp_hdr = get_tcp_header(skb); //pointer to tcp header
 	
-	if (skb){ 
-		ptr_ipv4_hdr = ip_hdr(skb);
-		if(ptr_ipv4_hdr){
-			//Protocol is 1 byte - no need to consider Endianness
-			if (ptr_ipv4_hdr->protocol == PROT_TCP) {	//Checks in local endianness
-				ptr_tcp_hdr = (struct tcphdr*)((char*)ptr_ipv4_hdr + (ptr_ipv4_hdr->ihl * 4));
-				//accessing specific bits through struct fields is Endian-safe:	
-				
-				if ( ptr_tcp_hdr && (ptr_tcp_hdr->psh == 1) && (ptr_tcp_hdr->urg == 1)
-					&& (ptr_tcp_hdr->fin == 1) ) 
-				{
-						return true;
-				}
-			}
-		}
+	if (ptr_tcp_hdr){ 
+		return ( (ptr_tcp_hdr->ack == 0) && (ptr_tcp_hdr->syn == 1) );
 	}
 	
 	return false;
 }
-**/
+
 /**
  *	Checks if rule is relevant to packet represented by ptr_pckt_lg_info.
  *	

@@ -42,6 +42,7 @@ static unsigned int check_packet_hookp_forward(struct sk_buff* skb,
 	
 	//Calls function that decides packet-action
 	decide_packet_action(skb, pckt_lg_info, &packet_ack, &packet_direction);
+	
 #ifdef LOG_DEBUG_MODE
 	print_log_row(pckt_lg_info);
 #endif
