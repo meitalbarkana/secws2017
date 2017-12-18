@@ -4,6 +4,104 @@
 static LIST_HEAD(g_connections_list); 
 
 
+/**
+ *	Gets tcp_state_t representing the state of a TCP connection,
+ *  Updates str to contain its string representation.
+ * 
+ *  @str - string to be updated
+ *	NOTE: str's length, should be: MAX_STRLEN_OF_TCP_STATE+1 (includs '\0')
+ **/
+static void tran_tcp_state_to_str(tcp_state_t tcpState, char* str){
+
+	switch (tcpState) {	
+		case (TCP_STATE_CLOSED):
+			strncpy(str,"CLOSED", MAX_STRLEN_OF_TCP_STATE+1);
+			break;
+		case(TCP_STATE_LISTEN):
+			strncpy(str,"LISTEN", MAX_STRLEN_OF_TCP_STATE+1);
+			break;		
+		case(TCP_STATE_SYN_SENT):
+			strncpy(str,"SYN-SENT", MAX_STRLEN_OF_TCP_STATE+1);
+			break;
+		case(TCP_STATE_SYN_RCVD):
+			strncpy(str,"SYN-RCVD", MAX_STRLEN_OF_TCP_STATE+1);
+			break;
+		case(TCP_STATE_ESTABLISHED):
+			strncpy(str,"ESTABLISHED", MAX_STRLEN_OF_TCP_STATE+1);
+			break;
+		case (TCP_STATE_FIN_WAIT_1):
+			strncpy(str,"FIN-WAIT1", MAX_STRLEN_OF_TCP_STATE+1);
+			break;
+		case(TCP_STATE_CLOSE_WAIT):
+			strncpy(str,"CLOSE-WAIT", MAX_STRLEN_OF_TCP_STATE+1);
+			break;			
+		case(TCP_STATE_FIN_WAIT_2):
+			strncpy(str,"FIN-WAIT2", MAX_STRLEN_OF_TCP_STATE+1);
+			break;
+		case(TCP_STATE_LAST_ACK):
+			strncpy(str,"LAST-ACK", MAX_STRLEN_OF_TCP_STATE+1);
+			break;
+		default: // == TCP_STATE_TIME_WAIT 
+			strncpy(str,"TIME-WAIT", MAX_STRLEN_OF_TCP_STATE+1);
+	}
+}
+
+
+/**
+ *	Gets tcp_packet_t representing the type of a TCP packet,
+ *  Updates str to contain its string representation.
+ * 
+ *  @str - string to be updated
+ *	NOTE: str's length, should be: MAX_STRLEN_OF_TCP_PACKET_TYPE+1 (includs '\0')
+ **/
+static void tran_tcp_packet_type_to_str(tcp_packet_t p_type, char* str){
+	
+	switch (p_type) {	
+		case (TCP_SYN_PACKET):
+			strncpy(str,"SYN", MAX_STRLEN_OF_TCP_PACKET_TYPE+1);
+			break;
+		case(TCP_SYN_ACK_PACKET):
+			strncpy(str,"SYN-ACK", MAX_STRLEN_OF_TCP_PACKET_TYPE+1);
+			break;		
+		case(TCP_FIN_PACKET):
+			strncpy(str,"FIN-ACK", MAX_STRLEN_OF_TCP_PACKET_TYPE+1);
+			break;
+		case(TCP_OTHER_PACKET):
+			strncpy(str,"OTHER", MAX_STRLEN_OF_TCP_PACKET_TYPE+1);
+			break;
+		case(TCP_RESET_PACKET):
+			strncpy(str,"RESET", MAX_STRLEN_OF_TCP_PACKET_TYPE+1);
+			break;
+		default: // == TCP_ERROR_PACKET or TCP_INVALID_PACKET, never supposed to get here
+			strncpy(str,"ERROR/INVALID", MAX_STRLEN_OF_TCP_PACKET_TYPE+1);
+	}
+
+}
+
+//For tests alone! prints connection-row to kernel
+static void print_conn_row(connection_row_t* conn_row){
+	//TODO:: add check that conn_row isn't NULL
+	char str_connection_state[MAX_STRLEN_OF_TCP_STATE+1];
+	size_t add_to_len = strlen("Connection-row details:\nsrc_ip: ,\nsrc_port: ,\ndst_ip: ,\ndst_port: ,\nTCP state: ,\ntimestamp: .\n");
+	char str[MAX_STRLEN_OF_ULONG + 2*MAX_STRLEN_OF_BE32 + 2*MAX_STRLEN_OF_BE16 + add_to_len+MAX_STRLEN_OF_TCP_STATE+3]; //+3: 1 for null-terminator, 2 more to make sure 
+	tran_tcp_state_to_str(conn_row->tcp_state,str_connection_state);
+	
+	if ((sprintf(str,
+				"Connection-row details:\nsrc_ip: %u,\nsrc_port: %hu,\ndst_ip: %u,\ndst_port: %hu,\nTCP state: %s,\ntimestamp: %lu.\n",
+				conn_row->src_ip,
+				conn_row->src_port,				
+				conn_row->dst_ip,
+				conn_row->dst_port,
+				str_connection_state,
+				conn_row->timestamp) ) < 7)
+	{
+		printk(KERN_ERR "Error printing Connection-row presentation\n");
+	} 
+	else
+	{
+		printk (KERN_INFO "%s",str);
+	}
+}
 
 
 /**
@@ -72,6 +170,116 @@ static bool is_row_timedout(connection_row_t* row){
 }
 
 /**
+ *	Gets a pointer to packet's info, and a connection-row
+ *
+ *	Returns true if packet is relevant to that connection row,
+ * 			false otherwise.
+ **/
+static bool packet_fits_conn_row(log_row_t* pckt_lg_info, connection_row_t* row){
+	
+	if (pckt_lg_info == NULL || row == NULL){
+		printk(KERN_ERR "In packet_fits_conn_row(), function got NULL argument(s).\n");
+		return false;
+	}
+	
+	return ( (pckt_lg_info->src_ip == row->src_ip) &&
+			 (pckt_lg_info->src_port == row->src_port) &&
+			 (pckt_lg_info->dst_ip == row->dst_ip) &&
+			 (pckt_lg_info->dst_port == row->dst_port) );
+}
+
+/**
+ *	Gets a pointer to packet's info, and a connection-row
+ *
+ *	Returns true if packet has the OPPOSITE direction to that of the
+ * 			connection row,
+ * 			false otherwise.
+ **/
+static bool packet_fits_opp_conn_row(log_row_t* pckt_lg_info, connection_row_t* row){
+	
+	if (pckt_lg_info == NULL || row == NULL){
+		printk(KERN_ERR "In packet_fits_opp_conn_row(), function got NULL argument(s).\n");
+		return false;
+	}
+	
+	return ( (pckt_lg_info->src_ip == row->dst_ip) &&
+			 (pckt_lg_info->src_port == row->dst_port) &&
+			 (pckt_lg_info->dst_ip == row->src_ip) &&
+			 (pckt_lg_info->dst_port == row->src_port) );
+}
+
+/**
+ *	Passes over g_connections_list in search of connection-rows that are
+ * 	relevant to pckt_lg_info's data.
+ *
+ *	Updates:
+ *		1. ptr_relevant_conn_row: to point at the relevant, same direction,
+ * 		 connection-row, or NULL if none was found.
+ * 		2. ptr_relevant_opposite_conn_row: to point at the relevant
+ * 		 OPPOSITE direction connection-row, or NULL if none was found.
+ * 
+ **/
+static void search_relevant_rows(log_row_t* pckt_lg_info,
+		connection_row_t** ptr_relevant_conn_row,
+		connection_row_t** ptr_relevant_opposite_conn_row)
+{
+	struct list_head *pos, *q;
+	connection_row_t* temp_row;
+	*ptr_relevant_conn_row = NULL;
+	*ptr_relevant_opposite_conn_row = NULL;
+
+	if (pckt_lg_info == NULL) {
+		printk(KERN_ERR "In search_relevant_rows(), function got NULL argument.\n");
+		return;
+	}
+
+	list_for_each_safe(pos, q, &g_connections_list){
+		
+		//Check if we've already found both.
+		if ((*ptr_relevant_conn_row != NULL) && 
+			(*ptr_relevant_opposite_conn_row != NULL))
+		{ 
+			return;
+		}
+		
+		temp_row = list_entry(pos, connection_row_t, list);
+		
+		//If a row is too old - deletes it and continues to next row:
+		if(is_row_timedout(temp_row)){
+#ifdef CONN_DEBUG_MODE
+			printk(KERN_INFO "Found an old row in connection-list, about to delete it. Its details:\n");
+			print_conn_row(temp_row);
+#endif
+			delete_specific_row_by_list_node(pos);
+			continue;
+		}
+		
+		if ( packet_fits_conn_row(pckt_lg_info, temp_row) &&
+			 (*ptr_relevant_conn_row == NULL) )
+		{
+#ifdef CONN_DEBUG_MODE
+			printk(KERN_INFO "Found matching row in connection-list. Its details:\n");
+			print_conn_row(temp_row);
+#endif
+			*ptr_relevant_conn_row = temp_row;
+			continue; //To next connection-row
+		}
+		 
+		if ( packet_fits_opp_conn_row(pckt_lg_info, temp_row) &&
+			 (*ptr_relevant_opposite_conn_row == NULL) )
+		{
+#ifdef CONN_DEBUG_MODE
+			printk(KERN_INFO "Found an OPPOSITE matching row in connection-list. Its details:\n");
+			print_conn_row(temp_row);
+#endif
+			*ptr_relevant_opposite_conn_row = temp_row;
+		}
+		
+	}
+
+}
+
+/**
  *	Gets a pointer to a SYN packet's log_row_t, 
  *	adds a relevant NEW connection to g_connections_list.
  * 
@@ -83,6 +291,7 @@ bool add_first_SYN_connection(log_row_t* syn_pckt_lg_info){
 	
 	if(syn_pckt_lg_info == NULL){
 		printk(KERN_ERR "In function add_first_SYN_connection(), function got NULL argument");
+		return false;
 	}
 	
 	//Allocates memory for connection-row:
@@ -97,11 +306,34 @@ bool add_first_SYN_connection(log_row_t* syn_pckt_lg_info){
 	new_conn->dst_ip = syn_pckt_lg_info->dst_ip;
 	new_conn->dst_port = syn_pckt_lg_info->dst_port;
 	//Since it's a (first) SYN packet:
-	new_conn->tcp_state = syn_pckt_lg_info->TCP_STATE_SYN_SENT;
+	new_conn->tcp_state = TCP_STATE_SYN_SENT;
 	new_conn->timestamp = syn_pckt_lg_info->timestamp;
 	INIT_LIST_HEAD(&(new_conn->list));
 	
 	list_add(&(new_conn->list), &g_connections_list);
+	return true;
+}
+
+
+/**
+ *	Gets a pointer to a SYN-ACK packet's log_row_t, 
+ *	Finds if that connection already had SYN-packet before,
+ *	and if so - adds a relevant "connection" to g_connections_list.
+ *
+ *	Updates:	1. pckt_lg_info->action
+ * 				2. pckt_lg_info->reason
+ * 
+ *	Returns true on success, false if any error occured.
+ **/
+bool handle_SYN_ACK_packet(log_row_t* pckt_lg_info){
+	
+	if(pckt_lg_info == NULL){
+		printk(KERN_ERR "In function handle_SYN_ACK_packet(), function got NULL argument(s).\n");
+		return false;
+	}
+
+	//TODO::
+	
 	return true;
 }
 
@@ -121,8 +353,8 @@ bool add_first_SYN_connection(log_row_t* syn_pckt_lg_info){
  **/
 bool check_tcp_packet(log_row_t* pckt_lg_info, tcp_packet_t tcp_pckt_type){
 		
-	if(pckt_lg_info == NULL || tcp_hdr == NULL){
-		printk(KERN_ERR "In function check_tcp_packet(), function got NULL argument(s).\n");
+	if(pckt_lg_info == NULL){
+		printk(KERN_ERR "In function check_tcp_packet(), function got NULL argument.\n");
 		return false;
 	}
 	
@@ -149,7 +381,7 @@ bool check_tcp_packet(log_row_t* pckt_lg_info, tcp_packet_t tcp_pckt_type){
 			break;
 
 		case(TCP_INVALID_PACKET):
-			pckt_lg_info->action = NF_DROP
+			pckt_lg_info->action = NF_DROP;
 			pckt_lg_info->reason = REASON_ILLEGAL_VALUE;
 			break;
 			
