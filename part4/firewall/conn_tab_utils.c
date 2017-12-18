@@ -469,6 +469,67 @@ bool handle_OTHER_tcp_packet(log_row_t* pckt_lg_info,
 	
 }
 
+ /**
+ *	Gets a pointer to a RESET packet's log_row_t,
+ *	and 2 pointers to relevant connection rows (if any).
+ *	Checks if that packet suits current TCP state - that it has relevant
+ *  connection-rows, and if so - 
+ *	DELETES those rows accordingly and let the packet pass
+ *
+ *	@pckt_lg_info - the information about the packet we check
+ *	@relevant_conn_row - a connection-row with the same IPs & ports,
+ * 						might be NULL if no such was found
+ *	@relevant_opposite_conn_row - a connection-row with the opposite side
+ * 						IPs & ports, might be NULL if no such was found
+ * 
+ *	Updates:	1. pckt_lg_info->action
+ * 				2. pckt_lg_info->reason
+ * 				3. deletes relevant rows if packet is valid (to 
+ * 				   reset the TCP connection)
+ * 
+ *	Returns true on success, false if any error occured.
+ *	
+ *	NOTE: If returned false, user should handle values of:
+ * 		  pckt_lg_info->action, pckt_lg_info->reason!
+ 
+ **/
+bool handle_RESET_tcp_packet(log_row_t* pckt_lg_info, 
+		connection_row_t* relevant_conn_row,
+		connection_row_t* relevant_opposite_conn_row)
+{
+	if(pckt_lg_info == NULL){
+		printk(KERN_ERR "In handle_RESET_tcp_packet(), function got NULL argument.\n");
+		return false;
+	}
+	
+	if( ((relevant_conn_row) && (relevant_opposite_conn_row))
+		||
+		((relevant_conn_row) && 
+		(relevant_conn_row->tcp_state == TCP_STATE_SYN_SENT))
+		||
+		((relevant_opposite_conn_row) &&
+		(relevant_opposite_conn_row->tcp_state == TCP_STATE_SYN_SENT)) )
+	{
+		//Delete rows:
+		if (relevant_conn_row){
+			delete_specific_row_by_conn_ptr(relevant_conn_row);
+		}
+		if (relevant_opposite_conn_row){
+			delete_specific_row_by_conn_ptr(relevant_opposite_conn_row);
+		}
+		
+		pckt_lg_info->action = NF_ACCEPT;
+		pckt_lg_info->reason = REASON_FOUND_MATCHING_TCP_CONNECTION;
+		return true;
+	}
+	
+	//Packet's not relevant for tcp connection:
+	pckt_lg_info->action = NF_DROP;
+	pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION;
+	return true;
+}
+
+
 /**
  *	Sets a TCP packet's action, according to current connection-list
  *	
