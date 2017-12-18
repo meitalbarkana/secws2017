@@ -576,8 +576,8 @@ bool check_tcp_packet(log_row_t* pckt_lg_info, tcp_packet_t tcp_pckt_type){
 					relevant_conn_row, relevant_opposite_conn_row) );
 		
 		case(TCP_RESET_PACKET):
-			//TODO::
-			break;
+			return ( handle_RESET_tcp_packet(pckt_lg_info, 
+					relevant_conn_row, relevant_opposite_conn_row) );
 
 		case(TCP_INVALID_PACKET):
 			pckt_lg_info->action = NF_DROP;
