@@ -331,28 +331,35 @@ bool add_new_connection_row(log_row_t* pckt_lg_info, bool is_syn_packet){
 
 /**
  *	Gets a pointer to a SYN-ACK packet's log_row_t, 
- *	Finds if that connection already have SYN-packet connection-row,
- *	and if so - adds a relevant "connection" to g_connections_list.
+ *	and 2 pointers to relevant connection rows (if any).
+ *	Checks if that connection already have SYN-packet connection-row,
+ *	and if so - adds a relevant new connection to g_connections_list.
  *
+ *	@pckt_lg_info - the information about the packet we check
+ *	@relevant_conn_row - a connection-row with the same IPs & ports,
+ * 						might be NULL if no such was found
+ *	@relevant_opposite_conn_row - a connection-row with the opposite side
+ * 						IPs & ports, might be NULL if no such was found
+ * 
  *	Updates:	1. pckt_lg_info->action
  * 				2. pckt_lg_info->reason
  * 
  *	Returns true on success, false if any error occured.
  *	
- *	NOTE: if returned false, user should handle pckt_lg_info->action, pckt_lg_info->reason!
+ *	NOTE:	1. If returned false, user should handle values of:
+ * 				pckt_lg_info->action, pckt_lg_info->reason!
+ * 			2. A valid SYN_ACK packet will have relevant_conn_row==NULL
+ * 				and relevant_opposite_conn_row!=NULL.
  **/
-bool handle_SYN_ACK_packet(log_row_t* pckt_lg_info){
-	
-	connection_row_t* relevant_conn_row = NULL;
-	connection_row_t* relevant_opposite_conn_row = NULL;
+bool handle_SYN_ACK_packet(log_row_t* pckt_lg_info, 
+		connection_row_t* relevant_conn_row,
+		connection_row_t* relevant_opposite_conn_row )
+{
 	
 	if(pckt_lg_info == NULL){
-		printk(KERN_ERR "In function handle_SYN_ACK_packet(), function got NULL argument.\n");
+		printk(KERN_ERR "In handle_SYN_ACK_packet(), function got NULL argument.\n");
 		return false;
 	}
-
-	search_relevant_rows(pckt_lg_info, &relevant_conn_row,
-			&relevant_opposite_conn_row);
 	
 	if ( (relevant_opposite_conn_row == NULL) || (relevant_conn_row != NULL))
 	{
@@ -366,7 +373,7 @@ bool handle_SYN_ACK_packet(log_row_t* pckt_lg_info){
 		//Make sure prior connection is SYN:
 		if (relevant_opposite_conn_row->tcp_state == TCP_STATE_SYN_SENT){
 			//Add new SYN-ACK connection-row:
-			if (add_new_connection_row(pckt_lg_info, false) == false){
+			if (!add_new_connection_row(pckt_lg_info, false)){
 				//Errors already printed in add_new_connection_row()
 				return false; 
 			}
@@ -385,6 +392,83 @@ bool handle_SYN_ACK_packet(log_row_t* pckt_lg_info){
 }
 
 
+ /**
+ *	Gets a pointer to a OTHER (ACK bit and some other
+ *  [non SYN-bit nor FIN-bit] is on) packet's log_row_t,
+ *	and 2 pointers to relevant connection rows (if any).
+ *	Checks if that packet suits current TCP state - means it has relevant
+ *  connection-rows, and if so - updates those rows accordingly.
+ *
+ *	@pckt_lg_info - the information about the packet we check
+ *	@relevant_conn_row - a connection-row with the same IPs & ports,
+ * 						might be NULL if no such was found
+ *	@relevant_opposite_conn_row - a connection-row with the opposite side
+ * 						IPs & ports, might be NULL if no such was found
+ * 
+ *	Updates:	1. pckt_lg_info->action
+ * 				2. pckt_lg_info->reason
+ * 
+ *	Returns true on success, false if any error occured.
+ *	
+ *	NOTE:	1. If returned false, user should handle values of:
+ * 				pckt_lg_info->action, pckt_lg_info->reason!
+ * 			2. A valid OTHER packet has specific tcp_states, 
+ * 				see documentation below. 
+ **/
+bool handle_OTHER_tcp_packet(log_row_t* pckt_lg_info, 
+		connection_row_t* relevant_conn_row,
+		connection_row_t* relevant_opposite_conn_row )
+{
+	if(pckt_lg_info == NULL){
+		printk(KERN_ERR "In handle_OTHER_tcp_packet(), function got NULL argument.\n");
+		return false;
+	}
+	
+	//There are only 4 cases in which OTHER packet is relevant to the connection,
+	//in all 4 cases both sides of the connection are NOT NULL:
+	if (relevant_conn_row != NULL && relevant_opposite_conn_row != NULL){
+		
+		//First 3 valid cases are when packet is:
+		//	1. The last ack of the 3-way-handshake(syn, syn-ack, *ack*)
+		//	2. The first ack sent from "server"s side, AFTER finising
+		//		the 3-way-handshake.
+		//	3. An ordinary ack between established connection:
+		if( ((relevant_conn_row->tcp_state == TCP_STATE_SYN_SENT) &&
+			(relevant_opposite_conn_row->tcp_state == TCP_STATE_SYN_RCVD))
+			||	  
+			((relevant_conn_row->tcp_state == TCP_STATE_SYN_RCVD) &&
+			(relevant_opposite_conn_row->tcp_state == TCP_STATE_ESTABLISHED))
+			||
+			((relevant_conn_row->tcp_state == TCP_STATE_ESTABLISHED) &&
+			(relevant_opposite_conn_row->tcp_state == TCP_STATE_ESTABLISHED)) )
+		{
+			//Next line won't change anything if both states were ESTABLISHED:
+			relevant_conn_row->tcp_state = TCP_STATE_ESTABLISHED;
+			relevant_conn_row->timestamp = pckt_lg_info->timestamp;
+			pckt_lg_info->action = NF_ACCEPT;
+			pckt_lg_info->reason = REASON_FOUND_MATCHING_TCP_CONNECTION;
+			return true;
+		} 
+		
+		//The fourth valid case is when:
+		//	4. This packet is the last ack of a tcp connection:
+		else if ((relevant_conn_row->tcp_state == TCP_STATE_FIN_WAIT_2) &&
+			(relevant_opposite_conn_row->tcp_state == TCP_STATE_LAST_ACK))
+		{
+			relevant_conn_row->tcp_state = TCP_STATE_TIME_WAIT;
+			relevant_conn_row->timestamp = pckt_lg_info->timestamp;
+			pckt_lg_info->action = NF_ACCEPT;
+			pckt_lg_info->reason = REASON_FOUND_MATCHING_TCP_CONNECTION;
+			return true;
+		}
+	}
+	
+	pckt_lg_info->action = NF_DROP;
+	pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION;
+	return true;
+	
+}
+
 /**
  *	Sets a TCP packet's action, according to current connection-list
  *	
@@ -400,11 +484,17 @@ bool handle_SYN_ACK_packet(log_row_t* pckt_lg_info){
  *	NOTE: if returned false, take care of pckt_lg_info->action, pckt_lg_info->reason!
  **/
 bool check_tcp_packet(log_row_t* pckt_lg_info, tcp_packet_t tcp_pckt_type){
+	
+	connection_row_t* relevant_conn_row = NULL;
+	connection_row_t* relevant_opposite_conn_row = NULL;
 		
 	if(pckt_lg_info == NULL){
 		printk(KERN_ERR "In function check_tcp_packet(), function got NULL argument.\n");
 		return false;
 	}
+
+	search_relevant_rows(pckt_lg_info, &relevant_conn_row,
+			&relevant_opposite_conn_row);
 	
 	switch (tcp_pckt_type){	
 		
@@ -413,15 +503,16 @@ bool check_tcp_packet(log_row_t* pckt_lg_info, tcp_packet_t tcp_pckt_type){
 			return false;
 			
 		case(TCP_SYN_ACK_PACKET):
-			return (handle_SYN_ACK_packet(pckt_lg_info));
+			return ( handle_SYN_ACK_packet(pckt_lg_info,
+					relevant_conn_row, relevant_opposite_conn_row) );
 		
 		case(TCP_FIN_PACKET):
 			//TODO::
 			break;
 		
 		case(TCP_OTHER_PACKET):
-			//TODO::
-			break;
+			return( handle_OTHER_tcp_packet(pckt_lg_info, 
+					relevant_conn_row, relevant_opposite_conn_row) );
 		
 		case(TCP_RESET_PACKET):
 			//TODO::
