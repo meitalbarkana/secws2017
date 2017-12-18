@@ -117,17 +117,14 @@ bool add_first_SYN_connection(log_row_t* syn_pckt_lg_info){
  * 				3. if packet's valid: g_connections_list to fit the connection state
  *	
  *	Returns: true on success, false if any error occured
+ *	NOTE: if returned false, take care of pckt_lg_info->action, pckt_lg_info->reason!
  **/
-bool check_tcp_packet(log_row_t* pckt_lg_info, struct tcphdr* tcp_hdr){
-	
-	tcp_packet_t tcp_pckt_type;
-	
+bool check_tcp_packet(log_row_t* pckt_lg_info, tcp_packet_t tcp_pckt_type){
+		
 	if(pckt_lg_info == NULL || tcp_hdr == NULL){
 		printk(KERN_ERR "In function check_tcp_packet(), function got NULL argument(s).\n");
 		return false;
 	}
-	
-	tcp_pckt_type = get_tcp_packet_type(tcp_hdr);
 	
 	switch (tcp_pckt_type){	
 		

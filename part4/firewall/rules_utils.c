@@ -828,7 +828,11 @@ static struct tcphdr* get_tcp_header(struct sk_buff* skb){
 			if (ptr_ipv4_hdr->protocol == PROT_TCP) {	//Checks in local endianness
 				return ((struct tcphdr*)((char*)ptr_ipv4_hdr + (ptr_ipv4_hdr->ihl * 4)));
 			}
+		} else {
+			printk(KERN_ERR "In get_tcp_header(), couldn't extract ipv4-header from skb.\n");
 		}
+	} else {
+		printk(KERN_ERR "In get_tcp_header(), function got NULL argument.\n");
 	}
 	
 	return NULL;
@@ -870,6 +874,7 @@ static bool is_XMAS(struct sk_buff* skb){
  *	(TCP packet with ack==0,SYN==1)
  *
  **/
+ /**
 static bool is_SYN_packet(struct sk_buff* skb){
 	
 	struct tcphdr* ptr_tcp_hdr = get_tcp_header(skb); //pointer to tcp header
@@ -880,6 +885,7 @@ static bool is_SYN_packet(struct sk_buff* skb){
 	
 	return false;
 }
+**/
 
 /**
  *	Checks if rule is relevant to packet represented by ptr_pckt_lg_info.
@@ -1032,6 +1038,26 @@ void decide_packet_action(struct sk_buff* skb, log_row_t* ptr_pckt_lg_info,
 		return;
 	} 
 	//If gets here, g_fw_is_active == FW_ON & packet isn't XMAS
+	
+	
+	///TODO:: add tcp-check:
+	/**
+	 * tcp_packet_t tcp_pckt_type;
+	 * struct tcphdr* tcp_hdr = get_tcp_header(skb); //pointer to tcp header
+	 * if (tcp_hdr) { //Means it is a tcp-packet
+	 *	 tcp_pckt_type = get_tcp_packet_type(tcp_hdr);
+	 * 	 if (tcp_pckt_type == TCP_SYN_PACKET){
+	 *		//continue as usual
+	 *	 } else {
+	 *		//call function check_tcp_packet() AND CONTINUE DIFFERENTLY!!
+	 *	 }
+	 * } else {
+	 *	//Not tcp-packet, continue as usual
+	 * }
+	 * 
+	 * 
+	 **/
+	
 	
 	if ( (get_relevant_rule_num_from_table(ptr_pckt_lg_info,
 						packet_ack, packet_direction)) <  0 )

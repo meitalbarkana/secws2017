@@ -49,7 +49,7 @@ static unsigned int check_packet_hookp_forward(struct sk_buff* skb,
 
 	//Inserts row to log-rows:
 	if (!insert_row(pckt_lg_info)){
-		//An error occured, error already printed in isert_row()
+		//An error occured, error already printed in insert_row()
 		kfree(pckt_lg_info);
 		return NF_ACCEPT;
 	}

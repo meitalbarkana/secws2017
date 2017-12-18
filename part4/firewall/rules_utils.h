@@ -1,6 +1,6 @@
 #ifndef RULES_UTILS_H
 #define RULES_UTILS_H
-#include "fw.h"
+#include "conn_tab_utils.h"
 
 #define MAX_NUM_OF_RULES (50)
 
