@@ -80,10 +80,16 @@ static void tran_tcp_packet_type_to_str(tcp_packet_t p_type, char* str){
 
 //For tests alone! prints connection-row to kernel
 static void print_conn_row(connection_row_t* conn_row){
-	//TODO:: add check that conn_row isn't NULL
+	
 	char str_connection_state[MAX_STRLEN_OF_TCP_STATE+1];
 	size_t add_to_len = strlen("Connection-row details:\nsrc_ip: ,\nsrc_port: ,\ndst_ip: ,\ndst_port: ,\nTCP state: ,\ntimestamp: .\n");
 	char str[MAX_STRLEN_OF_ULONG + 2*MAX_STRLEN_OF_BE32 + 2*MAX_STRLEN_OF_BE16 + add_to_len+MAX_STRLEN_OF_TCP_STATE+3]; //+3: 1 for null-terminator, 2 more to make sure 
+	
+	if (conn_row == NULL) {
+		printk(KERN_ERR "In print_conn_row(), function got NULL argument!\n");
+		return;
+	}
+	
 	tran_tcp_state_to_str(conn_row->tcp_state,str_connection_state);
 	
 	if ((sprintf(str,
@@ -279,18 +285,24 @@ static void search_relevant_rows(log_row_t* pckt_lg_info,
 
 }
 
+
 /**
- *	Gets a pointer to a SYN packet's log_row_t, 
- *	adds a relevant NEW connection to g_connections_list.
+ *	Gets a pointer to a packet's log_row_t, 
+ *	adds a relevant NEW connection-row (SYN/SYN_ACK) to g_connections_list:
+ *	
+ *	@pckt_lg_info - holds packet's information
+ *	@is_syn_packet - If true, connection's state would be: TCP_STATE_SYN_SENT  
+ *					 If false, connection's state would be: TCP_STATE_SYN_RCVD
  * 
  *	Returns true on success, false if any error occured.
+ *
  **/
-bool add_first_SYN_connection(log_row_t* syn_pckt_lg_info){
+bool add_new_connection_row(log_row_t* pckt_lg_info, bool is_syn_packet){
 	
 	connection_row_t* new_conn = NULL;
 	
-	if(syn_pckt_lg_info == NULL){
-		printk(KERN_ERR "In function add_first_SYN_connection(), function got NULL argument");
+	if(pckt_lg_info == NULL){
+		printk(KERN_ERR "In function add_new_connection_row(), function got NULL argument");
 		return false;
 	}
 	
@@ -301,38 +313,73 @@ bool add_first_SYN_connection(log_row_t* syn_pckt_lg_info){
 	}
 	memset(new_conn, 0, sizeof(connection_row_t)); 
 	
-	new_conn->src_ip = syn_pckt_lg_info->src_ip;
-	new_conn->src_port = syn_pckt_lg_info-> src_port;
-	new_conn->dst_ip = syn_pckt_lg_info->dst_ip;
-	new_conn->dst_port = syn_pckt_lg_info->dst_port;
-	//Since it's a (first) SYN packet:
-	new_conn->tcp_state = TCP_STATE_SYN_SENT;
-	new_conn->timestamp = syn_pckt_lg_info->timestamp;
+	new_conn->src_ip = pckt_lg_info->src_ip;
+	new_conn->src_port = pckt_lg_info-> src_port;
+	new_conn->dst_ip = pckt_lg_info->dst_ip;
+	new_conn->dst_port = pckt_lg_info->dst_port;
+	new_conn->timestamp = pckt_lg_info->timestamp;
+	
+	//TCP_STATE_SYN_SENT when it's a (first) SYN packet,
+	//TCP_STATE_SYN_RCVD when it's a (first) SYN-ACK packet:
+	new_conn->tcp_state = (is_syn_packet ? TCP_STATE_SYN_SENT : TCP_STATE_SYN_RCVD);	
+
 	INIT_LIST_HEAD(&(new_conn->list));
 	
 	list_add(&(new_conn->list), &g_connections_list);
 	return true;
 }
 
-
 /**
  *	Gets a pointer to a SYN-ACK packet's log_row_t, 
- *	Finds if that connection already had SYN-packet before,
+ *	Finds if that connection already have SYN-packet connection-row,
  *	and if so - adds a relevant "connection" to g_connections_list.
  *
  *	Updates:	1. pckt_lg_info->action
  * 				2. pckt_lg_info->reason
  * 
  *	Returns true on success, false if any error occured.
+ *	
+ *	NOTE: if returned false, user should handle pckt_lg_info->action, pckt_lg_info->reason!
  **/
 bool handle_SYN_ACK_packet(log_row_t* pckt_lg_info){
 	
+	connection_row_t* relevant_conn_row = NULL;
+	connection_row_t* relevant_opposite_conn_row = NULL;
+	
 	if(pckt_lg_info == NULL){
-		printk(KERN_ERR "In function handle_SYN_ACK_packet(), function got NULL argument(s).\n");
+		printk(KERN_ERR "In function handle_SYN_ACK_packet(), function got NULL argument.\n");
 		return false;
 	}
 
-	//TODO::
+	search_relevant_rows(pckt_lg_info, &relevant_conn_row,
+			&relevant_opposite_conn_row);
+	
+	if ( (relevant_opposite_conn_row == NULL) || (relevant_conn_row != NULL))
+	{
+	//Means no prior SYN packet found OR
+	//A prior, same direction connection was found: so drop this packet.
+		pckt_lg_info->action = NF_DROP;
+		pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION;
+	} 
+	else //relevant_opposite_conn_row!=NULL  and relevant_conn_row==NULL
+	{ 	
+		//Make sure prior connection is SYN:
+		if (relevant_opposite_conn_row->tcp_state == TCP_STATE_SYN_SENT){
+			//Add new SYN-ACK connection-row:
+			if (add_new_connection_row(pckt_lg_info, false) == false){
+				//Errors already printed in add_new_connection_row()
+				return false; 
+			}
+			pckt_lg_info->action = NF_ACCEPT;
+			pckt_lg_info->reason = REASON_FOUND_MATCHING_TCP_CONNECTION;
+			
+		} else {
+			//Never supposed to get here:
+			printk(KERN_ERR "In handle_SYN_ACK_packet, previous connection row isn't TCP_STATE_SYN_SENT.\n");
+			return false;
+		}
+			
+	}
 	
 	return true;
 }
@@ -349,6 +396,7 @@ bool handle_SYN_ACK_packet(log_row_t* pckt_lg_info){
  * 				3. if packet's valid: g_connections_list to fit the connection state
  *	
  *	Returns: true on success, false if any error occured
+ * 
  *	NOTE: if returned false, take care of pckt_lg_info->action, pckt_lg_info->reason!
  **/
 bool check_tcp_packet(log_row_t* pckt_lg_info, tcp_packet_t tcp_pckt_type){
@@ -365,8 +413,7 @@ bool check_tcp_packet(log_row_t* pckt_lg_info, tcp_packet_t tcp_pckt_type){
 			return false;
 			
 		case(TCP_SYN_ACK_PACKET):
-			//TODO::
-			break;
+			return (handle_SYN_ACK_packet(pckt_lg_info));
 		
 		case(TCP_FIN_PACKET):
 			//TODO::
@@ -383,11 +430,10 @@ bool check_tcp_packet(log_row_t* pckt_lg_info, tcp_packet_t tcp_pckt_type){
 		case(TCP_INVALID_PACKET):
 			pckt_lg_info->action = NF_DROP;
 			pckt_lg_info->reason = REASON_ILLEGAL_VALUE;
-			break;
+			return true;
 			
 		default: //TCP_ERROR_PACKET
 			return false;
 	}
-	
-	return true;
+
 }
