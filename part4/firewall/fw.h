@@ -127,9 +127,10 @@ enum action_t {
 /**
  *	Enum describing tcp_state.
  * 
- *	NOTE: "client" is refering to whoever started the connection
- *		  OR the side asking to end the connection!
- * 
+ *	NOTE:	1."client" is refering to whoever started the connection
+ *		 	OR the side asking to end the connection!
+ * 			2. I didn't use tcp states as defined in net/tcp_states.h, 
+ *				because I wanted to define their values by myself.
  *	Names were defined based on Dr. David Movshovitz's lecture: "Network Firewalls"
  **/
 typedef enum{	 
@@ -170,6 +171,23 @@ typedef enum{
 	TCP_STATE_TIME_WAIT = 10
 }tcp_state_t;
 
+/**
+ *	Enum describing tcp packet type
+ **/
+typedef enum{	 
+	
+	TCP_SYN_PACKET = 1,
+	TCP_SYN_ACK_PACKET = 2,
+	TCP_FIN_PACKET = 3,
+	TCP_OTHER_PACKET = 4,
+	TCP_RESET_PACKET = 5,
+	TCP_ERROR_PACKET = 6,	//For when an internal error happened
+	TCP_INVALID_PACKET = 7	//For when packet has invalid flags
+	
+} tcp_packet_t;
+
+
+
 //Struct representing a row in connection-table:
 typedef struct {
 	
@@ -188,5 +206,6 @@ typedef struct {
 
 
 direction_t get_direction(const struct net_device* in, const struct net_device* out);
+tcp_packet_t get_tcp_packet_type(struct tcphdr* tcp_hdr);
 
 #endif // _FW_H_

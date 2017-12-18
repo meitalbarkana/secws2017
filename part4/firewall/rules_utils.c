@@ -875,7 +875,7 @@ static bool is_SYN_packet(struct sk_buff* skb){
 	struct tcphdr* ptr_tcp_hdr = get_tcp_header(skb); //pointer to tcp header
 	
 	if (ptr_tcp_hdr){ 
-		return ( (ptr_tcp_hdr->ack == 0) && (ptr_tcp_hdr->syn == 1) );
+		return ( get_tcp_packet_type(ptr_tcp_hdr) == TCP_SYN_PACKET ); 
 	}
 	
 	return false;

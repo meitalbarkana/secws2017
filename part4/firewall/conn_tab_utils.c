@@ -77,6 +77,88 @@ static bool is_row_timedout(connection_row_t* row){
  * 
  *	Returns true on success, false if any error occured.
  **/
-bool add_new_connection(log_row_t* syn_pckt_lg_info){
-	///TODO::
+bool add_first_SYN_connection(log_row_t* syn_pckt_lg_info){
+	
+	connection_row_t* new_conn = NULL;
+	
+	if(syn_pckt_lg_info == NULL){
+		printk(KERN_ERR "In function add_first_SYN_connection(), function got NULL argument");
+	}
+	
+	//Allocates memory for connection-row:
+    if((new_conn = kmalloc(sizeof(connection_row_t),GFP_ATOMIC)) == NULL){
+		printk(KERN_ERR "Failed allocating space for new connection row.\n");
+		return false;
+	}
+	memset(new_conn, 0, sizeof(connection_row_t)); 
+	
+	new_conn->src_ip = syn_pckt_lg_info->src_ip;
+	new_conn->src_port = syn_pckt_lg_info-> src_port;
+	new_conn->dst_ip = syn_pckt_lg_info->dst_ip;
+	new_conn->dst_port = syn_pckt_lg_info->dst_port;
+	//Since it's a (first) SYN packet:
+	new_conn->tcp_state = syn_pckt_lg_info->TCP_STATE_SYN_SENT;
+	new_conn->timestamp = syn_pckt_lg_info->timestamp;
+	INIT_LIST_HEAD(&(new_conn->list));
+	
+	list_add(&(new_conn->list), &g_connections_list);
+	return true;
+}
+
+
+/**
+ *	Sets a TCP packet's action, according to current connection-list
+ *	
+ *	NOTE: packet SHOULDN'T BE A SYN PACKET! (assuming those were 
+ * 		  already been taking care of).
+ * 
+ *	Updates:	1. pckt_lg_info->action
+ * 				2. pckt_lg_info->reason
+ * 				3. if packet's valid: g_connections_list to fit the connection state
+ *	
+ *	Returns: true on success, false if any error occured
+ **/
+bool check_tcp_packet(log_row_t* pckt_lg_info, struct tcphdr* tcp_hdr){
+	
+	tcp_packet_t tcp_pckt_type;
+	
+	if(pckt_lg_info == NULL || tcp_hdr == NULL){
+		printk(KERN_ERR "In function check_tcp_packet(), function got NULL argument(s).\n");
+		return false;
+	}
+	
+	tcp_pckt_type = get_tcp_packet_type(tcp_hdr);
+	
+	switch (tcp_pckt_type){	
+		
+		case(TCP_SYN_PACKET):
+			printk(KERN_ERR "In function check_tcp_packet(), function got SYN packet info.\n");
+			return false;
+			
+		case(TCP_SYN_ACK_PACKET):
+			//TODO::
+			break;
+		
+		case(TCP_FIN_PACKET):
+			//TODO::
+			break;
+		
+		case(TCP_OTHER_PACKET):
+			//TODO::
+			break;
+		
+		case(TCP_RESET_PACKET):
+			//TODO::
+			break;
+
+		case(TCP_INVALID_PACKET):
+			pckt_lg_info->action = NF_DROP
+			pckt_lg_info->reason = REASON_ILLEGAL_VALUE;
+			break;
+			
+		default: //TCP_ERROR_PACKET
+			return false;
+	}
+	
+	return true;
 }
