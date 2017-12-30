@@ -22,6 +22,7 @@
 #define PATH_TO_LOG_DEV "/dev/fw_log"
 #define PATH_TO_LOG_SIZE_ATTR "/sys/class/fw/fw_log/log_size"
 #define PATH_TO_LOG_CLEAR_ATTR "/sys/class/fw/fw_log/log_clear"
+#define PATH_TO_CONN_TAB_ATTR "/sys/class/fw/fw/conn_tab"
 #define DEACTIVATE_STRING "0"
 #define ACTIVATE_STRING "1"
 #define ACTIVE_STR_LEN (1)

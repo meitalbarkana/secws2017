@@ -52,6 +52,7 @@
 #define STR_CLEAR_LOG "clear_log"
 #define STR_GET_LOG_SIZE "get_log_size"
 #define STR_GET_RULES_SIZE "get_rules_size" //To add later
+#define STR_SHOW_CONN_TAB "show_connection_table"
 
 /**
  * LOGROW format:

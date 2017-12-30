@@ -1498,13 +1498,13 @@ int get_num_log_rows(void){
 	// Open device with read only permissions:
 	int fd = open(PATH_TO_LOG_SIZE_ATTR,O_RDONLY);
 	if (fd < 0){
-		printf("Error accured trying to open the log-device for reading number of rows, error number: %d\n", errno);
+		printf("Error occured trying to open the log-device for reading number of rows, error number: %d\n", errno);
 		free(buff);
 		return -1;
 	}
 	
 	if (read(fd, buff, 1) <= 0){
-		printf("Error accured trying to read number of rows in firewall's log, error number: %d\n", errno);
+		printf("Error occured trying to read number of rows in firewall's log, error number: %d\n", errno);
 		free(buff);
 		close(fd);
 		return -1;
@@ -1514,7 +1514,10 @@ int get_num_log_rows(void){
 	int num = -1;
 	//If sscanf failes, num is already initiated to -1:
 	sscanf(buff, "%11d",&num);
-
+	
+	free(buff);
 	return num;
 	
 }
+
+

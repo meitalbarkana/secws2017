@@ -7,7 +7,7 @@
  *	
  * Note: function prints errors, if any, to screen
  **/
-int load_rules(const char* file_path){
+static int load_rules(const char* file_path){
 	
 	int rules_read = read_rules_from_file(file_path);
 	
@@ -47,7 +47,7 @@ int load_rules(const char* file_path){
  *	
  * Note: function prints errors, if any, to screen
  **/
-int change_active_state_fw(bool to_active_state){
+static int change_active_state_fw(bool to_active_state){
 	int fd = open(PATH_TO_ACTIVE_ATTR,O_WRONLY); // Open device with write only permissions
 	if (fd < 0){
 		printf("Error accured trying to open the rules-device, error number: %d\n", errno);
@@ -78,7 +78,7 @@ int change_active_state_fw(bool to_active_state){
  *	
  * Note: function prints errors, if any, to screen
  **/
-int get_active_stat(){
+static int get_active_stat(){
 	
 	int stat = get_fw_active_stat();
 	switch (stat){
@@ -102,15 +102,54 @@ int get_active_stat(){
  *	
  * Note: function prints errors, if any, to screen
  **/
-int get_log_size(){
+static int get_log_size(){
 	int num = get_num_log_rows();
 	if (num < 0) {
 		printf("Some error occured when trying to get log size\n");
 		return -1;
 	}
 	
-	printf("Number of rows in fw_log: %d\n", get_num_log_rows());
+	printf("Number of rows in fw_log: %d\n", num);
 	
+	return 0;
+}
+
+/**
+ *	Gets and prints connection table format
+ *	(reads from PATH_TO_CONN_TAB_ATTR)
+ * 
+ *	Returns 0 on success, -1 if failed
+ *	
+ *	Note: function prints errors, if any, to screen
+ **/
+static int get_conn_tab(){
+
+	char* buff;
+	unsigned int p_size = (unsigned int)getpagesize();
+	if ( (buff = calloc(p_size,sizeof(char))) == NULL){
+		printf("Allocating buffer for getting rows from connection table failed.\n");
+		return -1;
+	} 
+	
+	// Open device with read only permissions:
+	int fd = open(PATH_TO_CONN_TAB_ATTR,O_RDONLY);
+	if (fd < 0){
+		printf("Error occured trying to open the connection-table device for reading, error number: %d\n", errno);
+		free(buff);
+		return -1;
+	}
+	
+	if (read(fd, buff, p_size) <= 0){
+		printf("Error occured trying to read number of rows in firewall's log, error number: %d\n", errno);
+		free(buff);
+		close(fd);
+		return -1;
+	}
+	close(fd);
+
+	printf("%s", buff);
+	free(buff);
+
 	return 0;
 }
 
@@ -162,6 +201,10 @@ int main(int argc, char* argv[]){
 	
 	if (strcmp(argv[1], STR_GET_LOG_SIZE) == 0) {
 		return get_log_size();
+	}
+	
+	if (strcmp(argv[1], STR_SHOW_CONN_TAB) == 0) {
+		return get_conn_tab();
 	}
 
 	printf ("Invalid command.\n");
