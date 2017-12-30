@@ -3,6 +3,13 @@
 //Declares (static) g_connections_list of type struct list_head:
 static LIST_HEAD(g_connections_list); 
 
+static int conn_tab_dev_major_number = 0;
+static struct device* conn_tab_device = NULL;
+
+static struct file_operations conn_tab_fops = {
+	.owner = THIS_MODULE
+};
+
 
 /**
  *	Gets tcp_state_t representing the state of a TCP connection,
@@ -174,6 +181,81 @@ static bool is_row_timedout(connection_row_t* row){
 	getnstimeofday(&ts);
 	return ( (ts.tv_sec - (row->timestamp)) >= TIMEOUT_SECONDS ); 
 }
+
+/**
+ *	Sysfs show implementation:
+ * 
+ * Connection-row format:
+ * "<src ip> <source port> <dst ip> <dest port> <tcp_state> <timestamp>'\n'"
+ * 
+ *	NOTE: user of this sysfs should allocate enough space for buf (PAGE_SIZE)
+ **/
+ssize_t display(struct device *dev, struct device_attribute *attr, char *buf)
+{
+
+	char connections_str[PAGE_SIZE];
+	char conn_row_str[MAX_STRLEN_OF_CONN_ROW_FORMAT];
+	struct list_head *pos, *q;
+	connection_row_t* temp_row;
+	unsigned int offset = 0;
+	unsigned int i = 0;
+	int len = 0;
+
+	//Build connections_str to contain all (not-timeout) connection-rows:
+	list_for_each_safe(pos, q, &g_connections_list){
+		temp_row = list_entry(pos, connection_row_t, list);
+		
+		//If a row is too old - deletes it and continues to next row:
+		if(is_row_timedout(temp_row)){
+#ifdef CONN_DEBUG_MODE
+			printk(KERN_INFO "Found an old connection-row, about to delete it. Its details:\n");
+			print_conn_row(temp_row);
+#endif
+			delete_specific_row_by_list_node(pos);
+			continue;
+		}
+		
+		//Nullifies conn_row_str:
+		for (i = 0; i < MAX_STRLEN_OF_CONN_ROW_FORMAT; ++i){
+			conn_row_str[i] = '\0';
+		}
+		
+		//"<src ip> <source port> <dst ip> <dest port> <tcp_state> <timestamp>'\n'"
+		if ( (len = (sprintf(conn_row_str,
+					"%u %hu %u %hu %d %lu\n",
+					temp_row->src_ip,
+					temp_row->src_port,				
+					temp_row->dst_ip,
+					temp_row->dst_port,
+					temp_row->tcp_state,
+					temp_row->timestamp)) ) < 6)
+		{
+			printk(KERN_ERR "Error converting to connection-row format.\n");
+			return -1;
+		}
+		
+		if ((offset+len) < PAGE_SIZE){
+			strcpy(&connections_str[offset], conn_row_str);
+			offset += len;
+			
+		} else {
+			//No room in connections_str for more rows:
+			break;
+		}
+
+	}
+	
+	return scnprintf(buf, PAGE_SIZE, "%s", connections_str);
+}
+
+/**
+ * 	Declaring a variable of type struct device_attribute, its name would be "dev_attr_conn_tab"
+ * 		.attr.name = "conn_tab" (access it through: dev_attr_conn_tab)
+ * 		.attr.mode = S_IRUGO, giving the owner, group and other user read permissions
+ * 		.show = display() function
+ * 		.store = NULL (no writing function)
+ **/
+static DEVICE_ATTR(conn_tab, S_IRUGO , display, NULL);
 
 /**
  *	Gets a pointer to packet's info, and a connection-row
@@ -673,3 +755,77 @@ void add_first_SYN_connection(log_row_t* syn_pckt_lg_info){
 		printk(KERN_ERR "ERROR: adding valid connection to connection-table failed.\n");
 	}
 }
+
+
+/**
+ * Help function that cleans up everything associated with creating this device,
+ * According to the state that's been given.
+ **/
+static void destroyConnDevice(struct class* fw_class, enum c_state_to_fold stateToFold){
+	switch (stateToFold){
+		case(C_ALL_DES):
+			device_remove_file(conn_tab_device, (const struct device_attribute *)&dev_attr_conn_tab.attr);
+		case(C_DEVICE_DES):
+			device_destroy(fw_class, MKDEV(conn_tab_dev_major_number, MINOR_CONN_TAB));
+		case (C_UNREG_DES):
+			unregister_chrdev(conn_tab_dev_major_number, DEVICE_NAME_CONN_TAB);
+	}
+}
+
+
+/**
+ *	Initiates conn_tab-device.
+ *	Returns: 0 on success, -1 if failed. 
+ * 
+ *	Note: user should destroy fw_class if this function returned -1!
+ **/
+int init_conn_tab_device(struct class* fw_class){
+	
+	//Create char device
+	conn_tab_dev_major_number = register_chrdev(0, DEVICE_NAME_CONN_TAB, &conn_tab_fops);
+	if (conn_tab_dev_major_number < 0){
+		printk(KERN_ERR "Error: failed registering connection table char device.\n");
+		return -1;
+	}
+	
+	//Create conn_tab-sysfs:
+	conn_tab_device = device_create(fw_class, NULL, MKDEV(conn_tab_dev_major_number, MINOR_CONN_TAB), NULL, CLASS_NAME);
+	if (IS_ERR(conn_tab_device))
+	{
+		printk(KERN_ERR "Error: failed creating connection table char-device.\n");
+		destroyConnDevice(fw_class,C_UNREG_DES);
+		return -1;
+	}
+	
+	//Create conn_tab-sysfs file attributes:
+	if (device_create_file(conn_tab_device, (const struct device_attribute *)&dev_attr_conn_tab.attr))
+	{
+		printk(KERN_ERR "Error: failed creating log_clear-sysfs-file inside log-char-device.\n");
+		destroyConnDevice(fw_class, C_DEVICE_DES);
+		return -1;
+	}
+	
+	printk(KERN_INFO "fw/conn_tab: device successfully initiated.\n");
+
+	return 0;
+}
+
+/**
+ *	Destroys conn_tab-device
+ **/
+void destroy_conn_tab_device(struct class* fw_class){
+	
+	delete_all_conn_rows();
+	destroyConnDevice(fw_class, C_ALL_DES);
+	printk(KERN_INFO "fw/conn_tab: device destroyed.\n");
+
+}
+
+
+
+
+
+
+
+
+
