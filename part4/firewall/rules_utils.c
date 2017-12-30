@@ -899,7 +899,9 @@ static bool is_SYN_packet(struct sk_buff* skb){
  *	Note: 1. function should be called AFTER ptr_pckt_lg_info,
  * 			 *packet_ack and *packet_direction were initiated
  * 			 (using init_log_row).
- * 		  2. function should be called AFTER making sure packet isn't XMAS 
+ * 		  2. function should be called AFTER making sure packet isn't XMAS
+ * 		  3. If packet is the first SYN packet of a TCP connection,
+ * 			 and it's a valid connection - adds a new row to connection table.
  **/
 static enum action_t is_relevant_rule(const rule_t* rule, log_row_t* ptr_pckt_lg_info,
 		ack_t* packet_ack, direction_t* packet_direction)
@@ -934,6 +936,11 @@ static enum action_t is_relevant_rule(const rule_t* rule, log_row_t* ptr_pckt_lg
 					(rule->protocol == PROT_UDP) )
 				{		
 					ptr_pckt_lg_info->action = rule->action;
+					if ( (rule->protocol == PROT_TCP) && 
+						 (rule->action == NF_ACCEPT) ) 
+					{
+						add_first_SYN_connection(ptr_pckt_lg_info);
+					}
 					return (enum action_t)rule->action;		
 				} 
 			}
@@ -1014,9 +1021,9 @@ static int get_relevant_rule_num_from_table(log_row_t* ptr_pckt_lg_info,
  *	Updates: ptr_pckt_lg_info->action
  * 			 ptr_pckt_lg_info->reason
  * 
- *	Note: function should be called AFTER ptr_pckt_lg_info,
- * 		  *packet_ack and *packet_direction were initiated
- * 		  (using init_log_row).
+ *	Note:	function should be called AFTER ptr_pckt_lg_info,
+ * 		  	*packet_ack and *packet_direction were initiated
+ * 		  	(using init_log_row).
  **/
 void decide_packet_action(struct sk_buff* skb, log_row_t* ptr_pckt_lg_info,
 		ack_t* packet_ack, direction_t* packet_direction)
@@ -1048,7 +1055,6 @@ void decide_packet_action(struct sk_buff* skb, log_row_t* ptr_pckt_lg_info,
 	if (tcp_hdr) { 
 		//If gets here, it's a TCP-packet
 		tcp_pckt_type = get_tcp_packet_type(tcp_hdr);
-		
 		if (tcp_pckt_type != TCP_SYN_PACKET){
 			if(!check_tcp_packet(ptr_pckt_lg_info, tcp_pckt_type)){
 				//An error happened, default is to allow packet:
@@ -1063,12 +1069,19 @@ void decide_packet_action(struct sk_buff* skb, log_row_t* ptr_pckt_lg_info,
 	
 	//Gets here if packet is:
 	//	1.  Not a TCP packet
+	//	xor
 	//	2.	A (first) SYN packet:
 	if ( (get_relevant_rule_num_from_table(ptr_pckt_lg_info,
 						packet_ack, packet_direction)) <  0 )
 	{//Meaning no relevant rule was found:
 		ptr_pckt_lg_info->action = NF_ACCEPT;
-		ptr_pckt_lg_info->reason = REASON_NO_MATCHING_RULE;	
+		ptr_pckt_lg_info->reason = REASON_NO_MATCHING_RULE;
+		
+		if (ptr_pckt_lg_info->protocol == PROT_TCP){ 
+			//Its a SYN packet & no rule was found - since we accept it,
+			//we add it to the connections table:
+			add_first_SYN_connection(ptr_pckt_lg_info);
+		}
 			
 	} //Otherwise, ptr_pckt_lg_info->action & reason were updated during get_relevant_rule_num_from_table()
 

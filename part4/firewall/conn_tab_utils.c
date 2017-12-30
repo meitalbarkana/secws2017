@@ -297,7 +297,7 @@ static void search_relevant_rows(log_row_t* pckt_lg_info,
  *	Returns true on success, false if any error occured.
  *
  **/
-bool add_new_connection_row(log_row_t* pckt_lg_info, bool is_syn_packet){
+static bool add_new_connection_row(log_row_t* pckt_lg_info, bool is_syn_packet){
 	
 	connection_row_t* new_conn = NULL;
 	
@@ -351,7 +351,7 @@ bool add_new_connection_row(log_row_t* pckt_lg_info, bool is_syn_packet){
  * 			2. A valid SYN_ACK packet will have relevant_conn_row==NULL
  * 				and relevant_opposite_conn_row!=NULL.
  **/
-bool handle_SYN_ACK_packet(log_row_t* pckt_lg_info, 
+static bool handle_SYN_ACK_packet(log_row_t* pckt_lg_info, 
 		connection_row_t* relevant_conn_row,
 		connection_row_t* relevant_opposite_conn_row )
 {
@@ -415,7 +415,7 @@ bool handle_SYN_ACK_packet(log_row_t* pckt_lg_info,
  * 			2. A valid OTHER packet has specific tcp_states, 
  * 				see documentation below. 
  **/
-bool handle_OTHER_tcp_packet(log_row_t* pckt_lg_info, 
+static bool handle_OTHER_tcp_packet(log_row_t* pckt_lg_info, 
 		connection_row_t* relevant_conn_row,
 		connection_row_t* relevant_opposite_conn_row )
 {
@@ -500,7 +500,7 @@ bool handle_OTHER_tcp_packet(log_row_t* pckt_lg_info,
  *	NOTE: If returned false, user should handle values of:
  * 		  pckt_lg_info->action, pckt_lg_info->reason!
  **/
-bool handle_RESET_tcp_packet(log_row_t* pckt_lg_info, 
+static bool handle_RESET_tcp_packet(log_row_t* pckt_lg_info, 
 		connection_row_t* relevant_conn_row,
 		connection_row_t* relevant_opposite_conn_row)
 {
@@ -557,7 +557,7 @@ bool handle_RESET_tcp_packet(log_row_t* pckt_lg_info,
  *			2. FIN packet might be the 1st FIN packet or the 2nd: this
  *				function takes care of both, see documentation below.
  **/
-bool handle_FIN_tcp_packet(log_row_t* pckt_lg_info, 
+static bool handle_FIN_tcp_packet(log_row_t* pckt_lg_info, 
 		connection_row_t* relevant_conn_row,
 		connection_row_t* relevant_opposite_conn_row)
 {
@@ -602,8 +602,6 @@ bool handle_FIN_tcp_packet(log_row_t* pckt_lg_info,
 	return true;
 	
 }
-
-
 
 /**
  *	Sets a TCP packet's action, according to current connection-list
@@ -663,4 +661,15 @@ bool check_tcp_packet(log_row_t* pckt_lg_info, tcp_packet_t tcp_pckt_type){
 			return false;
 	}
 
+}
+
+/**
+ *	Gets a pointer to a SYN packet's log_row_t, 
+ *	adds a NEW connection-row (SYN) to g_connections_list.
+ **/
+void add_first_SYN_connection(log_row_t* syn_pckt_lg_info){
+	if (!add_new_connection_row(syn_pckt_lg_info, true)){
+		//An error occured, not supposed to get here:
+		printk(KERN_ERR "ERROR: adding valid connection to connection-table failed.\n");
+	}
 }
