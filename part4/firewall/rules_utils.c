@@ -1021,6 +1021,9 @@ static int get_relevant_rule_num_from_table(log_row_t* ptr_pckt_lg_info,
 void decide_packet_action(struct sk_buff* skb, log_row_t* ptr_pckt_lg_info,
 		ack_t* packet_ack, direction_t* packet_direction)
 {
+	tcp_packet_t tcp_pckt_type;
+	struct tcphdr* tcp_hdr;
+	
 	if (ptr_pckt_lg_info == NULL){
 		printk(KERN_ERR "Inside decide_packet_action(), got NULL argument: ptr_pckt_lg_info\n");
 		return;
@@ -1039,26 +1042,28 @@ void decide_packet_action(struct sk_buff* skb, log_row_t* ptr_pckt_lg_info,
 	} 
 	//If gets here, g_fw_is_active == FW_ON & packet isn't XMAS
 	
+	tcp_hdr = get_tcp_header(skb); //pointer to tcp header
 	
-	///TODO:: add tcp-check:
-	/**
-	 * tcp_packet_t tcp_pckt_type;
-	 * struct tcphdr* tcp_hdr = get_tcp_header(skb); //pointer to tcp header
-	 * if (tcp_hdr) { //Means it is a tcp-packet
-	 *	 tcp_pckt_type = get_tcp_packet_type(tcp_hdr);
-	 * 	 if (tcp_pckt_type == TCP_SYN_PACKET){
-	 *		//continue as usual
-	 *	 } else {
-	 *		//call function check_tcp_packet() AND CONTINUE DIFFERENTLY!!
-	 *	 }
-	 * } else {
-	 *	//Not tcp-packet, continue as usual
-	 * }
-	 * 
-	 * 
-	 **/
+	//Checks and takes care of TCP-packet (that is NOT a SYN packet):
+	if (tcp_hdr) { 
+		//If gets here, it's a TCP-packet
+		tcp_pckt_type = get_tcp_packet_type(tcp_hdr);
+		
+		if (tcp_pckt_type != TCP_SYN_PACKET){
+			if(!check_tcp_packet(ptr_pckt_lg_info, tcp_pckt_type)){
+				//An error happened, default is to allow packet:
+				printk(KERN_ERR "Error: internal error while checking TCP packet, allow it to pass.\n");
+				ptr_pckt_lg_info->action = NF_ACCEPT;
+				ptr_pckt_lg_info->reason = REASON_CONN_TAB_ERR;	
+			}
+			return;
+	 	}
+	 	
+	}
 	
-	
+	//Gets here if packet is:
+	//	1.  Not a TCP packet
+	//	2.	A (first) SYN packet:
 	if ( (get_relevant_rule_num_from_table(ptr_pckt_lg_info,
 						packet_ack, packet_direction)) <  0 )
 	{//Meaning no relevant rule was found:

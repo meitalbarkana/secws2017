@@ -39,8 +39,8 @@ direction_t get_direction(const struct net_device* in, const struct net_device* 
 /**
  *	Gets a TCP header,
  *	Returns the type of that TCP packet
- *
  *	[values from tcp_packet_t]
+ * 
  **/
 tcp_packet_t get_tcp_packet_type(struct tcphdr* tcp_hdr){
 	
@@ -49,7 +49,7 @@ tcp_packet_t get_tcp_packet_type(struct tcphdr* tcp_hdr){
 		return TCP_ERROR_PACKET;
 	}
 	
-	//Note: no URG check, since might be used(?)
+	//Note: no URG check, since (I think) it might be used
 	
 	if (tcp_hdr->ack == 0) {
 		if ((tcp_hdr->syn == 1) &&
@@ -64,7 +64,7 @@ tcp_packet_t get_tcp_packet_type(struct tcphdr* tcp_hdr){
 		return TCP_INVALID_PACKET;
 	}
 	
-	//ptr_tcp_hdr->ack == 1:
+	//If gets here, ptr_tcp_hdr->ack == 1:
 
 	if (tcp_hdr->syn == 1) {
 		if ((tcp_hdr->fin == 0) &&
@@ -73,7 +73,7 @@ tcp_packet_t get_tcp_packet_type(struct tcphdr* tcp_hdr){
 		{
 			return TCP_SYN_ACK_PACKET;
 		}
-		//Only SYN-ACK packets have ack==1&syn==1 
+		//Only SYN-ACK packets have ack==1 & syn==1 
 		printk(KERN_INFO "In function get_tcp_packet_type(), TCP packet has invalid flags (ack&syn are 1).\n");
 		return TCP_INVALID_PACKET;
 	}
