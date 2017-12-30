@@ -5,6 +5,7 @@
 enum main_state_to_fold {
 	M_CLASS,
 	M_RULE_DEV,
+	M_LOG_DEV,
 	M_ALL_CHAR_DEVS,
 	M_ALL
 };

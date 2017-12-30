@@ -19,6 +19,8 @@ static void destroyFirewall(enum main_state_to_fold stateToFold){
 		case(M_ALL):
 			unRegisterHooks();
 		case(M_ALL_CHAR_DEVS):
+			destroy_conn_tab_device(fw_class);
+		case(M_LOG_DEV):
 			destroy_log_device(fw_class);
 		case(M_RULE_DEV):
 			destroy_rules_device(fw_class);
@@ -47,6 +49,12 @@ static int __init my_init_func(void){
 	if (init_log_device(fw_class) < 0) {
 		//Error msg already been printed inside init_log_device()
 		destroyFirewall(M_RULE_DEV);
+		return -1;
+	}
+
+	if (init_conn_tab_device(fw_class) < 0) {
+		//Error msg already been printed inside init_conn_tab_device()
+		destroyFirewall(M_LOG_DEV);
 		return -1;
 	}
 	
