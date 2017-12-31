@@ -923,7 +923,7 @@ static enum action_t is_relevant_rule(const rule_t* rule, log_row_t* ptr_pckt_lg
 		is_relevant_ip(rule->src_ip, rule->src_prefix_mask, ptr_pckt_lg_info->src_ip) &&
 		is_relevant_ip(rule->dst_ip, rule->dst_prefix_mask, ptr_pckt_lg_info->dst_ip) )
 	{
-		if ( (rule->protocol == PROT_TCP) || (rule->protocol == PROT_UDP) )
+		if ( (ptr_pckt_lg_info->protocol == PROT_TCP) || (ptr_pckt_lg_info->protocol == PROT_UDP) )
 		{
 			//In those protocols, also ports should be checked:
 			if ( is_relevant_port(rule->src_port, ptr_pckt_lg_info->src_port) &&
@@ -931,12 +931,12 @@ static enum action_t is_relevant_rule(const rule_t* rule, log_row_t* ptr_pckt_lg
 			{	
 				//If TCP, also ack value should be checked
 				//If UDP, rule fits packet
-				if ( ((rule->protocol == PROT_TCP) && 
+				if ( ((ptr_pckt_lg_info->protocol == PROT_TCP) && 
 					(is_relevant_ack(rule->ack, *packet_ack))) ||
-					(rule->protocol == PROT_UDP) )
+					(ptr_pckt_lg_info->protocol == PROT_UDP) )
 				{		
 					ptr_pckt_lg_info->action = rule->action;
-					if ( (rule->protocol == PROT_TCP) && 
+					if ( (ptr_pckt_lg_info->protocol == PROT_TCP) && 
 						 (rule->action == NF_ACCEPT) ) 
 					{
 						add_first_SYN_connection(ptr_pckt_lg_info);

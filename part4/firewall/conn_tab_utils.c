@@ -201,6 +201,8 @@ ssize_t display(struct device *dev, struct device_attribute *attr, char *buf)
 	unsigned int i = 0;
 	int len = 0;
 
+	memset(connections_str, '\0', PAGE_SIZE);
+	
 	//Build connections_str to contain all (not-timeout) connection-rows:
 	list_for_each_safe(pos, q, &g_connections_list){
 		temp_row = list_entry(pos, connection_row_t, list);
@@ -216,9 +218,10 @@ ssize_t display(struct device *dev, struct device_attribute *attr, char *buf)
 		}
 		
 		//Nullifies conn_row_str:
-		for (i = 0; i < MAX_STRLEN_OF_CONN_ROW_FORMAT; ++i){
-			conn_row_str[i] = '\0';
-		}
+		memset(conn_row_str, '\0', MAX_STRLEN_OF_CONN_ROW_FORMAT);
+		//for (i = 0; i < MAX_STRLEN_OF_CONN_ROW_FORMAT; ++i){
+		//	conn_row_str[i] = '\0';
+		//}
 		
 		//"<src ip> <source port> <dst ip> <dest port> <tcp_state> <timestamp>'\n'"
 		if ( (len = (sprintf(conn_row_str,
@@ -382,7 +385,9 @@ static void search_relevant_rows(log_row_t* pckt_lg_info,
 static bool add_new_connection_row(log_row_t* pckt_lg_info, bool is_syn_packet){
 	
 	connection_row_t* new_conn = NULL;
-	
+#ifdef CONN_DEBUG_MODE
+	printk(KERN_INFO "Inside add_new_connection_row().\n");
+#endif	
 	if(pckt_lg_info == NULL){
 		printk(KERN_ERR "In function add_new_connection_row(), function got NULL argument");
 		return false;
@@ -408,6 +413,10 @@ static bool add_new_connection_row(log_row_t* pckt_lg_info, bool is_syn_packet){
 	INIT_LIST_HEAD(&(new_conn->list));
 	
 	list_add(&(new_conn->list), &g_connections_list);
+#ifdef CONN_DEBUG_MODE
+	printk(KERN_INFO "Added row to connection-table. Its info:\n");
+	print_conn_row(new_conn);
+#endif
 	return true;
 }
 
@@ -590,7 +599,10 @@ static bool handle_RESET_tcp_packet(log_row_t* pckt_lg_info,
 		printk(KERN_ERR "In handle_RESET_tcp_packet(), function got NULL argument.\n");
 		return false;
 	}
-	
+#ifdef CONN_DEBUG_MODE
+	printk(KERN_INFO "Inside handle_RESET_tcp_packet().\n");
+#endif
+
 	if( ((relevant_conn_row) && (relevant_opposite_conn_row))
 		||
 		((relevant_conn_row) && 
@@ -600,6 +612,9 @@ static bool handle_RESET_tcp_packet(log_row_t* pckt_lg_info,
 		(relevant_opposite_conn_row->tcp_state == TCP_STATE_SYN_SENT)) )
 	{
 		//Delete rows:
+#ifdef CONN_DEBUG_MODE
+		printk(KERN_INFO "Inside handle_RESET_tcp_packet(), deleting relevant connection rows.\n");
+#endif
 		if (relevant_conn_row){
 			delete_specific_row_by_conn_ptr(relevant_conn_row);
 		}
@@ -750,6 +765,9 @@ bool check_tcp_packet(log_row_t* pckt_lg_info, tcp_packet_t tcp_pckt_type){
  *	adds a NEW connection-row (SYN) to g_connections_list.
  **/
 void add_first_SYN_connection(log_row_t* syn_pckt_lg_info){
+#ifdef CONN_DEBUG_MODE
+	printk(KERN_INFO "Inside add_first_SYN_connection().\n");
+#endif
 	if (!add_new_connection_row(syn_pckt_lg_info, true)){
 		//An error occured, not supposed to get here:
 		printk(KERN_ERR "ERROR: adding valid connection to connection-table failed.\n");
