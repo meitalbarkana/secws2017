@@ -198,9 +198,9 @@ ssize_t display(struct device *dev, struct device_attribute *attr, char *buf)
 	struct list_head *pos, *q;
 	connection_row_t* temp_row;
 	unsigned int offset = 0;
-	unsigned int i = 0;
 	int len = 0;
 
+	//Nullifies connections_str:
 	memset(connections_str, '\0', PAGE_SIZE);
 	
 	//Build connections_str to contain all (not-timeout) connection-rows:
@@ -219,9 +219,6 @@ ssize_t display(struct device *dev, struct device_attribute *attr, char *buf)
 		
 		//Nullifies conn_row_str:
 		memset(conn_row_str, '\0', MAX_STRLEN_OF_CONN_ROW_FORMAT);
-		//for (i = 0; i < MAX_STRLEN_OF_CONN_ROW_FORMAT; ++i){
-		//	conn_row_str[i] = '\0';
-		//}
 		
 		//"<src ip> <source port> <dst ip> <dest port> <tcp_state> <timestamp>'\n'"
 		if ( (len = (sprintf(conn_row_str,
