@@ -139,8 +139,8 @@ static int get_conn_tab(){
 		return -1;
 	}
 	
-	if (read(fd, buff, p_size) <= 0){
-		printf("Error occured trying to read number of rows in firewall's log, error number: %d\n", errno);
+	if (read(fd, buff, p_size) < 0){
+		printf("Error occured trying to read rows from connection table, error number: %d\n", errno);
 		free(buff);
 		close(fd);
 		return -1;
