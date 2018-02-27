@@ -1,5 +1,5 @@
 import socket, sys
-from BaseHTTPServer import BaseHTTPRequestHandler
+from httplib import HTTPResponse
 from StringIO import StringIO
 
 
@@ -12,19 +12,12 @@ MAX_BUFFER_SIZE = 8192												#=2^13. since we should block only size > 5000
 MAX_HTTP_CONTENT_LENGTH = 5000
 
 
-
-#Credit: https://stackoverflow.com/questions/4685217/parse-raw-http-headers
-class HTTPRequest(BaseHTTPRequestHandler):
-	def __init__(self, request_text):
-		self.rfile = StringIO(request_text)
-		self.raw_requestline = self.rfile.readline()
-		self.error_code = self.error_message = None
-		self.parse_request()
-
-	def send_error(self, code, message):
-		self.error_code = code
-		self.error_message = message
-
+#Credit: https://stackoverflow.com/questions/24728088/python-parse-http-response-string
+class FakeSocket():
+	def __init__(self, response_str):
+		self._file = StringIO(response_str)
+	def makefile(self, *args, **kwargs):
+		return self._file
 
 
 def is_valid_content_length(all_data):
@@ -34,21 +27,26 @@ def is_valid_content_length(all_data):
 			2. False otherwise (includes the case were all_data doesn't contain this header)
 	NOTE: USE THIS ONLY ON HTTP DATA!
 	"""
-	request = HTTPRequest(all_data)
 
-	if request.error_code != None:
-		print ("Data received and treated as HTTP failed to be parsed as HTTP data.")
-		print request.error_code
-		print request.error_message
-		return False;
+	source = FakeSocket(all_data)
+	response = HTTPResponse(source)
+	response.begin()
+
+	"""
 	print ("headers are:")
-	print request.headers.keys()   # For testing alone, TODO:: delete this.
-	if 'content-length' not in request.headers.keys():
+	for h in response.getheaders():
+		print (h)  # For testing alone, TODO:: delete this.
+	"""
+
+	content_len_value = int(response.getheader('content-length', -1))
+	if content_len_value == -1 or content_len_value > MAX_HTTP_CONTENT_LENGTH:
 		return False
+	"""
 	print ("content length's value is: ")
-	print (request.headers['content-length'])
+	print (content_len_value)
 	print ("content length's type is: ")
-	print (type(request.headers['content-length']))
+	print (type(content_len_value))
+	"""
 	return True
 
 
@@ -69,7 +67,7 @@ def start():
 			conn, addr = sock.accept()
 			data = conn.recv(MAX_BUFFER_SIZE)
 			if not data:
-				print("No data was received, moving to next client")
+				print("No data was received, moving on to next client")
 			else:
 				print("************************************************************************")
 				print("****************************Data is:****************************")

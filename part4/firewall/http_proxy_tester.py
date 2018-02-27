@@ -6,7 +6,6 @@ from StringIO import StringIO
 
 LOCALHOST = ''
 HTTP_LISTENING_PORT = 8080											#"Spoof" port
-MAX_BUFFER_SIZE = 8192												#=2^13. since we should block only size > 5000, 4096 isn't enough
 MAX_HTTP_CONTENT_LENGTH = 5000
 
 
@@ -19,20 +18,21 @@ def main():
 		print("Error: unable to initialize listening socket")
 		print(e)
 		sys.exit(2)
-	"""
-	try:
-		f = open("../../../../tau.html","r") #"" is an HTML file
-	except:
-		print ("Couldn't read file, exiting")
-		sys.exit(1)
-	#Credit: https://stackoverflow.com/questions/10114224/how-to-properly-send-http-response-with-python-using-socket-library-only
 	
-	response_body = f.read()
 	"""
+	Credit: https://stackoverflow.com/questions/10114224/how-to-properly-send-http-response-with-python-using-socket-library-only
+	"""
+	
+	#Creating the response_body:
+	try:
+		f = open("../../../../index.html","r")
+		response_body = f.read()
+		f.close()
+	except:
+		print ("Couldn't read file, creating some arbitrary response body.")
+		response_body = "WOOF!"
 
-	response_body = "WOOF!"
 	response_body_raw = ''.join(response_body)
-
 	response_headers = {
 		'Content-Type': 'text/html; encoding=utf8',
 		'Content-Length': len(response_body_raw),
