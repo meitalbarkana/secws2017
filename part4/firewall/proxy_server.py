@@ -3,9 +3,8 @@ from BaseHTTPServer import BaseHTTPRequestHandler
 from StringIO import StringIO
 
 
-#TODO:: change port to 8080!!!!!!!!
 LOCALHOST = ''
-HTTP_LISTENING_PORT = 80											#"Spoof" port
+HTTP_LISTENING_PORT = 8080											#"Spoof" port
 FTP_LISTENING_PORT_1 = 21212
 FTP_LISTENING_PORT_2 = 20202
 MAX_CONN = 5
@@ -16,15 +15,15 @@ MAX_HTTP_CONTENT_LENGTH = 5000
 
 #Credit: https://stackoverflow.com/questions/4685217/parse-raw-http-headers
 class HTTPRequest(BaseHTTPRequestHandler):
-    def __init__(self, request_text):
-        self.rfile = StringIO(request_text)
-        self.raw_requestline = self.rfile.readline()
-        self.error_code = self.error_message = None
-        self.parse_request()
+	def __init__(self, request_text):
+		self.rfile = StringIO(request_text)
+		self.raw_requestline = self.rfile.readline()
+		self.error_code = self.error_message = None
+		self.parse_request()
 
-    def send_error(self, code, message):
-        self.error_code = code
-        self.error_message = message
+	def send_error(self, code, message):
+		self.error_code = code
+		self.error_message = message
 
 
 
@@ -38,7 +37,7 @@ def is_valid_content_length(all_data):
 	request = HTTPRequest(all_data)
 
 	if request.error_code != None:
-		print ("Data received and treated as HTTP doesn't failed to be parsed as HTTP data.")
+		print ("Data received and treated as HTTP failed to be parsed as HTTP data.")
 		print request.error_code
 		print request.error_message
 		return False;
