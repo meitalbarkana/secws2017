@@ -202,7 +202,13 @@ typedef struct {
 	tcp_state_t		tcp_state;
 	unsigned long	timestamp;		// Time of creation/last update
 
-	///TODO:: add fields for faked directions
+	//Fields for faked directions:
+	__be32	 		fake_src_ip;	
+	__be16			fake_src_port;
+	__be32			fake_dst_ip;
+	__be16			fake_dst_port;
+	//Note: these fields should be initialized to zero (using memset)
+	//		wherever a new connection_row_t is created.
 
 	struct list_head list;			// For saving kernel-list of all connection-rows
 

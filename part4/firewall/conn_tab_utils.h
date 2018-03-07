@@ -8,9 +8,9 @@
 #define MAX_STRLEN_OF_TCP_STATE (11)
 
 //Connection-row format:
-//"<src ip> <source port> <dst ip> <dest port> <tcp_state> <timestamp>'\n'"
-//+7 for: 5 spaces(' '), 1 end-of line('\n'), 1 null-terminator('\0'): 
-#define MAX_STRLEN_OF_CONN_ROW_FORMAT (MAX_STRLEN_OF_ULONG + 3*MAX_STRLEN_OF_BE32 + 2*MAX_STRLEN_OF_BE16 + 7)
+//"<src ip> <source port> <dst ip> <dest port> <tcp_state> <timestamp> <fake src ip> <fake source port> <fake dst ip> <fake dest port>'\n'"
+//+11 for: 9 spaces(' '), 1 end-of line('\n'), 1 null-terminator('\0'): 
+#define MAX_STRLEN_OF_CONN_ROW_FORMAT (MAX_STRLEN_OF_ULONG + 5*MAX_STRLEN_OF_BE32 + 4*MAX_STRLEN_OF_BE16 + 11)
 
 //Enum that helps "folding" up stages, 
 //used when: 1. initiating device stopped because of some error 

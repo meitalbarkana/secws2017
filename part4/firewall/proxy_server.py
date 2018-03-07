@@ -4,6 +4,9 @@ from StringIO import StringIO
 
 
 LOCALHOST = ''
+#TODO:: update uses of LOCALHOST to vlan1/vlan2
+VLAN_1 = "10.1.1.3"
+VLAN_2 = "10.1.2.3"
 HTTP_LISTENING_PORT = 8080											#"Spoof" port
 FTP_LISTENING_PORT_1 = 21212
 FTP_LISTENING_PORT_2 = 20202

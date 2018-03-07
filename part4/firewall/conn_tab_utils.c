@@ -89,8 +89,10 @@ static void tran_tcp_packet_type_to_str(tcp_packet_t p_type, char* str){
 static void print_conn_row(connection_row_t* conn_row){
 	
 	char str_connection_state[MAX_STRLEN_OF_TCP_STATE+1];
-	size_t add_to_len = strlen("Connection-row details:\nsrc_ip: ,\nsrc_port: ,\ndst_ip: ,\ndst_port: ,\nTCP state: ,\ntimestamp: .\n");
-	char str[MAX_STRLEN_OF_ULONG + 2*MAX_STRLEN_OF_BE32 + 2*MAX_STRLEN_OF_BE16 + add_to_len+MAX_STRLEN_OF_TCP_STATE+3]; //+3: 1 for null-terminator, 2 more to make sure 
+	size_t add_to_len = strlen(
+		"*****Connection-row details:*****\nSrc_ip: ,\nSrc_port: ,\nDst_ip: ,\nDst_port: ,\nTCP state: ,\nTimestamp: ,\nFake_src_ip: ,\nFake_src_port: ,\nFake_dst_ip: ,\nFake_dst_port: .\n"
+		);
+	char str[MAX_STRLEN_OF_ULONG + 4*MAX_STRLEN_OF_BE32 + 4*MAX_STRLEN_OF_BE16 + add_to_len+MAX_STRLEN_OF_TCP_STATE+3]; //+3: 1 for null-terminator, 2 more to make sure 
 	
 	if (conn_row == NULL) {
 		printk(KERN_ERR "In print_conn_row(), function got NULL argument!\n");
@@ -100,13 +102,17 @@ static void print_conn_row(connection_row_t* conn_row){
 	tran_tcp_state_to_str(conn_row->tcp_state,str_connection_state);
 	
 	if ((sprintf(str,
-				"Connection-row details:\nsrc_ip: %u,\nsrc_port: %hu,\ndst_ip: %u,\ndst_port: %hu,\nTCP state: %s,\ntimestamp: %lu.\n",
+				"*****Connection-row details:*****\nSrc_ip: %u,\nSrc_port: %hu,\nDst_ip: %u,\nDst_port: %hu,\nTCP state: %s,\nTimestamp: %lu,\nFake_src_ip: %u,\nFake_src_port: %hu,\nFake_dst_ip: %u,\nFake_dst_port: %hu.\n",
 				conn_row->src_ip,
 				conn_row->src_port,				
 				conn_row->dst_ip,
 				conn_row->dst_port,
 				str_connection_state,
-				conn_row->timestamp) ) < 7)
+				conn_row->timestamp,
+				conn_row->fake_src_ip,
+				conn_row->fake_src_port,				
+				conn_row->fake_dst_ip,
+				conn_row->fake_dst_port) ) < 11)
 	{
 		printk(KERN_ERR "Error printing Connection-row presentation\n");
 	} 
@@ -186,7 +192,7 @@ static bool is_row_timedout(connection_row_t* row){
  *	Sysfs show implementation:
  * 
  * Connection-row format:
- * "<src ip> <source port> <dst ip> <dest port> <tcp_state> <timestamp>'\n'"
+ * "<src ip> <source port> <dst ip> <dest port> <tcp_state> <timestamp> <fake src ip> <fake source port> <fake dst ip> <fake dest port>'\n'"
  * 
  *	NOTE: user of this sysfs should allocate enough space for buf (PAGE_SIZE)
  **/
@@ -220,15 +226,19 @@ ssize_t display(struct device *dev, struct device_attribute *attr, char *buf)
 		//Nullifies conn_row_str:
 		memset(conn_row_str, '\0', MAX_STRLEN_OF_CONN_ROW_FORMAT);
 		
-		//"<src ip> <source port> <dst ip> <dest port> <tcp_state> <timestamp>'\n'"
+		//"<src ip> <source port> <dst ip> <dest port> <tcp_state> <timestamp> <fake src ip> <fake source port> <fake dst ip> <fake dest port>'\n'"
 		if ( (len = (sprintf(conn_row_str,
-					"%u %hu %u %hu %d %lu\n",
+					"%u %hu %u %hu %d %lu %u %hu %u %hu\n",
 					temp_row->src_ip,
 					temp_row->src_port,				
 					temp_row->dst_ip,
 					temp_row->dst_port,
 					temp_row->tcp_state,
-					temp_row->timestamp)) ) < 6)
+					temp_row->timestamp,
+					temp_row->fake_src_ip,
+					temp_row->fake_src_port,				
+					temp_row->fake_dst_ip,
+					temp_row->fake_dst_port)) ) < 10)
 		{
 			printk(KERN_ERR "Error converting to connection-row format.\n");
 			return -1;
@@ -345,10 +355,10 @@ static void search_relevant_rows(log_row_t* pckt_lg_info,
 		if ( packet_fits_conn_row(pckt_lg_info, temp_row) &&
 			 (*ptr_relevant_conn_row == NULL) )
 		{
-#ifdef CONN_DEBUG_MODE
-			printk(KERN_INFO "Found matching row in connection-list. Its details:\n");
-			print_conn_row(temp_row);
-#endif
+//#ifdef CONN_DEBUG_MODE
+//			printk(KERN_INFO "Found matching row in connection-list. Its details:\n");
+//			print_conn_row(temp_row);
+//#endif
 			*ptr_relevant_conn_row = temp_row;
 			continue; //To next connection-row
 		}
@@ -356,10 +366,10 @@ static void search_relevant_rows(log_row_t* pckt_lg_info,
 		if ( packet_fits_opp_conn_row(pckt_lg_info, temp_row) &&
 			 (*ptr_relevant_opposite_conn_row == NULL) )
 		{
-#ifdef CONN_DEBUG_MODE
-			printk(KERN_INFO "Found an OPPOSITE matching row in connection-list. Its details:\n");
-			print_conn_row(temp_row);
-#endif
+//#ifdef CONN_DEBUG_MODE
+//			printk(KERN_INFO "Found an OPPOSITE matching row in connection-list. Its details:\n");
+//			print_conn_row(temp_row);
+//#endif
 			*ptr_relevant_opposite_conn_row = temp_row;
 		}
 		
