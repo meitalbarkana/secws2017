@@ -115,6 +115,96 @@ static int get_log_size(){
 }
 
 /**
+ *	Helper function to print connection-table from fw nicely (human-readable)
+ * 
+ *	Gets buffer containing a string representing all the connection table,
+ *	its rows are in format:
+ *	"<src ip> <source port> <dst ip> <dest port> <tcp_state> <timestamp> <fake src ip> <fake source port> <fake dst ip> <fake dest port>'\n'"
+ * 
+ *	If any error happens, prints it to the screen.
+ **/
+static void print_conn_tab_nicely(const char* buff){
+	
+	if(buff == NULL){
+		printf("Error: function print_conn_tab_nicely() got NULL argument,\
+				couldn't print connection-table\n");
+		return;		
+	}
+	
+	printf("<src ip>\t<src port>\t<dst ip>\t<dest port>\t<tcp_state>\t<timestamp>\t<fake src ip>\t<fake source port>\t<fake dst ip>\t<fake dest port>");
+	
+	
+	size_t ip_len_str = strlen("XXX.XXX.XXX.XXX")+1;
+	
+	char ip_src_str[ip_len_str];
+	char ip_dst_str[ip_len_str];
+	char ip_fake_src_str[ip_len_str];
+	char ip_fake_dst_str[ip_len_str];
+
+	char *str, *pStr;
+	size_t i = 0;
+	char* curr_token = NULL;
+	
+	//Creating a copy of buff:
+	if((str = calloc((strlen(buff)+1), sizeof(char))) == NULL){
+		printf("Error allocating memory for connection-table's copy inside print_conn_tab_nicely()\n");
+		return;
+	}
+	strncpy(str, buff, strlen(buff)+1);
+	pStr = str;
+	
+	int tcp_state;
+	long unsigned timestamp;
+	unsigned int src_ip, dst_ip, fake_src_ip, fake_dst_ip;
+	unsigned short src_port, dst_port, fake_src_port, fake_dst_port	
+	bool flag = true;
+
+	while  ((curr_token = strsep(&str, "\n")) != NULL){
+		
+		if ( (sscanf(curr_token, "%u %hu %u %hu %d %lu %u %hu %u %hu", &src_ip, &src_port,
+				&dst_ip, &dst_port, &tcp_state, &timestamp, &fake_src_ip,
+				&fake_src_port, &fake_dst_ip, &fake_dst_port)) < NUM_FIELDS_IN_CONN_ROW_FORMAT ) 
+		{
+			printf("Couldn't parse row to valid fields, continues to next row.\n");
+		} else {
+
+			flag = true;
+			if (fake_src_ip == 0) {
+				ip_fake_src_str = "None";
+			} else {
+				flag = tran_uint_to_ipv4str(fake_src_ip, ip_fake_src_str, ip_len_str);
+			}
+			if (!flag){
+				printf("Couldn't parse ip's, continues to next row.\n");
+				continue; 
+			}
+			
+			if (fake_dst_ip == 0){
+				ip_fake_dst_str = "None";
+			} else{
+				flag = tran_uint_to_ipv4str(fake_dst_ip, ip_fake_dst_str, ip_len_str);
+			}
+			
+			if ( !(tran_uint_to_ipv4str(src_ip, ip_src_str, ip_len_str))
+				|| !(tran_uint_to_ipv4str(dst_ip, ip_dst_str, ip_len_str))
+				|| !flag )
+			{
+				printf("Couldn't parse ip's, continues to next row.\n");
+				continue; //To next iteration
+			}
+
+			printf("%s\t%hu\t%s\t%hu\t%d\t%lu\t%s\t%hu\t%s\t%hu\n", ip_src_str, src_port,
+				ip_dst_str, dst_port, tcp_state, timestamp, ip_fake_src_str,
+				fake_src_port, ip_fake_dst_str, fake_dst_port);
+		}
+	}
+	
+	//Free allocations:
+	free(pStr);
+
+}
+
+/**
  *	Gets and prints connection table format
  *	(reads from PATH_TO_CONN_TAB_ATTR)
  * 
@@ -146,8 +236,8 @@ static int get_conn_tab(){
 		return -1;
 	}
 	close(fd);
-
-	printf("%s", buff);
+	
+	print_conn_tab_nicely(buff);
 	free(buff);
 
 	return 0;

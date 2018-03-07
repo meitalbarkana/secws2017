@@ -352,7 +352,7 @@ static unsigned int get_prefix_mask(unsigned char prefix_length){
  *	@len_str - str's length, should be: strlen("XXX.XXX.XXX.XXX")+1 (includs '\0')
  *
  **/
-static bool tran_uint_to_ipv4str(unsigned int ip, char* str, size_t len_str){
+bool tran_uint_to_ipv4str(unsigned int ip, char* str, size_t len_str){
 
 	unsigned int p0, p1, p2, p3;
 	int num_of_chars_written = 0;

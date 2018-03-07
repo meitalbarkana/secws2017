@@ -28,6 +28,7 @@
 #define ACTIVE_STR_LEN (1)
 #define CLEAR_RULES_STRING "0"
 #define DELETE_LOG_STRING "D"
+#define NUM_FIELDS_IN_CONN_ROW_FORMAT (10)
 
 // the protocols we will work with
 typedef enum {

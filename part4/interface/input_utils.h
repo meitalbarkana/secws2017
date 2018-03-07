@@ -81,5 +81,6 @@ int clear_rules(void);
 int clear_log(void);
 int print_all_log_rows(void);
 int get_num_log_rows(void);
+bool tran_uint_to_ipv4str(unsigned int ip, char* str, size_t len_str);
 
 #endif // _INPUT_UTILS_H_
