@@ -131,7 +131,7 @@ static void print_conn_tab_nicely(const char* buff){
 		return;		
 	}
 	
-	printf("<src ip>\t<src port>\t<dst ip>\t<dest port>\t<tcp_state>\t<timestamp>\t<fake src ip>\t<fake source port>\t<fake dst ip>\t<fake dest port>");
+	printf("<src ip> <src port> <dst ip> <dst port> <tcp_state> <timestamp> <fake src ip> <fake src port> <fake dst ip> <fake dst port>\n");
 	
 	
 	size_t ip_len_str = strlen("XXX.XXX.XXX.XXX")+1;
@@ -142,7 +142,6 @@ static void print_conn_tab_nicely(const char* buff){
 	char ip_fake_dst_str[ip_len_str];
 
 	char *str, *pStr;
-	size_t i = 0;
 	char* curr_token = NULL;
 	
 	//Creating a copy of buff:
@@ -156,10 +155,15 @@ static void print_conn_tab_nicely(const char* buff){
 	int tcp_state;
 	long unsigned timestamp;
 	unsigned int src_ip, dst_ip, fake_src_ip, fake_dst_ip;
-	unsigned short src_port, dst_port, fake_src_port, fake_dst_port	
+	unsigned short src_port, dst_port, fake_src_port, fake_dst_port;
 	bool flag = true;
 
 	while  ((curr_token = strsep(&str, "\n")) != NULL){
+		
+		if(strlen(curr_token) == 0){
+			//skip empty lines
+			continue;
+		}
 		
 		if ( (sscanf(curr_token, "%u %hu %u %hu %d %lu %u %hu %u %hu", &src_ip, &src_port,
 				&dst_ip, &dst_port, &tcp_state, &timestamp, &fake_src_ip,
@@ -170,7 +174,7 @@ static void print_conn_tab_nicely(const char* buff){
 
 			flag = true;
 			if (fake_src_ip == 0) {
-				ip_fake_src_str = "None";
+				strcpy(ip_fake_src_str,"None");
 			} else {
 				flag = tran_uint_to_ipv4str(fake_src_ip, ip_fake_src_str, ip_len_str);
 			}
@@ -180,7 +184,7 @@ static void print_conn_tab_nicely(const char* buff){
 			}
 			
 			if (fake_dst_ip == 0){
-				ip_fake_dst_str = "None";
+				strcpy(ip_fake_dst_str,"None");
 			} else{
 				flag = tran_uint_to_ipv4str(fake_dst_ip, ip_fake_dst_str, ip_len_str);
 			}

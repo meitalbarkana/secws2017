@@ -226,7 +226,7 @@ ssize_t display(struct device *dev, struct device_attribute *attr, char *buf)
 		//Nullifies conn_row_str:
 		memset(conn_row_str, '\0', MAX_STRLEN_OF_CONN_ROW_FORMAT);
 		
-		//"<src ip> <source port> <dst ip> <dest port> <tcp_state> <timestamp> <fake src ip> <fake source port> <fake dst ip> <fake dest port>'\n'"
+		//"<src ip> <src port> <dst ip> <dst port> <tcp_state> <timestamp> <fake src ip> <fake src port> <fake dst ip> <fake dst port>'\n'"
 		if ( (len = (sprintf(conn_row_str,
 					"%u %hu %u %hu %d %lu %u %hu %u %hu\n",
 					temp_row->src_ip,
