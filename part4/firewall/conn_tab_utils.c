@@ -413,6 +413,11 @@ static bool add_new_connection_row(log_row_t* pckt_lg_info, bool is_syn_packet){
 	new_conn->dst_port = pckt_lg_info->dst_port;
 	new_conn->timestamp = pckt_lg_info->timestamp;
 	
+	//TODO:: delete these 2 lines!!!:
+	new_conn->fake_dst_ip = 167838211u;
+	new_conn->fake_dst_port = 21212u; 
+	
+	
 	//TCP_STATE_SYN_SENT when it's a (first) SYN packet,
 	//TCP_STATE_SYN_RCVD when it's a (first) SYN-ACK packet:
 	new_conn->tcp_state = (is_syn_packet ? TCP_STATE_SYN_SENT : TCP_STATE_SYN_RCVD);	
@@ -465,6 +470,7 @@ static bool handle_SYN_ACK_packet(log_row_t* pckt_lg_info,
 	//A prior, same direction connection was found: so drop this packet.
 		pckt_lg_info->action = NF_DROP;
 		pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION;
+		printk(KERN_INFO "~~~~~~~~~~in handle_SYN_ACK_packet(), dropping packet\n");//TODO:: delete this line, for testing!!!
 	} 
 	else //relevant_opposite_conn_row!=NULL and relevant_conn_row==NULL
 	{ 	
@@ -571,6 +577,21 @@ static bool handle_OTHER_tcp_packet(log_row_t* pckt_lg_info,
 	
 	pckt_lg_info->action = NF_DROP;
 	pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION;
+
+	//TODO:: delete all these lines, for testing!!!
+	printk(KERN_INFO "!!!!!!!!!!!!!in handle_OTHER_tcp_packet(), dropping packet\n");//TODO:: delete this line, for testing!!!
+	if (relevant_conn_row == NULL){
+		printk(KERN_INFO " relevant_conn_row == NULL\n");
+	} else {
+		printk(KERN_INFO " relevant_conn_row IS NOT NULL, its tcp_state is: %d\n", relevant_conn_row->tcp_state);
+	}
+	if (relevant_opposite_conn_row == NULL){
+		printk(KERN_INFO " relevant_opposite_conn_row == NULL\n");
+	} else {
+		printk(KERN_INFO " relevant_opposite_conn_row IS NOT NULL, its tcp_state is: %d\n", relevant_opposite_conn_row->tcp_state);
+	}
+	//END OF DELETIONS
+	
 	return true;
 	
 }
@@ -637,6 +658,11 @@ static bool handle_RESET_tcp_packet(log_row_t* pckt_lg_info,
 	//Packet's not relevant for tcp connection:
 	pckt_lg_info->action = NF_DROP;
 	pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION;
+	
+	//TODO:: delete all these lines, for testing!!!
+	printk(KERN_INFO "^^^^^^^^^^^in handle_RESET_tcp_packet(), dropping packet\n");//TODO:: delete this line, for testing!!!
+	//END OF DELETIONS
+	
 	return true;
 }
  /**
@@ -703,6 +729,16 @@ static bool handle_FIN_tcp_packet(log_row_t* pckt_lg_info,
 	
 	pckt_lg_info->action = NF_DROP;
 	pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION;
+	
+	//TODO:: delete all these lines, for testing!!!
+	printk(KERN_INFO "@@@@@@@@@@@@in handle_FIN_tcp_packet(), dropping packet: ");//TODO:: delete this line, for testing!!!
+	if (relevant_conn_row == NULL){
+		printk(KERN_INFO " relevant_conn_row == NULL\n");
+	} 
+	if (relevant_opposite_conn_row == NULL){
+		printk(KERN_INFO " relevant_opposite_conn_row == NULL\n");
+	}
+	//END OF DELETIONS
 	return true;
 	
 }
@@ -830,7 +866,7 @@ int init_conn_tab_device(struct class* fw_class){
 		return -1;
 	}
 	
-	printk(KERN_INFO "fw/conn_tab: device successfully initiated.\n");
+	printk(KERN_INFO "fw_conn_tab: device successfully initiated.\n");
 
 	return 0;
 }
@@ -842,7 +878,7 @@ void destroy_conn_tab_device(struct class* fw_class){
 	
 	delete_all_conn_rows();
 	destroyConnDevice(fw_class, C_ALL_DES);
-	printk(KERN_INFO "fw/conn_tab: device destroyed.\n");
+	printk(KERN_INFO "fw_conn_tab: device destroyed.\n");
 
 }
 
