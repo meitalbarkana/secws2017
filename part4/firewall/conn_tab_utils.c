@@ -528,23 +528,30 @@ static bool handle_OTHER_tcp_packet(log_row_t* pckt_lg_info,
 		return false;
 	}
 	
-	//There are only 4 cases in which OTHER packet is relevant to the connection,
-	//in all 4 cases both sides of the connection are NOT NULL:
+	//There are 6 cases in which OTHER packet is relevant to the connection,
+	//in all 6 cases both sides of the connection are NOT NULL:
 	if (relevant_conn_row != NULL && relevant_opposite_conn_row != NULL){
 		
-		//First 3 valid cases are when packet is:
+		//First 5 valid cases are when packet is:
 		//	1. The last ack of the 3-way-handshake(syn, syn-ack, *ack*)
 		//	2. The first ack sent from "server"s side, AFTER finising
 		//		the 3-way-handshake.
-		//	3. An ordinary ack between established connection:
+		//	3. An ordinary ack between established connection
+		//	4. A packet sent from the client side, immediately after he
+		//		sent the last ack of the 3-way-handshake 
+		//	5. A packet sent from a side that not yet sent the 2nd FIN
+		//		(but the other side sent the 1st FIN)
 		if( ((relevant_conn_row->tcp_state == TCP_STATE_SYN_SENT) &&
 			(relevant_opposite_conn_row->tcp_state == TCP_STATE_SYN_RCVD))
 			||	  
 			((relevant_conn_row->tcp_state == TCP_STATE_SYN_RCVD) &&
 			(relevant_opposite_conn_row->tcp_state == TCP_STATE_ESTABLISHED))
 			||
-			((relevant_conn_row->tcp_state == TCP_STATE_ESTABLISHED) &&
-			(relevant_opposite_conn_row->tcp_state == TCP_STATE_ESTABLISHED)) )
+			( (relevant_conn_row->tcp_state == TCP_STATE_ESTABLISHED) && 
+				((relevant_opposite_conn_row->tcp_state == TCP_STATE_ESTABLISHED)
+				|| (relevant_opposite_conn_row->tcp_state == TCP_STATE_SYN_RCVD)
+				|| (relevant_opposite_conn_row->tcp_state == TCP_STATE_FIN_WAIT_1)) )
+			)
 		{
 			//Next line won't change anything if both states were ESTABLISHED:
 			relevant_conn_row->tcp_state = TCP_STATE_ESTABLISHED;
@@ -554,8 +561,8 @@ static bool handle_OTHER_tcp_packet(log_row_t* pckt_lg_info,
 			return true;
 		} 
 		
-		//The fourth valid case is when:
-		//	4. This packet is the last ack of a TCP connection. In
+		//The 6th valid case is when:
+		//	6. This packet is the last ack of a TCP connection. In
 		//		our implementation, since we update only the sender's 
 		//		TCP-state for each packet, the sender's side is
 		//		in TCP_STATE_FIN_WAIT_1 (not in TCP_STATE_FIN_WAIT_2):
@@ -631,13 +638,7 @@ static bool handle_RESET_tcp_packet(log_row_t* pckt_lg_info,
 	printk(KERN_INFO "Inside handle_RESET_tcp_packet().\n");
 #endif
 
-	if( ((relevant_conn_row) && (relevant_opposite_conn_row))
-		||
-		((relevant_conn_row) && 
-		(relevant_conn_row->tcp_state == TCP_STATE_SYN_SENT))
-		||
-		((relevant_opposite_conn_row) &&
-		(relevant_opposite_conn_row->tcp_state == TCP_STATE_SYN_SENT)) )
+	if ((relevant_conn_row) || (relevant_opposite_conn_row))
 	{
 		//Delete rows:
 #ifdef CONN_DEBUG_MODE
@@ -660,7 +661,7 @@ static bool handle_RESET_tcp_packet(log_row_t* pckt_lg_info,
 	pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION;
 	
 	//TODO:: delete all these lines, for testing!!!
-	printk(KERN_INFO "^^^^^^^^^^^in handle_RESET_tcp_packet(), dropping packet\n");//TODO:: delete this line, for testing!!!
+	printk(KERN_INFO "^^^^^^^^^^^in handle_RESET_tcp_packet(), dropping packet\n");
 	//END OF DELETIONS
 	
 	return true;
@@ -700,31 +701,30 @@ static bool handle_FIN_tcp_packet(log_row_t* pckt_lg_info,
 	//in both - both sides of the connection are NOT NULL:
 	if (relevant_conn_row != NULL && relevant_opposite_conn_row != NULL){
 		
-		//First case is when packet is the 1st FIN packet,
-		//both sides should be in TCP_STATE_ESTABLISHED:
-		if ( (relevant_conn_row->tcp_state == TCP_STATE_ESTABLISHED) &&
-			(relevant_opposite_conn_row->tcp_state == TCP_STATE_ESTABLISHED) )
+		//First case is when packet is the 1st FIN packet, 2 options:
+		//	1. both sides are in TCP_STATE_ESTABLISHED
+		//	2. the side that sent this FIN is in TCP_STATE_ESTABLISHED,
+		//		the other is in TCP_STATE_SYN_RCVD
+		//Second valid case is when this packet is the second FIN.
+		//	In this case, sender's side is in TCP_STATE_ESTABLISHED
+		//	and the reciever side in in TCP_STATE_FIN_WAIT_1
+		if ((relevant_conn_row->tcp_state == TCP_STATE_ESTABLISHED)
+			&&
+			((relevant_opposite_conn_row->tcp_state == TCP_STATE_ESTABLISHED) 
+			|| (relevant_opposite_conn_row->tcp_state == TCP_STATE_SYN_RCVD)
+			||(relevant_opposite_conn_row->tcp_state == TCP_STATE_FIN_WAIT_1)) )
 		{
-			//Next line won't change anything if both states were ESTABLISHED:
-			relevant_conn_row->tcp_state = TCP_STATE_FIN_WAIT_1;
+			if (relevant_opposite_conn_row->tcp_state == TCP_STATE_FIN_WAIT_1){
+				relevant_conn_row->tcp_state = TCP_STATE_LAST_ACK; //2nd FIN
+			} else {
+				relevant_conn_row->tcp_state = TCP_STATE_FIN_WAIT_1; //1st FIN
+			}
 			relevant_conn_row->timestamp = pckt_lg_info->timestamp;
 			pckt_lg_info->action = NF_ACCEPT;
 			pckt_lg_info->reason = REASON_FOUND_MATCHING_TCP_CONNECTION;
 			return true;
 		} 
 		
-		//Second valid case is when this packet is the second FIN.
-		//In this case, sender's side is in TCP_STATE_ESTABLISHED
-		//and the reciever side in in TCP_STATE_FIN_WAIT_1
-		else if ((relevant_conn_row->tcp_state == TCP_STATE_ESTABLISHED) &&
-			(relevant_opposite_conn_row->tcp_state == TCP_STATE_FIN_WAIT_1))
-		{
-			relevant_conn_row->tcp_state = TCP_STATE_LAST_ACK;
-			relevant_conn_row->timestamp = pckt_lg_info->timestamp;
-			pckt_lg_info->action = NF_ACCEPT;
-			pckt_lg_info->reason = REASON_FOUND_MATCHING_TCP_CONNECTION;
-			return true;
-		}
 	}
 	
 	pckt_lg_info->action = NF_DROP;
@@ -734,9 +734,13 @@ static bool handle_FIN_tcp_packet(log_row_t* pckt_lg_info,
 	printk(KERN_INFO "@@@@@@@@@@@@in handle_FIN_tcp_packet(), dropping packet: ");//TODO:: delete this line, for testing!!!
 	if (relevant_conn_row == NULL){
 		printk(KERN_INFO " relevant_conn_row == NULL\n");
-	} 
+	} else {
+		printk(KERN_INFO " relevant_conn_row IS NOT NULL, its tcp_state is: %d\n", relevant_conn_row->tcp_state);
+	}
 	if (relevant_opposite_conn_row == NULL){
 		printk(KERN_INFO " relevant_opposite_conn_row == NULL\n");
+	} else {
+		printk(KERN_INFO " relevant_opposite_conn_row IS NOT NULL, its tcp_state is: %d\n", relevant_opposite_conn_row->tcp_state);
 	}
 	//END OF DELETIONS
 	return true;

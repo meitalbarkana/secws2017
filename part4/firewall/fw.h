@@ -160,7 +160,7 @@ typedef enum{
 	TCP_STATE_FIN_WAIT_1 = 6,
 	
 	//Server's state after it receives an initial FIN and sends back an ACK to acknowledge the FIN:
-	TCP_STATE_CLOSE_WAIT = 7,
+	TCP_STATE_CLOSE_WAIT = 7, //Note: not used here - since I chose to update tcp-state only when an answer comes from the other side
 	
 	//Client's state when receiving the ACK response to its initial FIN,
 	// as it waits for a final FIN from server:
