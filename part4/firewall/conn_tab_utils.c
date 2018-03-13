@@ -536,6 +536,8 @@ static bool handle_OTHER_tcp_packet(log_row_t* pckt_lg_info,
 		//	1. The last ack of the 3-way-handshake(syn, syn-ack, *ack*)
 		//	2. The first ack sent from "server"s side, AFTER finising
 		//		the 3-way-handshake.
+		//		In this case, the other side might be in states: TCP_STATE_ESTABLISHED
+		//		or TCP_STATE_FIN_WAIT_1(in FTP for example)
 		//	3. An ordinary ack between established connection
 		//	4. A packet sent from the client side, immediately after he
 		//		sent the last ack of the 3-way-handshake 
@@ -545,7 +547,8 @@ static bool handle_OTHER_tcp_packet(log_row_t* pckt_lg_info,
 			(relevant_opposite_conn_row->tcp_state == TCP_STATE_SYN_RCVD))
 			||	  
 			((relevant_conn_row->tcp_state == TCP_STATE_SYN_RCVD) &&
-			(relevant_opposite_conn_row->tcp_state == TCP_STATE_ESTABLISHED))
+				((relevant_opposite_conn_row->tcp_state == TCP_STATE_ESTABLISHED)
+				||(relevant_opposite_conn_row->tcp_state == TCP_STATE_FIN_WAIT_1)))
 			||
 			( (relevant_conn_row->tcp_state == TCP_STATE_ESTABLISHED) && 
 				((relevant_opposite_conn_row->tcp_state == TCP_STATE_ESTABLISHED)
@@ -578,6 +581,18 @@ static bool handle_OTHER_tcp_packet(log_row_t* pckt_lg_info,
 			//Both rows will be deleted when timedout.
 			pckt_lg_info->action = NF_ACCEPT;
 			pckt_lg_info->reason = REASON_FOUND_MATCHING_TCP_CONNECTION;
+			
+			//TODO:: delete all these lines, for testing!!!
+			printk(KERN_INFO "NOTENOTENOTE: in handle_OTHER_tcp_packet(), ACCEPTING LAST ACK packet, its details:\n");//TODO:: delete this line, for testing!!!
+			printk(KERN_INFO "timestamp: %lu,\nhooknum: %hhu,\nsrc_ip: %u,\ndst_ip: %u,\nsrc_port: %hu,\ndst_port: %hu.\n\n",
+				pckt_lg_info->timestamp,
+				pckt_lg_info->hooknum,
+				pckt_lg_info->src_ip,
+				pckt_lg_info->dst_ip,
+				pckt_lg_info->src_port,
+				pckt_lg_info->dst_port);
+			//END OF DELETIONS
+			
 			return true;
 		}
 	}
