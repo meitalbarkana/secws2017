@@ -413,11 +413,6 @@ static bool add_new_connection_row(log_row_t* pckt_lg_info, bool is_syn_packet){
 	new_conn->dst_port = pckt_lg_info->dst_port;
 	new_conn->timestamp = pckt_lg_info->timestamp;
 	
-	//TODO:: delete these 2 lines!!!:
-	new_conn->fake_dst_ip = 167838211u;
-	new_conn->fake_dst_port = 21212u; 
-	
-	
 	//TCP_STATE_SYN_SENT when it's a (first) SYN packet,
 	//TCP_STATE_SYN_RCVD when it's a (first) SYN-ACK packet:
 	new_conn->tcp_state = (is_syn_packet ? TCP_STATE_SYN_SENT : TCP_STATE_SYN_RCVD);	
@@ -827,7 +822,7 @@ bool check_tcp_packet(log_row_t* pckt_lg_info, tcp_packet_t tcp_pckt_type){
  *	adds a NEW connection-row (SYN) to g_connections_list.
  **/
 void add_first_SYN_connection(log_row_t* syn_pckt_lg_info){
-#ifdef CONN_DEBUG_MODE
+#ifdef FAKING_DEBUG_MODE
 	printk(KERN_INFO "Inside add_first_SYN_connection().\n");
 #endif
 	if (!add_new_connection_row(syn_pckt_lg_info, true)){

@@ -1,12 +1,11 @@
 #include "hook_utils.h"
 
-static struct nf_hook_ops	nfho_to_fw,
-							nfho_from_fw,
-							nfho_others;
+static struct nf_hook_ops	nfho_pre_route,
+							nfho_from_fw;
 
 /**
  *	This function would be called as a helper function,
- *  when hooknum is NF_INET_FORWARD for IPv4 packets
+ *  when hooknum is NF_INET_PRE_ROUTING for IPv4 packets
  *
  *	Inserts relevant row to log.
  * 
@@ -23,7 +22,7 @@ static struct nf_hook_ops	nfho_to_fw,
  * 			2. User of this function should free memory located for
  * 			   pckt_lg_info (allocated in init_log_row())
  **/
-static unsigned int check_packet_hookp_forward(struct sk_buff* skb, 
+static unsigned int check_packet_hookp_pre_routing(struct sk_buff* skb, 
 		const struct net_device* in, const struct net_device* out)
 {
 	
@@ -32,14 +31,14 @@ static unsigned int check_packet_hookp_forward(struct sk_buff* skb,
 	direction_t packet_direction;
 	
 	//Initiate: pckt_lg_info, packet_ack , packet_direction
-	if( (pckt_lg_info = init_log_row(skb, NF_INET_FORWARD,
+	if( (pckt_lg_info = init_log_row(skb, NF_INET_PRE_ROUTING,
 		&packet_ack, &packet_direction, in, out)) == NULL)
 	{
 		//An error occured, never supposed to get here:
 		//(Error already been printed inside init_log_row)
 		return NF_ACCEPT;
 	}
-	
+	///TODO:: EDIT THIS FUNCTION!!
 	//Calls function that decides packet-action
 	decide_packet_action(skb, pckt_lg_info, &packet_ack, &packet_direction);
 	
@@ -48,13 +47,9 @@ static unsigned int check_packet_hookp_forward(struct sk_buff* skb,
 		printk(KERN_INFO "***ALERT***: dropping packet - its info:\n");
 		print_log_row(pckt_lg_info);
 	}
-	
-#ifdef LOG_DEBUG_MODE
-	print_log_row(pckt_lg_info);
-#endif
 
 	//Inserts row to log-rows:
-	if (!insert_row(pckt_lg_info)){
+	if (!insert_row(pckt_lg_info)){ ///TODO:: not sure if any row should be inserted!
 		//An error occured, error already printed in insert_row()
 		kfree(pckt_lg_info);
 		return NF_ACCEPT;
@@ -64,22 +59,23 @@ static unsigned int check_packet_hookp_forward(struct sk_buff* skb,
 
 /**
  *	This function would be called as a helper function,
- *  when hooknum is NF_INET_LOCAL_IN / NF_INET_LOCAL_OUT
+ *  when hooknum is NF_INET_LOCAL_OUT
  *  for IPv4 packets
  *
  *	@skb - contains all of packet's data
  *	@in - pointer to net_device.
  *	@out - pointer to net_device.
- *	@hooknum - NF_INET_LOCAL_IN / NF_INET_LOCAL_OUT
+ *	@hooknum - NF_INET_LOCAL_OUT
  * 
  *	Returns: NF_ACCEPT/NF_DROP according to packet data.
  *	
  *	Note: WILL ALLOW ONLY PACKETS FROM LOCALHOST TO ITSELF
  **/
-static unsigned int check_packet_hookp_in_out(struct sk_buff* skb, 
+static unsigned int check_packet_hookp_out(struct sk_buff* skb, 
 		const struct net_device* in, const struct net_device* out,
 		unsigned int hooknum)
 {
+	//TODO:: EDIT THIS FUNCTION!
 	//NOTE: NO NEED TO LOG - so memory allocated is freed at the end
 	log_row_t* pckt_lg_info = NULL; 
 	ack_t packet_ack;
@@ -104,8 +100,8 @@ static unsigned int check_packet_hookp_in_out(struct sk_buff* skb,
 /**
  * Main hook - function.
  * Will use:
- * 		check_packet_hookp_in_out()
- * 		check_packet_hookp_forward()
+ * 		check_packet_hookp_out()
+ * 		check_packet_hookp_pre_routing()
  * to decide what to do with the packet.
  * 
  * NOTE: gets only IPv4 packets!
@@ -115,19 +111,19 @@ static unsigned int hook_func_callback(unsigned int hooknum,
 		const struct net_device* out, int(*okfn)(struct sk_buff*) )
 {
 
-	if (hooknum == NF_INET_FORWARD) 
+	if (hooknum == NF_INET_PRE_ROUTING) 
 	{
-#ifdef LOG_DEBUG_MODE
-		printk(KERN_INFO "IN hook_func_callback, hooknum is NF_INET_FORWARD\n");
+#ifdef FAKING_DEBUG_MODE
+		printk(KERN_INFO "IN hook_func_callback, hooknum is NF_INET_PRE_ROUTING\n");
 #endif
-		return check_packet_hookp_forward(skb, in, out);
+		return check_packet_hookp_pre_routing(skb, in, out);
 	}
-	else if( (hooknum == NF_INET_LOCAL_IN) || (hooknum == NF_INET_LOCAL_OUT) )
+	else if (hooknum == NF_INET_LOCAL_OUT) 
 	{
-#ifdef LOG_DEBUG_MODE
-		printk(KERN_INFO "IN hook_func_callback, hooknum is NF_INET_LOCAL_IN or NF_INET_LOCAL_OUT\n");
+#ifdef FAKING_DEBUG_MODE
+		printk(KERN_INFO "IN hook_func_callback, hooknum is NF_INET_LOCAL_OUT\n");
 #endif	
-		return check_packet_hookp_in_out(skb, in, out, hooknum);	
+		return check_packet_hookp_out(skb, in, out, hooknum);	
 	}
 	
 	//An error occured, never supposed to get here:
@@ -164,11 +160,9 @@ static int registers_hook(struct nf_hook_ops* nfho, nf_hookfn* okfn, int pf, int
 static void unregistersHook(enum hooked_nfhos hookedNfhos){
 	switch (hookedNfhos){
 		case (ALL_H):
-			nf_unregister_hook(&nfho_others);
-		case (OTHERS_H):
 			nf_unregister_hook(&nfho_from_fw);
 		case (FROM_FW_H):
-			nf_unregister_hook(&nfho_to_fw);
+			nf_unregister_hook(&nfho_pre_route);
 		// The default case is when there's no need to unregister anything.	
 	}
 } 
@@ -180,14 +174,14 @@ static void unregistersHook(enum hooked_nfhos hookedNfhos){
 int registerHooks(void){
 
 	/**
-	 * Takes care of packets sent to fw:
+	 * Takes care of packets catched pre-routing:
 	 * 		hook_func_callback: main hook function
 	 * 		PF_INET: only packets of IPv4
-	 * 		NF_INET_LOCAL_IN: called after classifing the packet as LOCAL_IN
+	 * 		NF_INET_PRE_ROUTING: called BEFORE classifing the packet as LOCAL_IN/FORWARD
 	 * 		NF_IP_PRI_FIRST: sets the priority of hook_func_callback() as the highest
 	 **/
-	if(registers_hook(&nfho_to_fw, hook_func_callback, PF_INET, NF_INET_LOCAL_IN, NF_IP_PRI_FIRST)){
-		// Registers_hook failed when trying to register "nfho_to_fw"
+	if(registers_hook(&nfho_pre_route, hook_func_callback, PF_INET, NF_INET_PRE_ROUTING, NF_IP_PRI_FIRST)){
+		// Registers_hook failed when trying to register "nfho_pre_route"
 		return -1;
 	}
 	
@@ -201,20 +195,6 @@ int registerHooks(void){
 	if (registers_hook(&nfho_from_fw, hook_func_callback, PF_INET, NF_INET_LOCAL_OUT, NF_IP_PRI_FIRST)){
 		// Registers_hook failed on "nfho_from_fw", so we need to unregister accordingly:
 		unregistersHook(FROM_FW_H);
-		return -1;
-	}
-	
-	/** 
-	 * Takes care of packets who aren't designated to fw:
-	 * 		hook_func_callback: main hook function		
-	 * 		PF_INET: packets of IPv4
-	 * 		NF_INET_FORWARD: called after classifing the packet as not 
-	 * 						designated to fw - at "FORWARD"-hook-point
-	 *		NF_IP_PRI_FIRST: sets the priority of hook_func_callback() as the highest
-	 **/
-	if (registers_hook(&nfho_others, hook_func_callback, PF_INET, NF_INET_FORWARD, NF_IP_PRI_FIRST)){
-		// Registers_hook failed on "nfho_others", so we need to unregister accordingly:
-		unregistersHook(OTHERS_H);
 		return -1;
 	}
 	

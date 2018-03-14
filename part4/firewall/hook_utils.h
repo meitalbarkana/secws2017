@@ -9,8 +9,7 @@
 //			 - all hooks should be unregistered (destroying device).
 enum hooked_nfhos {
 	FROM_FW_H = 1,
-	OTHERS_H = 2,
-	ALL_H = 3
+	ALL_H = 2
 };
 
 int registerHooks(void);

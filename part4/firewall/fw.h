@@ -22,6 +22,8 @@
 //#define DEBUG_MODE (1) 		//For debug-printing 
 //#define LOG_DEBUG_MODE (1)	//For logger-debug-printing
 //#define CONN_DEBUG_MODE (1)	//For connection-table debug printing
+#define FAKING_DEBUG_MODE (1)	//For statefull-firewall debug printing
+
 
 #define NO_REASON (-777)
 /*For test-printing mainly:*/

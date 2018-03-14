@@ -32,7 +32,7 @@ direction_t get_direction(const struct net_device* in, const struct net_device* 
 		return DIRECTION_ANY;
 	}
 	
-	printk(KERN_ERR "get_direction fuction got NULL arguments\n");
+	printk(KERN_ERR "Function get_direction() got NULL arguments: both 'in' and 'out'.\n");
 	return DIRECTION_ANY;
 }
 
@@ -88,4 +88,6 @@ tcp_packet_t get_tcp_packet_type(struct tcphdr* tcp_hdr){
 	
 	return TCP_OTHER_PACKET;
 }
+
+
 

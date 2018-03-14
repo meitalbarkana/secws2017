@@ -1050,7 +1050,7 @@ void decide_packet_action(struct sk_buff* skb, log_row_t* ptr_pckt_lg_info,
 	//If gets here, g_fw_is_active == FW_ON & packet isn't XMAS
 	
 	tcp_hdr = get_tcp_header(skb); //pointer to tcp header
-	
+	///TODO:: EDIT THIS FUNCTION!!
 	//Checks and takes care of TCP-packet (that is NOT a SYN packet):
 	if (tcp_hdr) { 
 		//If gets here, it's a TCP-packet
@@ -1119,6 +1119,65 @@ unsigned int decide_inner_packet_action(log_row_t* ptr_pckt_lg_info,
 #endif
 	return ptr_pckt_lg_info->action;
 }
+
+
+
+/**
+ *	Fakes packet details according to values received
+ * 
+ *	@skb - pointer to struct sk_buff that represents current packet
+ *	@fake_src -	1. true - if we want to fake the source ip&port
+ * 				2. false - if we want to fake the destination ip&port
+ *	@fake_ip - the ip we want to fake, in LOCAL ENDIANNESS!
+ *	@fake_port - the port we want to fake, in LOCAL ENDIANNESS!
+ * 
+ * 	Note: 1. 
+ * 		
+ **/
+bool fake_packets_details(struct sk_buff *skb, bool fake_src, __u32 fake_ip, __u16 fake_port)
+{
+	struct iphdr *ip_header;
+	struct tcphdr *tcp_header;
+	int tcplen;
+	
+	if ( skb == NULL 
+		|| (ip_header = ip_hdr(skb)) == NULL
+		|| (tcp_header = get_tcp_header(skb)) == NULL )
+	{
+		return false;
+	}
+
+	//Change routing:
+	if (fake_src){
+		ip_header->saddr = htonl(fake_ip);
+		tcp_header->source = htons(fake_port);
+	} else {
+		ip_header->daddr = htonl(fake_ip);
+		tcp_header->dest = htons(fake_port);
+	}
+	///TODO::
+	//Fix checksum for both IP and TCP:
+	tcplen = (skb->len - ((ip_header->ihl )<< 2));
+	tcp_header->check=0;
+	tcp_header->check = tcp_v4_check(tcplen, ip_header->saddr, ip_header->daddr,csum_partial((char*)tcp_header, tcplen,0));
+	skb->ip_summed = CHECKSUM_NONE; //stop offloading
+	ip_header->check = 0;
+	ip_header->check = ip_fast_csum((u8 *)ip_header, ip_header->ihl);
+	
+	return true;
+
+
+}
+
+
+
+
+
+
+
+
+
+
 
 /**
  * Help function that cleans up everything associated with creating our device,
