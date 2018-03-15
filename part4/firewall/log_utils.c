@@ -69,10 +69,6 @@ static int lfw_dev_release(struct inode *inodep, struct file *fp){
 		g_log_usage_counter--;
 	}
 
-#ifdef LOG_DEBUG_MODE 
-   printk(KERN_INFO "fw_log: device successfully closed\n");
-#endif
-
    return 0;
 }
 
@@ -148,11 +144,6 @@ static ssize_t lfw_dev_read(struct file *filp, char *buffer, size_t len, loff_t 
 		printk(KERN_INFO "Function copy_to_user failed - writing log-row to user's buffer failed\n");
 		return -EFAULT; //Return a bad address message
 	}
-
-		
-#ifdef LOG_DEBUG_MODE
-	printk(KERN_INFO "In function lfw_dev_read, done sending it:\n%s\n",str);
-#endif
 
 	g_last_row_read = g_last_row_read->next;
 	++g_num_rows_read;
@@ -305,9 +296,6 @@ log_row_t* init_log_row(struct sk_buff* skb, unsigned char hooknumber,
 			
 			//Protocol is 1 byte - no need to convert Endianness.
 			ip_h_protocol = ptr_ipv4_hdr->protocol; 
-#ifdef LOG_DEBUG_MODE
-			printk(KERN_INFO "Packets protocol is: %hhu\n", ip_h_protocol);
-#endif
 		
 			switch (ip_h_protocol){
 				case (PROT_ICMP):
@@ -428,10 +416,6 @@ bool insert_row(log_row_t* row){
 		temp_row = list_entry(pos, log_row_t, list);
 		if (are_similar(temp_row, row)) {
 			row->count = 1+(temp_row->count);
-#ifdef LOG_DEBUG_MODE
-			printk(KERN_INFO "Found similar row in list, about to delete it. Its details:\n");
-			print_log_row(temp_row);
-#endif
 			list_del(pos);
 			kfree(temp_row);
 			--g_num_of_rows; //Since we deleted one (will be updated later)

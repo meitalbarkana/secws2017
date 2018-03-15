@@ -19,8 +19,7 @@
 /**
  * If one of the DEBUG_MODE's defined, code will print debug messages to KERN_INFO
  **/
-//#define DEBUG_MODE (1) 		//For debug-printing 
-//#define LOG_DEBUG_MODE (1)	//For logger-debug-printing
+//#define LOG_DEBUG_MODE  (1)
 //#define CONN_DEBUG_MODE (1)	//For connection-table debug printing
 #define FAKING_DEBUG_MODE (1)	//For statefull-firewall debug printing
 

@@ -135,7 +135,7 @@ static unsigned int hook_func_callback(unsigned int hooknum,
 	}
 	
 	//An error occured, never supposed to get here:
-	printk(KERN_ERR "in hook_func_callback(), got invalid hooknum.\n");
+	printk(KERN_ERR "Function hook_func_callback() got invalid hooknum, accepting packet.\n");
 	return NF_ACCEPT;
 							
 }

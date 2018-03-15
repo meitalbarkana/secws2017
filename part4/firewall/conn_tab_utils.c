@@ -215,10 +215,6 @@ ssize_t display(struct device *dev, struct device_attribute *attr, char *buf)
 		
 		//If a row is too old - deletes it and continues to next row:
 		if(is_row_timedout(temp_row)){
-#ifdef CONN_DEBUG_MODE
-			printk(KERN_INFO "Found an old connection-row, about to delete it. Its details:\n");
-			print_conn_row(temp_row);
-#endif
 			delete_specific_row_by_list_node(pos);
 			continue;
 		}
@@ -344,10 +340,6 @@ static void search_relevant_rows(log_row_t* pckt_lg_info,
 		
 		//If a row is too old - deletes it and continues to next row:
 		if(is_row_timedout(temp_row)){
-#ifdef CONN_DEBUG_MODE
-			printk(KERN_INFO "Found an old row in connection-list, about to delete it. Its details:\n");
-			print_conn_row(temp_row);
-#endif
 			delete_specific_row_by_list_node(pos);
 			continue;
 		}
@@ -355,10 +347,6 @@ static void search_relevant_rows(log_row_t* pckt_lg_info,
 		if ( packet_fits_conn_row(pckt_lg_info, temp_row) &&
 			 (*ptr_relevant_conn_row == NULL) )
 		{
-//#ifdef CONN_DEBUG_MODE
-//			printk(KERN_INFO "Found matching row in connection-list. Its details:\n");
-//			print_conn_row(temp_row);
-//#endif
 			*ptr_relevant_conn_row = temp_row;
 			continue; //To next connection-row
 		}
@@ -366,15 +354,9 @@ static void search_relevant_rows(log_row_t* pckt_lg_info,
 		if ( packet_fits_opp_conn_row(pckt_lg_info, temp_row) &&
 			 (*ptr_relevant_opposite_conn_row == NULL) )
 		{
-//#ifdef CONN_DEBUG_MODE
-//			printk(KERN_INFO "Found an OPPOSITE matching row in connection-list. Its details:\n");
-//			print_conn_row(temp_row);
-//#endif
 			*ptr_relevant_opposite_conn_row = temp_row;
-		}
-		
+		}	
 	}
-
 }
 
 
@@ -387,14 +369,11 @@ static void search_relevant_rows(log_row_t* pckt_lg_info,
  *					 If false, connection's state would be: TCP_STATE_SYN_RCVD
  * 
  *	Returns a pointer to new connection-row on success, NULL if any error occured.
- *
  **/
 static connection_row_t* add_new_connection_row(log_row_t* pckt_lg_info, bool is_syn_packet){
 	
 	connection_row_t* new_conn = NULL;
-#ifdef CONN_DEBUG_MODE
-	printk(KERN_INFO "Inside add_new_connection_row().\n");
-#endif	
+
 	if(pckt_lg_info == NULL){
 		printk(KERN_ERR "In function add_new_connection_row(), function got NULL argument");
 		return NULL;
@@ -465,7 +444,6 @@ static bool handle_SYN_ACK_packet(log_row_t* pckt_lg_info,
 	//A prior, same direction connection was found: so drop this packet.
 		pckt_lg_info->action = NF_DROP;
 		pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION;
-		printk(KERN_INFO "~~~~~~~~~~in handle_SYN_ACK_packet(), dropping packet\n");//TODO:: delete this line, for testing!!!
 	} 
 	else //relevant_opposite_conn_row!=NULL and relevant_conn_row==NULL
 	{ 	
@@ -577,8 +555,9 @@ static bool handle_OTHER_tcp_packet(log_row_t* pckt_lg_info,
 			pckt_lg_info->action = NF_ACCEPT;
 			pckt_lg_info->reason = REASON_FOUND_MATCHING_TCP_CONNECTION;
 			
-			//TODO:: delete all these lines, for testing!!!
-			printk(KERN_INFO "NOTENOTENOTE: in handle_OTHER_tcp_packet(), ACCEPTING LAST ACK packet, its details:\n");//TODO:: delete this line, for testing!!!
+#ifdef CONN_DEBUG_MODE
+			//TODO:: I may delete all these lines, for testing only:
+			printk(KERN_INFO "NOTENOTENOTE: in handle_OTHER_tcp_packet(), ACCEPTING LAST ACK packet, its details:\n");
 			printk(KERN_INFO "timestamp: %lu,\nhooknum: %hhu,\nsrc_ip: %u,\ndst_ip: %u,\nsrc_port: %hu,\ndst_port: %hu.\n\n",
 				pckt_lg_info->timestamp,
 				pckt_lg_info->hooknum,
@@ -586,7 +565,7 @@ static bool handle_OTHER_tcp_packet(log_row_t* pckt_lg_info,
 				pckt_lg_info->dst_ip,
 				pckt_lg_info->src_port,
 				pckt_lg_info->dst_port);
-			//END OF DELETIONS
+#endif
 			
 			return true;
 		}
@@ -644,9 +623,6 @@ static bool handle_RESET_tcp_packet(log_row_t* pckt_lg_info,
 		printk(KERN_ERR "In handle_RESET_tcp_packet(), function got NULL argument.\n");
 		return false;
 	}
-#ifdef CONN_DEBUG_MODE
-	printk(KERN_INFO "Inside handle_RESET_tcp_packet().\n");
-#endif
 
 	if ((relevant_conn_row) || (relevant_opposite_conn_row))
 	{
@@ -669,10 +645,6 @@ static bool handle_RESET_tcp_packet(log_row_t* pckt_lg_info,
 	//Packet's not relevant for tcp connection:
 	pckt_lg_info->action = NF_DROP;
 	pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION;
-	
-	//TODO:: delete all these lines, for testing!!!
-	printk(KERN_INFO "^^^^^^^^^^^in handle_RESET_tcp_packet(), dropping packet\n");
-	//END OF DELETIONS
 	
 	return true;
 }
@@ -741,7 +713,7 @@ static bool handle_FIN_tcp_packet(log_row_t* pckt_lg_info,
 	pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION;
 	
 	//TODO:: delete all these lines, for testing!!!
-	printk(KERN_INFO "@@@@@@@@@@@@in handle_FIN_tcp_packet(), dropping packet: ");//TODO:: delete this line, for testing!!!
+	printk(KERN_INFO "@@@@@@@@@@@@in handle_FIN_tcp_packet(), dropping packet: ");
 	if (relevant_conn_row == NULL){
 		printk(KERN_INFO " relevant_conn_row == NULL\n");
 	} else {
@@ -827,10 +799,6 @@ bool check_tcp_packet(log_row_t* pckt_lg_info, tcp_packet_t tcp_pckt_type){
 connection_row_t* add_first_SYN_connection(log_row_t* syn_pckt_lg_info)
 {	
 	connection_row_t* conn_row = NULL;
-	
-#ifdef FAKING_DEBUG_MODE
-	printk(KERN_INFO "Inside add_first_SYN_connection().\n");
-#endif
 
 	if ((conn_row = add_new_connection_row(syn_pckt_lg_info, true)) == NULL){
 		//An error occured, not supposed to get here:

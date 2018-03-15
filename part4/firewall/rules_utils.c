@@ -203,7 +203,8 @@ static bool is_rule_name(const char* str){
 		printk(KERN_ERR "Function is_rule_name got NULL value\n");
 		return false;
 	}
-	return (strnlen(str, MAX_LEN_RULE_NAME+1) < MAX_LEN_RULE_NAME); //makes sure str has less than MAX_LEN_RULE_NAME characters
+	//Make sure str has less than MAX_LEN_RULE_NAME characters:
+	return (strnlen(str, MAX_LEN_RULE_NAME+1) < MAX_LEN_RULE_NAME); 
 }
 
 /**
@@ -391,15 +392,6 @@ static bool is_valid_rule(const char* rule_str){
 	__u8	t_protocol;
 	int	t_ack;
 	__u8	t_action;
-
-#ifdef DEBUG_MODE
-	printk(KERN_INFO "In function is_valid_rule, testing rule number: %hhu. ",g_num_of_valid_rules);
-	if (rule_str != NULL){
-		printk(KERN_INFO "rule_str is: %s\n", rule_str);
-	} else {
-		printk(KERN_INFO "rule_str is: NULL!!!\n");
-	}
-#endif
 	
 	//Makes sure there aren't too much rules & that rule_str isn't longer than MAX_STRLEN_OF_RULE_FORMAT
 	if ((g_num_of_valid_rules >= MAX_NUM_OF_RULES) || (rule_str == NULL) ||
@@ -458,9 +450,6 @@ static bool is_valid_rule(const char* rule_str){
 static ssize_t rfw_dev_write(struct file* filp, const char* buffer, size_t len, loff_t *offset){
 
 	size_t len_to_allocate = 0;
-#ifdef DEBUG_MODE
-	printk (KERN_INFO "START OF rfw_dev_write(), length got from user is: %u\n", len);
-#endif	
 
 	//Basic input check:
 	if (len == 0){
@@ -485,19 +474,12 @@ static ssize_t rfw_dev_write(struct file* filp, const char* buffer, size_t len, 
 			return -ENOMEM;
 		}
 		g_write_buff_len = len_to_allocate - 1; //>0 for sure.
-		memset(g_write_to_buff, 0, len_to_allocate);
-		
-#ifdef DEBUG_MODE
-		printk (KERN_INFO "In rfw_dev_write(), successfully allocated %u bytes for buffer\n", len_to_allocate);
-#endif	
+		memset(g_write_to_buff, 0, len_to_allocate);	
 		//Now we're ready to write
 	
 	}//Otherwise, we're just continuing writing:
 	
 	if (len > g_write_buff_len - g_bytes_written_so_far) {
-#ifdef DEBUG_MODE
-		printk (KERN_INFO "In rfw_dev_write(), user asked to write more than possible, updates that value (len) \n");
-#endif	
 		//Sanity check, never supposed to get here:
 		if ((g_write_buff_len - g_bytes_written_so_far) < 0) {
 			printk (KERN_ERR "ERROR In rfw_dev_write(), number of bytes written is larger than buffer allocated\n");
@@ -602,9 +584,6 @@ static ssize_t rfw_dev_read(struct file *filp, char *buffer, size_t len, loff_t 
 		return -EFAULT; //Return a bad address message
 	}
 	
-#ifdef DEBUG_MODE
-	printk(KERN_INFO "In function add_str_rule_to_buffer, done sending it:\n%s\n",str);
-#endif	
 	++g_num_rules_have_been_read;
 	return strlen(str);
 	
@@ -652,22 +631,13 @@ static int rfw_dev_release(struct inode *inodep, struct file *fp){
 
 	char *ptr_buff_copy, *rule_token;
 	
-#ifdef DEBUG_MODE
-	printk (KERN_INFO "START OF rfw_dev_release(), In it - rules would be updated (if needed)\n");
-#endif
-	
 	if (g_usage_counter != 0){
 		g_usage_counter--;
 	}
 	 
 	// Check if there's anything to write:
 	if ( (g_write_to_buff != NULL) && (g_write_buff_len != 0) ) 
-	{
-#ifdef DEBUG_MODE
-		printk (KERN_INFO "In rfw_dev_release(), updates rules. g_write_to_buff is: %s, g_write_buff_len is: %ld\n",
-				g_write_to_buff, g_write_buff_len);
-#endif
-		
+	{	
 		//Case user wanted to clean rule-table:
 		if ((g_write_buff_len == 1) && g_write_to_buff[0]==CLEAR_RULES){
 			g_num_of_valid_rules = 0;
@@ -683,11 +653,9 @@ static int rfw_dev_release(struct inode *inodep, struct file *fp){
 				&& (g_num_of_valid_rules < MAX_NUM_OF_RULES)
 				&& (strlen(rule_token) > 0) ) //Last token is empty, in a valid format
 		{
-			if(is_valid_rule(rule_token)){
-#ifdef DEBUG_MODE
-				printk(KERN_INFO "Another rule added to device.\n");
-#endif
-			}
+			//Calling this function adds the rule to g_all_rules_table,
+			//	if it's valid:
+			is_valid_rule(rule_token);
 		}
 		
 		//If g_write_to_buff!=NULL it means some rules weren't written
@@ -790,26 +758,6 @@ static bool is_relevant_ack(ack_t rule_ack, ack_t packet_ack){
 }
 
 /**
- * 	DEPRECATED since the hook that checks rule-table checks only IPv4 packets. 
- *  Returns true if a given packet is an IPv4 packet.
- *	
- *	@skb - pointer to struct sk_buff that represents the packet
- *	
- *	struct sk_buff->protocol values are from: 
- *	https://elixir.free-electrons.com/linux/v4.3/source/include/uapi/linux/if_ether.h#L46
- * (under: Ethernet Protocol ID's)
- *	here we're only interested in IPv4 value.
- **/
-/**
-bool is_ipv4_packet(struct sk_buff* skb){
-	if (skb && (skb->protocol == ETH_P_IP)){
-		return true;
-	}
-	return false;
-}
-**/
-
-/**
  * 	Checks if a given IPv4 packet is a TCP packet,
  *  Returns: its tcp header if it is,
  * 			 NULL otherwise.
@@ -866,28 +814,6 @@ static bool is_XMAS(struct sk_buff* skb){
 	
 	return false;
 }
-
-/**
- * 	Checks if a given IPv4 packet is (the first) SYN packet.
- *	[SYN in 1, ACK is 0]
- *	@skb - pointer to struct sk_buff that represents current packet
- *	
- *	Returns true if it represents a SYN Packet
- *	(TCP packet with ack==0,SYN==1)
- *
- **/
- /**
-static bool is_SYN_packet(struct sk_buff* skb){
-	
-	struct tcphdr* ptr_tcp_hdr = get_tcp_header(skb); //pointer to tcp header
-	
-	if (ptr_tcp_hdr){ 
-		return ( get_tcp_packet_type(ptr_tcp_hdr) == TCP_SYN_PACKET ); 
-	}
-	
-	return false;
-}
-**/
 
 /**
  *	Checks if rule is relevant to packet represented by ptr_pckt_lg_info.
@@ -953,9 +879,6 @@ static enum action_t is_relevant_rule(const rule_t* rule, log_row_t* ptr_pckt_lg
 		} else { //Not a tcp/udp rule&packet, and they fit:
 			//Set packets' action according to this rule:
 			ptr_pckt_lg_info->action = rule->action;
-#ifdef LOG_DEBUG_MODE
-			printk (KERN_INFO "inside is_relevant_rule(), packet fits rule, rule's action is: %d\n", rule->action);
-#endif
 			return (enum action_t)rule->action;
 		}	
 	}
@@ -985,7 +908,6 @@ static enum action_t is_relevant_rule(const rule_t* rule, log_row_t* ptr_pckt_lg
 static int get_relevant_rule_num_from_table(log_row_t* ptr_pckt_lg_info,
 		ack_t* packet_ack, direction_t* packet_direction)
 {
-
 	size_t index = 0;
 	
 	if (ptr_pckt_lg_info == NULL){
@@ -994,19 +916,12 @@ static int get_relevant_rule_num_from_table(log_row_t* ptr_pckt_lg_info,
 	}
 	
 	for (index = 0; index < g_num_of_valid_rules; ++index) {
-#ifdef LOG_DEBUG_MODE
-	printk(KERN_INFO "In function get_relevant_rule_num_from_table, current index is: %u.\n",index);
-#endif	
-
 		if ( (is_relevant_rule(&(g_all_rules_table[index]),
 				ptr_pckt_lg_info,packet_ack, packet_direction))
 			!= RULE_NOT_RELEVANT )
 		{ 
-		//Rule is relevant, ptr_pckt_lg_info->action was updated in is_relevant_rule()
+			//Rule is relevant, ptr_pckt_lg_info->action was updated in is_relevant_rule()
 			ptr_pckt_lg_info->reason = index;
-#ifdef LOG_DEBUG_MODE
-			printk(KERN_INFO "In function get_relevant_rule_num_from_table, found relevant rule, its index is: %u.\n",index);
-#endif
 			return index;
 		}
 	}
@@ -1320,7 +1235,6 @@ int init_rules_device(struct class* fw_class){
 		return -1;
 	}
 	
-
 	printk(KERN_INFO "fw_rules: device successfully initiated.\n");
 
 	return 0;
