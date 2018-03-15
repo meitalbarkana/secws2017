@@ -3,7 +3,7 @@
 
 #include <linux/module.h>
 #include <linux/kernel.h>
-#include <linux/slab.h> //For kmalloc
+#include <linux/slab.h>		//For kmalloc
 #include <linux/device.h>
 #include <linux/fs.h>
 #include <linux/netfilter.h> //For ipv6 packets
@@ -11,10 +11,10 @@
 #include <linux/ip.h>
 #include <linux/tcp.h>
 #include <linux/udp.h>
-#include <linux/types.h> //For bool type
-#include <linux/uaccess.h> //For allowing user-space access
-#include <linux/time.h> //For timestamp value
-#include <linux/list.h> //For log's list
+#include <linux/types.h> 	//For bool type
+#include <linux/uaccess.h> 	//For allowing user-space access
+#include <linux/time.h>		//For timestamp value
+#include <linux/list.h> 	//For log's list
 
 /**
  * If one of the DEBUG_MODE's defined, code will print debug messages to KERN_INFO
@@ -31,6 +31,15 @@
 #define MAX_STRLEN_OF_BE32 (10)	//MAX_U_INT = 2^32-1 = 4294967295, 10 digits
 #define MAX_STRLEN_OF_BE16 (5)	//MAX_U_SHORT = 2^16-1 = 65535, 5 digits
 #define MAX_STRLEN_OF_U8 (3)	//MAX_U_CHAR = 2^8-1 = 255, 3 digits
+
+//Fake ports & IPs:
+#define FAKE_HTTP_PORT (8080)
+#define FAKE_FTP_PORT (21212)
+#define FAKE_FTP_DATA_PORT(20202)
+#define NO_FAKE_NEEDED (-1)
+#define FW_IP_ETH_1 (167837955u)	//<=> 10.1.1.3
+#define FW_IP_ETH_2 (167838211u)	//<=> 10.1.2.3
+#define FW_NET_MASK (4294967040u)	//<=> x.x.x.x/24
 
 // the protocols we will work with
 typedef enum {
@@ -51,6 +60,7 @@ typedef enum {
 	REASON_NO_MATCHING_TCP_CONNECTION = -7,
 	REASON_FOUND_MATCHING_TCP_CONNECTION = -8,
 	REASON_CONN_TAB_ERR = -9,
+	REASON_LOOPBACK_PACKET = -10,
 } reason_t;
 	
 
@@ -66,6 +76,9 @@ typedef enum {
 // auxiliary values, for your convenience
 #define IP_VERSION		(4)
 #define PORT_ANY		(0)
+#define PORT_HTTP		(80)
+#define PORT_FTP		(21)
+#define PORT_FTP_DATA	(20)
 #define PORT_ABOVE_1023	(1023)
 #define PORT_ERROR 		(-1) //NOTE: not to be confused with "PROT_ERR"
 #define MAX_RULES		(50)

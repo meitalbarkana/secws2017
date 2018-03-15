@@ -386,10 +386,10 @@ static void search_relevant_rows(log_row_t* pckt_lg_info,
  *	@is_syn_packet - If true, connection's state would be: TCP_STATE_SYN_SENT  
  *					 If false, connection's state would be: TCP_STATE_SYN_RCVD
  * 
- *	Returns true on success, false if any error occured.
+ *	Returns a pointer to new connection-row on success, NULL if any error occured.
  *
  **/
-static bool add_new_connection_row(log_row_t* pckt_lg_info, bool is_syn_packet){
+static connection_row_t* add_new_connection_row(log_row_t* pckt_lg_info, bool is_syn_packet){
 	
 	connection_row_t* new_conn = NULL;
 #ifdef CONN_DEBUG_MODE
@@ -397,13 +397,13 @@ static bool add_new_connection_row(log_row_t* pckt_lg_info, bool is_syn_packet){
 #endif	
 	if(pckt_lg_info == NULL){
 		printk(KERN_ERR "In function add_new_connection_row(), function got NULL argument");
-		return false;
+		return NULL;
 	}
 	
 	//Allocates memory for connection-row:
     if((new_conn = kmalloc(sizeof(connection_row_t),GFP_ATOMIC)) == NULL){
 		printk(KERN_ERR "Failed allocating space for new connection row.\n");
-		return false;
+		return NULL;
 	}
 	memset(new_conn, 0, sizeof(connection_row_t)); 
 	
@@ -424,7 +424,7 @@ static bool add_new_connection_row(log_row_t* pckt_lg_info, bool is_syn_packet){
 	printk(KERN_INFO "Added row to connection-table. Its info:\n");
 	print_conn_row(new_conn);
 #endif
-	return true;
+	return new_conn;
 }
 
 /**
@@ -472,7 +472,7 @@ static bool handle_SYN_ACK_packet(log_row_t* pckt_lg_info,
 		//Make sure prior connection is SYN:
 		if (relevant_opposite_conn_row->tcp_state == TCP_STATE_SYN_SENT){
 			//Add new SYN-ACK connection-row:
-			if (!add_new_connection_row(pckt_lg_info, false)){
+			if (add_new_connection_row(pckt_lg_info, false) == NULL){
 				//Errors already printed in add_new_connection_row()
 				return false; 
 			}
@@ -820,15 +820,23 @@ bool check_tcp_packet(log_row_t* pckt_lg_info, tcp_packet_t tcp_pckt_type){
 /**
  *	Gets a pointer to a SYN packet's log_row_t, 
  *	adds a NEW connection-row (SYN) to g_connections_list.
+ * 
+ *	Returns:	1. on success: a pointer to the newly added connection-row
+ * 				2. if failed: NULL
  **/
-void add_first_SYN_connection(log_row_t* syn_pckt_lg_info){
+connection_row_t* add_first_SYN_connection(log_row_t* syn_pckt_lg_info)
+{	
+	connection_row_t* conn_row = NULL;
+	
 #ifdef FAKING_DEBUG_MODE
 	printk(KERN_INFO "Inside add_first_SYN_connection().\n");
 #endif
-	if (!add_new_connection_row(syn_pckt_lg_info, true)){
+
+	if ((conn_row = add_new_connection_row(syn_pckt_lg_info, true)) == NULL){
 		//An error occured, not supposed to get here:
 		printk(KERN_ERR "ERROR: adding valid connection to connection-table failed.\n");
 	}
+	return conn_row;
 }
 
 

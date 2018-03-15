@@ -42,6 +42,14 @@ static unsigned int check_packet_hookp_pre_routing(struct sk_buff* skb,
 	//Calls function that decides packet-action
 	decide_packet_action(skb, pckt_lg_info, &packet_ack, &packet_direction);
 	
+	
+	//TODO:: add here an "if" that checks if pckt_lg_info->reason == REASON_LOOPBACK_PACKET,
+	//		and if it does - frees that log-row.
+	//something like:	kfree(pckt_lg_info);
+	//					return pckt_lg_info->action;
+	//
+	
+	
 	//TODO:: delete this "if":
 	if(pckt_lg_info->action == NF_DROP){
 		printk(KERN_INFO "***ALERT***: dropping packet - its info:\n");
@@ -75,7 +83,7 @@ static unsigned int check_packet_hookp_out(struct sk_buff* skb,
 		const struct net_device* in, const struct net_device* out,
 		unsigned int hooknum)
 {
-	//TODO:: EDIT THIS FUNCTION!
+	///TODO:: EDIT THIS FUNCTION!
 	//NOTE: NO NEED TO LOG - so memory allocated is freed at the end
 	log_row_t* pckt_lg_info = NULL; 
 	ack_t packet_ack;
@@ -89,7 +97,7 @@ static unsigned int check_packet_hookp_out(struct sk_buff* skb,
 		return NF_ACCEPT;//An error occured, never supposed to get here.
 	}
 	
-	ans = decide_inner_packet_action(pckt_lg_info, &packet_ack,
+	ans = decide_outer_packet_action(pckt_lg_info, &packet_ack,
 									&packet_direction);
 	
 	//Frees memory allocated in init_log_row

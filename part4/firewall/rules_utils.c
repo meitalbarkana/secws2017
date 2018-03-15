@@ -826,6 +826,8 @@ static struct tcphdr* get_tcp_header(struct sk_buff* skb){
 		if(ptr_ipv4_hdr){
 			//Protocol is 1 byte - no need to consider Endianness
 			if (ptr_ipv4_hdr->protocol == PROT_TCP) {	//Checks in local endianness
+				//ihl holds the ip_header length in number of words, 
+				//each word is 32 bit long = 4 bytes 
 				return ((struct tcphdr*)((char*)ptr_ipv4_hdr + (ptr_ipv4_hdr->ihl * 4)));
 			}
 		} else {
@@ -937,7 +939,8 @@ static enum action_t is_relevant_rule(const rule_t* rule, log_row_t* ptr_pckt_lg
 				{		
 					ptr_pckt_lg_info->action = rule->action;
 					if ( (ptr_pckt_lg_info->protocol == PROT_TCP) && 
-						 (rule->action == NF_ACCEPT) ) 
+						 (rule->action == NF_ACCEPT) &&
+						 (rule != &g_buildin_rule) ) //since no need to check loopbacks
 					{
 						add_first_SYN_connection(ptr_pckt_lg_info);
 					}
@@ -1014,7 +1017,56 @@ static int get_relevant_rule_num_from_table(log_row_t* ptr_pckt_lg_info,
 	return (-1);
 }
 
+/**
+ *	Helper function that fakes the destination ip&port (of skb's packet)
+ *  to be the proxy server's, IF NEEDED 
+ *	(if this is an HTTP/FTP/DATA_FTP packet)
+ **/
+void fake_destination_details(struct sk_buff* skb,
+		log_row_t* ptr_pckt_lg_info, connection_row_t* tcp_conn_row)
+{
+	__be32 f_d_ip = 0;
+	__be16 f_d_port = 0;
 
+	if (skb == NULL || ptr_pckt_lg_info == NULL || tcp_conn_row == NULL){
+		printk(KERN_ERR "Error: function fake_destination_details() got NULL argument.\n");
+		return;
+	}
+
+	//Initialize f_d_port to contain relevant port:
+	if (ptr_pckt_lg_info->dst_port == PORT_HTTP) {
+		f_d_port == FAKE_HTTP_PORT;
+	} else if(ptr_pckt_lg_info->dst_port == PORT_FTP) {
+		f_d_port == FAKE_FTP_PORT;
+	} else if(ptr_pckt_lg_info->dst_port == PORT_FTP_DATA){
+		f_d_port == FAKE_FTP_DATA_PORT;
+	} else {
+#ifdef FAKING_DEBUG_MODE		
+		printk(KERN_INFO "In function fake_destination_details(), no need to fake\n");
+#endif
+		return;
+	}
+
+	//Initialize f_d_ip to contain relevant ip:
+	if (is_relevant_ip(FW_IP_ETH_1, FW_NET_MASK, ptr_pckt_lg_info->src_ip)){
+		f_d_ip = FW_IP_ETH_1;
+	} else if (is_relevant_ip(FW_IP_ETH_2, FW_NET_MASK, ptr_pckt_lg_info->src_ip)){
+		f_d_ip = FW_IP_ETH_2;
+	} else {
+		//Never supposed to get here:
+		printk(KERN_ERR "Error: function decide_packet_action() \
+				got undefined first-SYN packet, no fake was done\n");
+		return;
+	}	
+		
+	fake_packets_details(skb, false, f_d_ip, f_d_port);
+	tcp_conn_row->fake_dst_ip = f_d_ip;
+	tcp_conn_row->fake_dst_port = f_d_port;
+#ifdef FAKING_DEBUG_MODE		
+		printk(KERN_INFO "In function fake_destination_details(), faked dst ip&port to be: %u, %hu\n",
+				f_d_ip,f_d_port);
+#endif
+}
 
 /**
  *	Decides the action that should be taken on packet:
@@ -1030,6 +1082,7 @@ void decide_packet_action(struct sk_buff* skb, log_row_t* ptr_pckt_lg_info,
 {
 	tcp_packet_t tcp_pckt_type;
 	struct tcphdr* tcp_hdr;
+	connection_row_t* tcp_conn_row = NULL;
 	
 	if (ptr_pckt_lg_info == NULL){
 		printk(KERN_ERR "Inside decide_packet_action(), got NULL argument: ptr_pckt_lg_info\n");
@@ -1047,10 +1100,15 @@ void decide_packet_action(struct sk_buff* skb, log_row_t* ptr_pckt_lg_info,
 		ptr_pckt_lg_info->reason = REASON_XMAS_PACKET;
 		return;
 	} 
-	//If gets here, g_fw_is_active == FW_ON & packet isn't XMAS
+	
+	if (is_loopback(ptr_pckt_lg_info, packet_ack, packet_direction)){
+		ptr_pckt_lg_info->reason = REASON_LOOPBACK_PACKET;
+		return;
+	}
+	//If gets here, g_fw_is_active == FW_ON & packet isn't XMAS & packet isn't a loopback-packet
 	
 	tcp_hdr = get_tcp_header(skb); //pointer to tcp header
-	///TODO:: EDIT THIS FUNCTION!!
+	///TODO:: edit function "check_tcp_packet", and check that this is still relevant:
 	//Checks and takes care of TCP-packet (that is NOT a SYN packet):
 	if (tcp_hdr) { 
 		//If gets here, it's a TCP-packet
@@ -1067,32 +1125,32 @@ void decide_packet_action(struct sk_buff* skb, log_row_t* ptr_pckt_lg_info,
 	 	
 	}
 	
-	//Gets here if packet is:
+	//Gets here if packet is not a loopback packet and is:
 	//	1.  Not a TCP packet
 	//	xor
 	//	2.	A (first) SYN packet:
 	if ( (get_relevant_rule_num_from_table(ptr_pckt_lg_info,
 						packet_ack, packet_direction)) <  0 )
-	{//Meaning no relevant rule was found:
+	{
+		//Meaning no relevant rule was found, default is to accept:
 		ptr_pckt_lg_info->action = NF_ACCEPT;
 		ptr_pckt_lg_info->reason = REASON_NO_MATCHING_RULE;
 		
 		if (ptr_pckt_lg_info->protocol == PROT_TCP){ 
 			//Its a SYN packet & no rule was found - since we accept it,
 			//we add it to the connections table:
-			add_first_SYN_connection(ptr_pckt_lg_info);
+			tcp_conn_row = add_first_SYN_connection(ptr_pckt_lg_info);
+			//Fake its destination, if needed:
+			fake_destination_details(skb, ptr_pckt_lg_info, tcp_conn_row);
 		}
 			
 	} //Otherwise, ptr_pckt_lg_info->action & reason were updated during get_relevant_rule_num_from_table()
 
 }
 
-
 /**
- *	Decides the action that should be taken on AN INNER packet
- *	(a packet caught in hook-points: NF_INET_LOCAL_IN/NF_INET_LOCAL_OUT) 
- * 
- *	Updates: ptr_pckt_lg_info->action 
+ *	Checks if current packet is a "loopback" packet, returns true if it is,
+ *	Updates: ptr_pckt_lg_info->action to NF_ACCEPT
  * 			(if build-in rule is relevant to current packet)
  * 
  *	Note: 1.function should be called AFTER ptr_pckt_lg_info,
@@ -1102,24 +1160,50 @@ void decide_packet_action(struct sk_buff* skb, log_row_t* ptr_pckt_lg_info,
  * 			using log_row_t* since it's easier :)
  * 		
  **/
-unsigned int decide_inner_packet_action(log_row_t* ptr_pckt_lg_info,
-		ack_t* packet_ack, direction_t* packet_direction )
+bool is_loopback(log_row_t* ptr_pckt_lg_info,
+		ack_t* packet_ack, direction_t* packet_direction)
 {
 	enum action_t answer = is_relevant_rule(&g_buildin_rule, ptr_pckt_lg_info, packet_ack, packet_direction);
 	if (answer == RULE_NOT_RELEVANT) {
+		//This packet doesn't fit g_buildin_rule (not a loop-back packet)
+		return false;
+	}
+	//Packet is a loopback packet:
+	return true;
+
+}
+
+
+/**
+ *	Decides the action that should be taken on AN outer packet
+ *	(a packet caught in hook-point: NF_INET_LOCAL_OUT) 
+ * 
+ *	Updates: ptr_pckt_lg_info->action 
+ * 			(if build-in rule is relevant to current packet)
+ * //TODO: edit "Updates"
+ * 
+ *	Note: 1.function should be called AFTER ptr_pckt_lg_info,
+ * 		  	*packet_ack and *packet_direction were initiated
+ * 		  	(using init_log_row).
+ *		  2.function should be used on packets that WON'T BE LOGGED,
+ * 			using log_row_t* since it's easier :)
+ * 		
+ **/
+unsigned int decide_outer_packet_action(log_row_t* ptr_pckt_lg_info,
+		ack_t* packet_ack, direction_t* packet_direction )
+{
+	///TODO::
+	/**
+	enum action_t answer = is_relevant_rule(&g_buildin_rule, ptr_pckt_lg_info, packet_ack, packet_direction);
+	if (answer == RULE_NOT_RELEVANT) {
 		//Since in those hook-points, we block any packet which doesn't fit g_buildin_rule:
-#ifdef LOG_DEBUG_MODE
-		printk(KERN_INFO "In decide_inner_packet_action(), returning NF_DROP\n");
-#endif
 		return NF_DROP;
 	}
 	//If gets here, ptr_pckt_lg_info->action must be NF_ACCEPT
-#ifdef LOG_DEBUG_MODE
-		printk(KERN_INFO "In decide_inner_packet_action(), returning NF_ACCEPT\n");
-#endif
-	return ptr_pckt_lg_info->action;
-}
 
+	return ptr_pckt_lg_info->action;
+	**/
+}
 
 
 /**
@@ -1128,22 +1212,23 @@ unsigned int decide_inner_packet_action(log_row_t* ptr_pckt_lg_info,
  *	@skb - pointer to struct sk_buff that represents current packet
  *	@fake_src -	1. true - if we want to fake the source ip&port
  * 				2. false - if we want to fake the destination ip&port
- *	@fake_ip - the ip we want to fake, in LOCAL ENDIANNESS!
- *	@fake_port - the port we want to fake, in LOCAL ENDIANNESS!
+ *	@fake_ip - the ip we want to fake (to), in LOCAL ENDIANNESS!
+ *	@fake_port - the port we want to fake (to), in LOCAL ENDIANNESS!
  * 
- * 	Note: 1. 
- * 		
+ *	Returns false if failed 
  **/
-bool fake_packets_details(struct sk_buff *skb, bool fake_src, __u32 fake_ip, __u16 fake_port)
+bool fake_packets_details(struct sk_buff *skb, bool fake_src, __be32 fake_ip, __be16 fake_port)
 {
 	struct iphdr *ip_header;
 	struct tcphdr *tcp_header;
 	int tcplen;
 	
 	if ( skb == NULL 
+		|| skb_linearize(skb) != 0
 		|| (ip_header = ip_hdr(skb)) == NULL
 		|| (tcp_header = get_tcp_header(skb)) == NULL )
 	{
+		printk(KERN_ERR "Error: function fake_packets_details() failed.\n");
 		return false;
 	}
 
@@ -1155,28 +1240,17 @@ bool fake_packets_details(struct sk_buff *skb, bool fake_src, __u32 fake_ip, __u
 		ip_header->daddr = htonl(fake_ip);
 		tcp_header->dest = htons(fake_port);
 	}
-	///TODO::
+
 	//Fix checksum for both IP and TCP:
 	tcplen = (skb->len - ((ip_header->ihl )<< 2));
-	tcp_header->check=0;
+	tcp_header->check = 0;
 	tcp_header->check = tcp_v4_check(tcplen, ip_header->saddr, ip_header->daddr,csum_partial((char*)tcp_header, tcplen,0));
 	skb->ip_summed = CHECKSUM_NONE; //stop offloading
 	ip_header->check = 0;
 	ip_header->check = ip_fast_csum((u8 *)ip_header, ip_header->ihl);
 	
 	return true;
-
-
 }
-
-
-
-
-
-
-
-
-
 
 
 /**

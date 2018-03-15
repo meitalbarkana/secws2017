@@ -30,9 +30,9 @@
 
 #define CLEAR_RULES '0'
 #define DELIMETER_STR "\n"
-#define LOCALHOST_IP (2130706433u) // <=> 127.0.0.1
+#define LOCALHOST_IP (2130706433u)				// <=> 127.0.0.1
 #define LOCALHOST_MASK_LEN (8) 
-#define LOCALHOST_PREFIX_MASK (4278190080u) // <=> mask of length 8
+#define LOCALHOST_PREFIX_MASK (4278190080u)		// <=> mask of length 8
 
 //Enum that helps deciding which fields to update (source or destination):
 enum src_or_dst_t {
@@ -70,7 +70,9 @@ static const rule_t g_buildin_rule =
 
 //Functions that will be used outside rules_utils: 
 void decide_packet_action(struct sk_buff* skb, log_row_t* ptr_pckt_lg_info, ack_t* packet_ack, direction_t* packet_direction);
-unsigned int decide_inner_packet_action(log_row_t* ptr_pckt_lg_info, ack_t* packet_ack, direction_t* packet_direction);
+unsigned int decide_outer_packet_action(log_row_t* ptr_pckt_lg_info, ack_t* packet_ack, direction_t* packet_direction);
 int init_rules_device(struct class* fw_class);
 void destroy_rules_device(struct class* fw_class);
+bool fake_packets_details(struct sk_buff *skb, bool fake_src, __be32 fake_ip, __be16 fake_port);
+bool is_loopback(log_row_t* ptr_pckt_lg_info, ack_t* packet_ack, direction_t* packet_direction);
 #endif /* RULES_UTILS_H */
