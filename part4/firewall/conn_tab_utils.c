@@ -386,6 +386,11 @@ static connection_row_t* add_new_connection_row(log_row_t* pckt_lg_info, bool is
 	}
 	memset(new_conn, 0, sizeof(connection_row_t)); 
 	
+	//Default values:
+	new_conn->need_to_fake_connection = false; 
+	new_conn->fake_tcp_state = TCP_STATE_CLOSED;
+	
+	//Update values:
 	new_conn->src_ip = pckt_lg_info->src_ip;
 	new_conn->src_port = pckt_lg_info-> src_port;
 	new_conn->dst_ip = pckt_lg_info->dst_ip;
@@ -432,6 +437,7 @@ static bool handle_SYN_ACK_packet(log_row_t* pckt_lg_info,
 		connection_row_t* relevant_conn_row,
 		connection_row_t* relevant_opposite_conn_row )
 {
+	connection_row_t* conn_row = NULL;
 	
 	if(pckt_lg_info == NULL){
 		printk(KERN_ERR "In handle_SYN_ACK_packet(), function got NULL argument.\n");
@@ -447,20 +453,47 @@ static bool handle_SYN_ACK_packet(log_row_t* pckt_lg_info,
 	} 
 	else //relevant_opposite_conn_row!=NULL and relevant_conn_row==NULL
 	{ 	
-		//Make sure prior connection is SYN:
-		if (relevant_opposite_conn_row->tcp_state == TCP_STATE_SYN_SENT){
-			//Add new SYN-ACK connection-row:
-			if (add_new_connection_row(pckt_lg_info, false) == NULL){
-				//Errors already printed in add_new_connection_row()
-				return false; 
-			}
-			pckt_lg_info->action = NF_ACCEPT;
-			pckt_lg_info->reason = REASON_FOUND_MATCHING_TCP_CONNECTION;
-			
-		} else {
-			//Never supposed to get here:
-			printk(KERN_ERR "In handle_SYN_ACK_packet, previous connection row isn't TCP_STATE_SYN_SENT.\n");
-			return false;
+		//Regular (not "faked") tcp-connection:
+		if(!relevant_opposite_conn_row->need_to_fake_connection)
+		{
+			//Make sure prior connection is SYN:
+			if (relevant_opposite_conn_row->tcp_state == TCP_STATE_SYN_SENT){
+				//Add new SYN-ACK connection-row:
+				if ((conn_row = add_new_connection_row(pckt_lg_info, false)) == NULL){
+					//Errors already printed in add_new_connection_row()
+					return false; 
+				}
+				conn_row->fake_tcp_state = TCP_STATE_CLOSED;
+				pckt_lg_info->action = NF_ACCEPT;
+				pckt_lg_info->reason = REASON_FOUND_MATCHING_TCP_CONNECTION;
+				
+			} else {
+				//Never supposed to get here:
+				printk(KERN_ERR "In handle_SYN_ACK_packet, previous connection row isn't TCP_STATE_SYN_SENT.\n");
+				return false;
+			}			
+		} 
+		else //"Faked" connection:
+		{ 
+			//Make sure "other side" of proxy connection is established
+			if (relevant_opposite_conn_row->fake_tcp_state == TCP_STATE_ESTABLISHED){
+				//Add new SYN-ACK connection-row:
+				if ((conn_row = add_new_connection_row(pckt_lg_info, false)) == NULL){
+					//Errors already printed in add_new_connection_row()
+					return false; 
+				}
+				conn_row->need_to_fake_connection = true;
+				conn_row->fake_tcp_state = TCP_STATE_SYN_RCVD;
+				pckt_lg_info->action = NF_ACCEPT;
+				pckt_lg_info->reason = REASON_FOUND_MATCHING_TCP_CONNECTION;
+				
+			} else {
+				printk(KERN_INFO "In handle_SYN_ACK_packet, other proxy \
+						connection row isn't in TCP_STATE_ESTABLISHED,\
+						\nDropping packet.\n");
+				pckt_lg_info->action = NF_DROP;
+				pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION;
+			}				
 		}
 			
 	}
@@ -597,7 +630,12 @@ static bool handle_OTHER_tcp_packet(log_row_t* pckt_lg_info,
  *	and 2 pointers to relevant connection rows (if any).
  *	Checks if that packet suits current TCP state - that it has relevant
  *  connection-rows, and if so - 
- *	DELETES those rows accordingly and let the packet pass
+ *		a.	If relevant row's need_to_fake_connection == false - 
+ * 			DELETES those rows accordingly and lets the packet pass.
+ * 		b.	If relevant row's need_to_fake_connection == true - 
+ * 			DELETES relevant row and UPDATES 
+ * 			relevant_opposite_conn_row->fake_tcp_state to "TCP_STATE_CLOSED",
+ *			and lets the packet pass.
  *
  *	@pckt_lg_info - the information about the packet we check
  *	@relevant_conn_row - a connection-row with the same IPs & ports,
@@ -619,6 +657,10 @@ static bool handle_RESET_tcp_packet(log_row_t* pckt_lg_info,
 		connection_row_t* relevant_conn_row,
 		connection_row_t* relevant_opposite_conn_row)
 {
+	bool delete_opposite_row = true;
+#ifdef FAKING_DEBUG_MODE
+		printk(KERN_INFO "In handle_RESET_tcp_packet(), checking relevant connection rows.\n");
+#endif	
 	if(pckt_lg_info == NULL){
 		printk(KERN_ERR "In handle_RESET_tcp_packet(), function got NULL argument.\n");
 		return false;
@@ -626,15 +668,19 @@ static bool handle_RESET_tcp_packet(log_row_t* pckt_lg_info,
 
 	if ((relevant_conn_row) || (relevant_opposite_conn_row))
 	{
-		//Delete rows:
-#ifdef CONN_DEBUG_MODE
-		printk(KERN_INFO "Inside handle_RESET_tcp_packet(), deleting relevant connection rows.\n");
-#endif
+		//Delete rows, if needed:
 		if (relevant_conn_row){
+			if(relevant_conn_row->need_to_fake_connection){
+				delete_opposite_row = false;
+			}
 			delete_specific_row_by_conn_ptr(relevant_conn_row);
 		}
 		if (relevant_opposite_conn_row){
-			delete_specific_row_by_conn_ptr(relevant_opposite_conn_row);
+			if(delete_opposite_row){
+				delete_specific_row_by_conn_ptr(relevant_opposite_conn_row);
+			} else {
+				relevant_opposite_conn_row->fake_tcp_state = TCP_STATE_CLOSED;
+			}
 		}
 		
 		pckt_lg_info->action = NF_ACCEPT;
@@ -642,7 +688,7 @@ static bool handle_RESET_tcp_packet(log_row_t* pckt_lg_info,
 		return true;
 	}
 	
-	//Packet's not relevant for tcp connection:
+	//Packet's not relevant for any tcp connection:
 	pckt_lg_info->action = NF_DROP;
 	pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION;
 	
@@ -793,17 +839,32 @@ bool check_tcp_packet(log_row_t* pckt_lg_info, tcp_packet_t tcp_pckt_type){
  *	Gets a pointer to a SYN packet's log_row_t, 
  *	adds a NEW connection-row (SYN) to g_connections_list.
  * 
+ *	Note:	If this is a SYN packet of a connection that needs to be faked
+ * 			(needs to be sent to proxy server) - updates values of:
+ * 			1. conn_row->need_to_fake_connection - to "true"
+ * 			2. conn_row->fake_tcp_state - to "TCP_STATE_SYN_SENT"
+ *			3. skb (fakes relevant fields!)
+ * 
  *	Returns:	1. on success: a pointer to the newly added connection-row
  * 				2. if failed: NULL
  **/
-connection_row_t* add_first_SYN_connection(log_row_t* syn_pckt_lg_info)
+connection_row_t* add_first_SYN_connection(log_row_t* syn_pckt_lg_info,
+		struct sk_buff* skb)
 {	
 	connection_row_t* conn_row = NULL;
 
 	if ((conn_row = add_new_connection_row(syn_pckt_lg_info, true)) == NULL){
 		//An error occured, not supposed to get here:
 		printk(KERN_ERR "ERROR: adding valid connection to connection-table failed.\n");
+		return NULL;
 	}
+	
+	//Init fake values, if needed:
+	conn_row->need_to_fake_connection = port_handled_by_proxy_server(conn_row->dst_port); 
+	if (conn_row->need_to_fake_connection) {
+		conn_row->fake_tcp_state = TCP_STATE_SYN_SENT;
+	}
+	//TODO:: add faking!
 	return conn_row;
 }
 

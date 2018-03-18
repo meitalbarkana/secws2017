@@ -758,64 +758,6 @@ static bool is_relevant_ack(ack_t rule_ack, ack_t packet_ack){
 }
 
 /**
- * 	Checks if a given IPv4 packet is a TCP packet,
- *  Returns: its tcp header if it is,
- * 			 NULL otherwise.
- *	
- *	@skb - pointer to struct sk_buff that represents current packet
- *
- **/
-static struct tcphdr* get_tcp_header(struct sk_buff* skb){
-	
-	struct iphdr* ptr_ipv4_hdr; //pointer to ipv4 header
-	
-	if (skb){ 
-		ptr_ipv4_hdr = ip_hdr(skb);
-		if(ptr_ipv4_hdr){
-			//Protocol is 1 byte - no need to consider Endianness
-			if (ptr_ipv4_hdr->protocol == PROT_TCP) {	//Checks in local endianness
-				//ihl holds the ip_header length in number of words, 
-				//each word is 32 bit long = 4 bytes 
-				return ((struct tcphdr*)((char*)ptr_ipv4_hdr + (ptr_ipv4_hdr->ihl * 4)));
-			}
-		} else {
-			printk(KERN_ERR "In get_tcp_header(), couldn't extract ipv4-header from skb.\n");
-		}
-	} else {
-		printk(KERN_ERR "In get_tcp_header(), function got NULL argument.\n");
-	}
-	
-	return NULL;
-}
-
-/**
- * 	Checks if a given IPv4 packet is XMAS packet.
- *	
- *	@skb - pointer to struct sk_buff that represents current packet
- *	
- *	Returns true if it represent a Christmas Tree Packet
- *	(TCP packet with PSH, URG, FIN flags on)
- * 
- *	struct iphdr->protocol values are from: 
- *	http://elixir.free-electrons.com/linux/latest/source/include/uapi/linux/in.h#L37
- *	here we're only interested in values that appear in enum prot_t. 
- **/
-static bool is_XMAS(struct sk_buff* skb){
-	
-	struct tcphdr* ptr_tcp_hdr = get_tcp_header(skb); //pointer to tcp header
-	
-	if (ptr_tcp_hdr){ //Means it's a TCP packet, ptr_tcp_hdr isn't NULL
-		if ( (ptr_tcp_hdr->psh == 1) && (ptr_tcp_hdr->urg == 1)
-			&& (ptr_tcp_hdr->fin == 1) ) 
-		{
-				return true;
-		}
-	}
-	
-	return false;
-}
-
-/**
  *	Checks if rule is relevant to packet represented by ptr_pckt_lg_info.
  *	
  *	Updates: ptr_pckt_lg_info->action (if rule is relevant to current packet)
@@ -973,7 +915,7 @@ void fake_destination_details(struct sk_buff* skb,
 				got undefined first-SYN packet, no fake was done\n");
 		return;
 	}	
-		
+	//Fake destination:
 	fake_packets_details(skb, false, f_d_ip, f_d_port);
 	tcp_conn_row->fake_dst_ip = f_d_ip;
 	tcp_conn_row->fake_dst_port = f_d_port;
@@ -1056,7 +998,7 @@ void decide_packet_action(struct sk_buff* skb, log_row_t* ptr_pckt_lg_info,
 			//we add it to the connections table:
 			tcp_conn_row = add_first_SYN_connection(ptr_pckt_lg_info);
 			//Fake its destination, if needed:
-			fake_destination_details(skb, ptr_pckt_lg_info, tcp_conn_row);
+			fake_destination_details(skb, ptr_pckt_lg_info, tcp_conn_row);//TODO:: delete this line if I added faking inside "add_first_SYN_connection".
 		}
 			
 	} //Otherwise, ptr_pckt_lg_info->action & reason were updated during get_relevant_rule_num_from_table()
@@ -1104,8 +1046,9 @@ bool is_loopback(log_row_t* ptr_pckt_lg_info,
  * 			using log_row_t* since it's easier :)
  * 		
  **/
-unsigned int decide_outer_packet_action(log_row_t* ptr_pckt_lg_info,
-		ack_t* packet_ack, direction_t* packet_direction )
+unsigned int decide_outer_packet_action(struct sk_buff* skb, 
+		log_row_t* ptr_pckt_lg_info, ack_t* packet_ack,
+		direction_t* packet_direction)
 {
 	///TODO::
 	/**
@@ -1119,54 +1062,6 @@ unsigned int decide_outer_packet_action(log_row_t* ptr_pckt_lg_info,
 	return ptr_pckt_lg_info->action;
 	**/
 }
-
-
-/**
- *	Fakes packet details according to values received
- * 
- *	@skb - pointer to struct sk_buff that represents current packet
- *	@fake_src -	1. true - if we want to fake the source ip&port
- * 				2. false - if we want to fake the destination ip&port
- *	@fake_ip - the ip we want to fake (to), in LOCAL ENDIANNESS!
- *	@fake_port - the port we want to fake (to), in LOCAL ENDIANNESS!
- * 
- *	Returns false if failed 
- **/
-bool fake_packets_details(struct sk_buff *skb, bool fake_src, __be32 fake_ip, __be16 fake_port)
-{
-	struct iphdr *ip_header;
-	struct tcphdr *tcp_header;
-	int tcplen;
-	
-	if ( skb == NULL 
-		|| skb_linearize(skb) != 0
-		|| (ip_header = ip_hdr(skb)) == NULL
-		|| (tcp_header = get_tcp_header(skb)) == NULL )
-	{
-		printk(KERN_ERR "Error: function fake_packets_details() failed.\n");
-		return false;
-	}
-
-	//Change routing:
-	if (fake_src){
-		ip_header->saddr = htonl(fake_ip);
-		tcp_header->source = htons(fake_port);
-	} else {
-		ip_header->daddr = htonl(fake_ip);
-		tcp_header->dest = htons(fake_port);
-	}
-
-	//Fix checksum for both IP and TCP:
-	tcplen = (skb->len - ((ip_header->ihl )<< 2));
-	tcp_header->check = 0;
-	tcp_header->check = tcp_v4_check(tcplen, ip_header->saddr, ip_header->daddr,csum_partial((char*)tcp_header, tcplen,0));
-	skb->ip_summed = CHECKSUM_NONE; //stop offloading
-	ip_header->check = 0;
-	ip_header->check = ip_fast_csum((u8 *)ip_header, ip_header->ihl);
-	
-	return true;
-}
-
 
 /**
  * Help function that cleans up everything associated with creating our device,

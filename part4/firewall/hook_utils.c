@@ -91,14 +91,14 @@ static unsigned int check_packet_hookp_out(struct sk_buff* skb,
 	unsigned int ans;
 	
 	//Initiate: pckt_lg_info, packet_ack , packet_direction
-	if( (pckt_lg_info = init_log_row(skb, hooknum,
-		&packet_ack, &packet_direction, in, out)) == NULL)
+	if( (pckt_lg_info = init_log_row(skb, hooknum, &packet_ack,
+			&packet_direction, in, out)) == NULL)
 	{
 		return NF_ACCEPT;//An error occured, never supposed to get here.
 	}
 	
-	ans = decide_outer_packet_action(pckt_lg_info, &packet_ack,
-									&packet_direction);
+	ans = decide_outer_packet_action(skb, pckt_lg_info, &packet_ack,
+			&packet_direction);
 	
 	//Frees memory allocated in init_log_row
 	kfree(pckt_lg_info);

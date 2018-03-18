@@ -21,7 +21,7 @@ enum c_state_to_fold {
 	C_ALL_DES
 };
 
-connection_row_t* add_first_SYN_connection(log_row_t* syn_pckt_lg_info);
+connection_row_t* add_first_SYN_connection(log_row_t* syn_pckt_lg_info, struct sk_buff* skb);
 bool check_tcp_packet(log_row_t* pckt_lg_info, tcp_packet_t tcp_pckt_type);
 int init_conn_tab_device(struct class* fw_class);
 void destroy_conn_tab_device(struct class* fw_class);

@@ -153,7 +153,8 @@ enum action_t {
  **/
 typedef enum{	 
 
-	//"State" before a connection actually begins OR after it's closed:
+	//"State" before a connection actually begins OR after it's closed,
+	//Also - the default "fake_tcp_state":
 	TCP_STATE_CLOSED = 1,
 	
 	//State a server is in when waiting for a request to start a connection:
@@ -221,6 +222,8 @@ typedef struct {
 	__be16			fake_src_port;
 	__be32			fake_dst_ip;
 	__be16			fake_dst_port;
+	bool 			need_to_fake_connection;
+	tcp_state_t		fake_tcp_state;
 	//Note: these fields should be initialized to zero (using memset)
 	//		wherever a new connection_row_t is created.
 
@@ -231,5 +234,9 @@ typedef struct {
 
 direction_t get_direction(const struct net_device* in, const struct net_device* out);
 tcp_packet_t get_tcp_packet_type(struct tcphdr* tcp_hdr);
+bool fake_packets_details(struct sk_buff *skb, bool fake_src, __be32 fake_ip, __be16 fake_port);
+bool is_XMAS(struct sk_buff* skb);
+struct tcphdr* get_tcp_header(struct sk_buff* skb);
+bool port_handled_by_proxy_server(__be16 port_number);
 
 #endif // _FW_H_
