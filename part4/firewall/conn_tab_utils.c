@@ -412,6 +412,66 @@ static connection_row_t* add_new_connection_row(log_row_t* pckt_lg_info, bool is
 }
 
 /**
+ *	Gets a pointer to a SYN,src_port==PORT_FTP_DATA packet's log_row_t, 
+ *	and 2 pointers to relevant connection rows (if any).
+ *	Checks if that connection already have relevant "TCP_STATE_LISTEN" connection-row,
+ *	and if so - UPDATES it.
+ *
+ *	@pckt_lg_info - the information about the packet we check
+ *	@relevant_conn_row - a connection-row with the same IPs & ports,
+ * 						might be NULL if no such was found
+ *	@relevant_opposite_conn_row - a connection-row with the opposite side
+ * 						IPs & ports, should be NULL.
+ * 
+ *	Updates:	1. pckt_lg_info->action
+ * 				2. pckt_lg_info->reason
+ * 				3. relevant_conn_row->fake_tcp_state (if packet is relevant)
+ * 				4. relevant_conn_row->timestamp (if packet is relevant)
+ * 
+ *	Returns true on success, false if any error occured.
+ *	
+ *	NOTE:	1. If returned false, user should handle values of:
+ * 				pckt_lg_info->action, pckt_lg_info->reason!
+ * 			2. A valid (SYN+ source-port=20) packet will have 
+ * 				relevant_conn_row!=NULL and relevant_opposite_conn_row==NULL.
+ *			3. All ftp-data connection-rows are "faked".
+ **/
+static bool handle_SYN_packet_src_port_ftp_data(log_row_t* pckt_lg_info, 
+		connection_row_t* relevant_conn_row,
+		connection_row_t* relevant_opposite_conn_row )
+{
+	if(pckt_lg_info == NULL){
+		printk(KERN_ERR "In handle_SYN_packet_src_port_ftp_data(), function got NULL argument.\n");
+		return false;
+	}
+	
+	if ( (relevant_opposite_conn_row != NULL) || (relevant_conn_row == NULL))
+	{
+	//Means no prior *inserted by proxy* connection-row found OR
+	//A prior, opposite direction connection was found: drop this packet.
+		pckt_lg_info->action = NF_DROP;
+		pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION;
+	} 
+	else //relevant_opposite_conn_row==NULL and relevant_conn_row!=NULL
+	{ 	
+		//Make sure connection status is "TCP_STATE_LISTEN" (that's
+		//how I defined ):
+		if (relevant_conn_row->tcp_state == TCP_STATE_LISTEN){
+			relevant_conn_row->fake_tcp_state = TCP_STATE_SYN_SENT;
+			relevant_conn_row->timestamp = pckt_lg_info->timestamp;
+			pckt_lg_info->action = NF_ACCEPT;
+			pckt_lg_info->reason = REASON_FOUND_MATCHING_TCP_CONNECTION;
+		} else {
+			pckt_lg_info->action = NF_DROP;
+			pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION;
+		}			
+	}
+	
+	return true;
+}
+
+
+/**
  *	Gets a pointer to a SYN-ACK packet's log_row_t, 
  *	and 2 pointers to relevant connection rows (if any).
  *	Checks if that connection already have SYN-packet connection-row,
@@ -778,8 +838,9 @@ static bool handle_FIN_tcp_packet(log_row_t* pckt_lg_info,
 /**
  *	Sets a TCP packet's action, according to current connection-list
  *	
- *	NOTE: packet SHOULDN'T BE A SYN PACKET! (assuming those were 
- * 		  already been taking care of).
+ *	NOTE:	if packet is a SYN packet, it HAS TO BE with 
+ *			source port==PORT_FTP_DATA! (assuming other SYN packets were 
+ * 		  	already been taking care of).
  * 
  *	Updates:	1. pckt_lg_info->action
  * 				2. pckt_lg_info->reason
@@ -804,9 +865,9 @@ bool check_tcp_packet(log_row_t* pckt_lg_info, tcp_packet_t tcp_pckt_type){
 	
 	switch (tcp_pckt_type){	
 		
-		case(TCP_SYN_PACKET):
-			printk(KERN_ERR "In function check_tcp_packet(), function got SYN packet info.\n");
-			return false;
+		case(TCP_SYN_PACKET): //ASSUMING src_port==PORT_FTP_DATA!
+			return ( handle_SYN_packet_src_port_ftp_data(pckt_lg_info,
+					relevant_conn_row, relevant_opposite_conn_row) );
 			
 		case(TCP_SYN_ACK_PACKET):
 			return ( handle_SYN_ACK_packet(pckt_lg_info,

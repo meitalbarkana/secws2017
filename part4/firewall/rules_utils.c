@@ -968,9 +968,16 @@ void decide_packet_action(struct sk_buff* skb, log_row_t* ptr_pckt_lg_info,
 	///TODO:: edit function "check_tcp_packet", and check that this is still relevant:
 	//Checks and takes care of TCP-packet (that is NOT a SYN packet):
 	if (tcp_hdr) { 
+		
 		//If gets here, it's a TCP-packet
 		tcp_pckt_type = get_tcp_packet_type(tcp_hdr);
-		if (tcp_pckt_type != TCP_SYN_PACKET){
+		
+		//Takes care of TCP packets that aren't SYN and
+		//of packets that are SYN AND their source port is PORT_FTP_DATA
+		if ( (tcp_pckt_type != TCP_SYN_PACKET) ||
+				((tcp_pckt_type == TCP_SYN_PACKET) &&
+				(ptr_pckt_lg_info->src_port == PORT_FTP_DATA)) )
+		 {
 			if(!check_tcp_packet(ptr_pckt_lg_info, tcp_pckt_type)){
 				//An error happened, default is to allow packet:
 				printk(KERN_ERR "Error: internal error while checking TCP packet, allow it to pass.\n");
@@ -979,13 +986,12 @@ void decide_packet_action(struct sk_buff* skb, log_row_t* ptr_pckt_lg_info,
 			}
 			return;
 	 	}
-	 	
 	}
 	
 	//Gets here if packet is not a loopback packet and is:
 	//	1.  Not a TCP packet
 	//	xor
-	//	2.	A (first) SYN packet:
+	//	2.	A (first) SYN packet, with src_port != PORT_FTP_DATA:
 	if ( (get_relevant_rule_num_from_table(ptr_pckt_lg_info,
 						packet_ack, packet_direction)) <  0 )
 	{
