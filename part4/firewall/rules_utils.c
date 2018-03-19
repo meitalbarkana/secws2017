@@ -959,17 +959,17 @@ void decide_packet_action(struct sk_buff* skb, log_row_t* ptr_pckt_lg_info,
 	} 
 	
 	if (is_loopback(ptr_pckt_lg_info, packet_ack, packet_direction)){
+		//ptr_pckt_lg_info->action was updated in is_loopback()
 		ptr_pckt_lg_info->reason = REASON_LOOPBACK_PACKET;
 		return;
 	}
 	//If gets here, g_fw_is_active == FW_ON & packet isn't XMAS & packet isn't a loopback-packet
 	
 	tcp_hdr = get_tcp_header(skb); //pointer to tcp header
-	///TODO:: edit function "check_tcp_packet", and check that this is still relevant:
-	//Checks and takes care of TCP-packet (that is NOT a SYN packet):
+	
+	//Checks and takes care of TCP-packet (that is NOT a SYN packet or
+	//that is a SYN packet with source port==PORT_FTP_DATA):
 	if (tcp_hdr) { 
-		
-		//If gets here, it's a TCP-packet
 		tcp_pckt_type = get_tcp_packet_type(tcp_hdr);
 		
 		//Takes care of TCP packets that aren't SYN and
@@ -979,10 +979,14 @@ void decide_packet_action(struct sk_buff* skb, log_row_t* ptr_pckt_lg_info,
 				(ptr_pckt_lg_info->src_port == PORT_FTP_DATA)) )
 		 {
 			if(!check_tcp_packet(ptr_pckt_lg_info, tcp_pckt_type)){
-				//An error happened, default is to allow packet:
+				//An error happened, default is to allow packet, without faking:
 				printk(KERN_ERR "Error: internal error while checking TCP packet, allow it to pass.\n");
 				ptr_pckt_lg_info->action = NF_ACCEPT;
 				ptr_pckt_lg_info->reason = REASON_CONN_TAB_ERR;	
+			} else {
+				//check_tcp_packet() succeeded:
+				///TODO:: check if ptr_pckt_lg_info->action = NF_ACCEPT,
+				///and if so - call an helper function that fakes this packet only if needed 
 			}
 			return;
 	 	}
@@ -1002,7 +1006,7 @@ void decide_packet_action(struct sk_buff* skb, log_row_t* ptr_pckt_lg_info,
 		if (ptr_pckt_lg_info->protocol == PROT_TCP){ 
 			//Its a SYN packet & no rule was found - since we accept it,
 			//we add it to the connections table:
-			tcp_conn_row = add_first_SYN_connection(ptr_pckt_lg_info);
+			tcp_conn_row = add_first_SYN_connection(ptr_pckt_lg_info, skb);
 			//Fake its destination, if needed:
 			fake_destination_details(skb, ptr_pckt_lg_info, tcp_conn_row);//TODO:: delete this line if I added faking inside "add_first_SYN_connection".
 		}
