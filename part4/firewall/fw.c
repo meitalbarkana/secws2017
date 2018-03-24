@@ -194,8 +194,3 @@ bool fake_packets_details(struct sk_buff *skb, bool fake_src, __be32 fake_ip, __
 	return true;
 }
 
-bool port_handled_by_proxy_server(__be16 port_number){
-	return (port_number == PORT_HTTP || 
-			port_number == PORT_FTP|| port_number == PORT_FTP_DATA);
-}
-

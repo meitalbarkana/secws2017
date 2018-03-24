@@ -912,8 +912,6 @@ bool check_tcp_packet(log_row_t* pckt_lg_info, tcp_packet_t tcp_pckt_type){
 connection_row_t* add_first_SYN_connection(log_row_t* syn_pckt_lg_info,
 		struct sk_buff* skb)
 {	
-	
-	///TODO:: edit after i'll change "update_conn_rows_fake_details_if_needed()"
 	connection_row_t* conn_row = NULL;
 
 	if ((conn_row = add_new_connection_row(syn_pckt_lg_info, true)) == NULL){
@@ -921,27 +919,18 @@ connection_row_t* add_first_SYN_connection(log_row_t* syn_pckt_lg_info,
 		printk(KERN_ERR "ERROR: adding valid connection to connection-table failed.\n");
 		return NULL;
 	}
-	///TODO:: update lines from here, add use of update_conn_rows_fake_details_if_needed():
-	//Init fake values, if needed:
-	conn_row->need_to_fake_connection = port_handled_by_proxy_server(conn_row->dst_port); 
-	if (conn_row->need_to_fake_connection) {
-		conn_row->fake_tcp_state = TCP_STATE_SYN_SENT;
-	}
+
+	//If failed, relevant messages printed inside update_conn_rows_fake_details_if_needed():
+	update_conn_rows_fake_details_if_needed(syn_pckt_lg_info, conn_row, NULL, true);
 	
 	return conn_row;
 }
 
-
-
-
-/*********************/
-
-
 /**
  *	Helper function to be used on a NEW added connection-row that was 
  *	"catched" in NF_INET_PRE_ROUTING hook-point: 
- *	Checks if a current connection row should have fake destination &
- *	fake source, and if so - updates:
+ *	Checks if a current connection row should be faked,
+ *	and if so - updates:
  *		1. relevant_conn_row->need_to_fake_connection to true
  * 		2. relevant_conn_row->fake_src_ip (only in SYN-ACK packet)
  *		3. relevant_conn_row->fake_src_port (only in SYN-ACK packet)

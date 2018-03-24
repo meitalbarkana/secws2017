@@ -773,8 +773,9 @@ static bool is_relevant_ack(ack_t rule_ack, ack_t packet_ack){
  * 		  3. If packet is the first SYN packet of a TCP connection,
  * 			 and it's a valid connection - adds a new row to connection table.
  **/
-static enum action_t is_relevant_rule(const rule_t* rule, log_row_t* ptr_pckt_lg_info,
-		ack_t* packet_ack, direction_t* packet_direction)
+static enum action_t is_relevant_rule(const rule_t* rule,
+		log_row_t* ptr_pckt_lg_info, ack_t* packet_ack,
+		direction_t* packet_direction, struct sk_buff* skb)
 {
 	if (ptr_pckt_lg_info == NULL) {
 		printk (KERN_ERR "In is_relevant_rule(), invalid argument - ptr_pckt_lg_info is NULL\n");
@@ -810,7 +811,7 @@ static enum action_t is_relevant_rule(const rule_t* rule, log_row_t* ptr_pckt_lg
 						 (rule->action == NF_ACCEPT) &&
 						 (rule != &g_buildin_rule) ) //since no need to check loopbacks
 					{
-						add_first_SYN_connection(ptr_pckt_lg_info);
+						add_first_SYN_connection(ptr_pckt_lg_info, skb);
 					}
 					return (enum action_t)rule->action;		
 				} 
@@ -848,7 +849,7 @@ static enum action_t is_relevant_rule(const rule_t* rule, log_row_t* ptr_pckt_lg
  * 		  2. function should be called AFTER making sure packet isn't XMAS 
  **/
 static int get_relevant_rule_num_from_table(log_row_t* ptr_pckt_lg_info,
-		ack_t* packet_ack, direction_t* packet_direction)
+		ack_t* packet_ack, direction_t* packet_direction, struct sk_buff* skb)
 {
 	size_t index = 0;
 	
@@ -859,7 +860,7 @@ static int get_relevant_rule_num_from_table(log_row_t* ptr_pckt_lg_info,
 	
 	for (index = 0; index < g_num_of_valid_rules; ++index) {
 		if ( (is_relevant_rule(&(g_all_rules_table[index]),
-				ptr_pckt_lg_info,packet_ack, packet_direction))
+				ptr_pckt_lg_info,packet_ack, packet_direction, skb))
 			!= RULE_NOT_RELEVANT )
 		{ 
 			//Rule is relevant, ptr_pckt_lg_info->action was updated in is_relevant_rule()
@@ -998,7 +999,7 @@ void decide_packet_action(struct sk_buff* skb, log_row_t* ptr_pckt_lg_info,
 	//	xor
 	//	2.	A (first) SYN packet, with src_port != PORT_FTP_DATA:
 	if ( (get_relevant_rule_num_from_table(ptr_pckt_lg_info,
-						packet_ack, packet_direction)) <  0 )
+						packet_ack, packet_direction, skb)) <  0 )
 	{
 		//Meaning no relevant rule was found, default is to accept:
 		ptr_pckt_lg_info->action = NF_ACCEPT;
@@ -1031,7 +1032,8 @@ void decide_packet_action(struct sk_buff* skb, log_row_t* ptr_pckt_lg_info,
 bool is_loopback(log_row_t* ptr_pckt_lg_info,
 		ack_t* packet_ack, direction_t* packet_direction)
 {
-	enum action_t answer = is_relevant_rule(&g_buildin_rule, ptr_pckt_lg_info, packet_ack, packet_direction);
+	//No need to send a "real" skb, sending NULL instead:
+	enum action_t answer = is_relevant_rule(&g_buildin_rule, ptr_pckt_lg_info, packet_ack, packet_direction, NULL); 
 	if (answer == RULE_NOT_RELEVANT) {
 		//This packet doesn't fit g_buildin_rule (not a loop-back packet)
 		return false;
