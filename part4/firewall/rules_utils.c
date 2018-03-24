@@ -874,6 +874,7 @@ static int get_relevant_rule_num_from_table(log_row_t* ptr_pckt_lg_info,
 	return (-1);
 }
 
+
 /**
  *	Helper function that fakes the destination ip&port (of skb's packet)
  *  to be the proxy server's, IF NEEDED 
@@ -972,7 +973,7 @@ void decide_packet_action(struct sk_buff* skb, log_row_t* ptr_pckt_lg_info,
 	if (tcp_hdr) { 
 		tcp_pckt_type = get_tcp_packet_type(tcp_hdr);
 		
-		//Takes care of TCP packets that aren't SYN and
+		//Takes care of TCP packets that aren't SYN, and
 		//of packets that are SYN AND their source port is PORT_FTP_DATA
 		if ( (tcp_pckt_type != TCP_SYN_PACKET) ||
 				((tcp_pckt_type == TCP_SYN_PACKET) &&
