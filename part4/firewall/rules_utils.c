@@ -1007,10 +1007,8 @@ void decide_packet_action(struct sk_buff* skb, log_row_t* ptr_pckt_lg_info,
 		
 		if (ptr_pckt_lg_info->protocol == PROT_TCP){ 
 			//Its a SYN packet & no rule was found - since we accept it,
-			//we add it to the connections table:
+			//we add it to the connections table (and fake its destination, if needed):
 			tcp_conn_row = add_first_SYN_connection(ptr_pckt_lg_info, skb);
-			//Fake its destination, if needed:
-			fake_destination_details(skb, ptr_pckt_lg_info, tcp_conn_row);//TODO:: delete this line if I added faking inside "add_first_SYN_connection".
 		}
 			
 	} //Otherwise, ptr_pckt_lg_info->action & reason were updated during get_relevant_rule_num_from_table()

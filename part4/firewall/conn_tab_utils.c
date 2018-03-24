@@ -513,48 +513,34 @@ static bool handle_SYN_ACK_packet(log_row_t* pckt_lg_info,
 	} 
 	else //relevant_opposite_conn_row!=NULL and relevant_conn_row==NULL
 	{ 	
-		//Regular (not "faked") tcp-connection:
-		if(!relevant_opposite_conn_row->need_to_fake_connection)
-		{
-			//Make sure prior connection is SYN:
-			if (relevant_opposite_conn_row->tcp_state == TCP_STATE_SYN_SENT){
+		//Make sure prior connection is SYN:
+		if (relevant_opposite_conn_row->tcp_state == TCP_STATE_SYN_SENT){
+			
+			if ( (!relevant_opposite_conn_row->need_to_fake_connection) || 
+				(relevant_opposite_conn_row->fake_tcp_state != TCP_STATE_CLOSED) )
+			{
 				//Add new SYN-ACK connection-row:
 				if ((conn_row = add_new_connection_row(pckt_lg_info, false)) == NULL){
 					//Errors already printed in add_new_connection_row()
 					return false; 
 				}
-				conn_row->fake_tcp_state = TCP_STATE_CLOSED;
 				pckt_lg_info->action = NF_ACCEPT;
 				pckt_lg_info->reason = REASON_FOUND_MATCHING_TCP_CONNECTION;
-				
-			} else {
-				//Never supposed to get here:
-				printk(KERN_ERR "In handle_SYN_ACK_packet, previous connection row isn't TCP_STATE_SYN_SENT.\n");
-				return false;
-			}			
-		} 
-		else //"Faked" connection:
-		{ 
-			//Make sure "other side" of proxy connection is established
-			if (relevant_opposite_conn_row->fake_tcp_state == TCP_STATE_ESTABLISHED){
-				//Add new SYN-ACK connection-row:
-				if ((conn_row = add_new_connection_row(pckt_lg_info, false)) == NULL){
-					//Errors already printed in add_new_connection_row()
-					return false; 
-				}
-				conn_row->need_to_fake_connection = true;
-				conn_row->fake_tcp_state = TCP_STATE_SYN_RCVD;
-				pckt_lg_info->action = NF_ACCEPT;
-				pckt_lg_info->reason = REASON_FOUND_MATCHING_TCP_CONNECTION;
-				
-			} else {
-				printk(KERN_INFO "In handle_SYN_ACK_packet, other proxy \
-						connection row isn't in TCP_STATE_ESTABLISHED,\
-						\nDropping packet.\n");
+				update_conn_rows_fake_details_if_needed(pckt_lg_info, conn_row, relevant_opposite_conn_row, false);					
+			} 
+			else
+			{
+				//Since other side of faked connection should be in state: 
+				printk(KERN_INFO "In handle_SYN_ACK_packet, opposite_conn_row fake_tcp_state IS TCP_STATE_CLOSED.\n");
 				pckt_lg_info->action = NF_DROP;
 				pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION;
-			}				
-		}
+			}
+	
+		} else {
+			//Never supposed to get here, an error happened:
+			printk(KERN_ERR "In handle_SYN_ACK_packet, previous connection row isn't TCP_STATE_SYN_SENT.\n");
+			return false;
+		}		
 			
 	}
 	
@@ -594,8 +580,160 @@ static bool handle_OTHER_tcp_packet(log_row_t* pckt_lg_info,
 		return false;
 	}
 	
-	//There are 6 cases in which OTHER packet is relevant to the connection,
-	//in all 6 cases both sides of the connection are NOT NULL:
+	if (relevant_conn_row == NULL){
+		pckt_lg_info->action = NF_DROP;
+		pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION;
+		return true;
+	}
+	
+	if (relevant_conn_row->need_to_fake_connection == false)
+	{
+		//In case this is not a part of a faked TCP connection:
+		//There are 6 cases in which OTHER packet is relevant to the connection,
+		//in all 6 cases both sides of the connection are NOT NULL:
+		if (relevant_opposite_conn_row != NULL){
+			
+			//First 5 valid cases are when packet is:
+			//	1. The last ack of the 3-way-handshake(syn, syn-ack, *ack*)
+			//	2. The first ack sent from "server"s side, AFTER finising
+			//		the 3-way-handshake.
+			//		In this case, the other side might be in states: TCP_STATE_ESTABLISHED
+			//		or TCP_STATE_FIN_WAIT_1(in FTP for example)
+			//	3. An ordinary ack between established connection
+			//	4. A packet sent from the client side, immediately after he
+			//		sent the last ack of the 3-way-handshake 
+			//	5. A packet sent from a side that not yet sent the 2nd FIN
+			//		(but the other side sent the 1st FIN)
+			if( ((relevant_conn_row->tcp_state == TCP_STATE_SYN_SENT) &&
+				(relevant_opposite_conn_row->tcp_state == TCP_STATE_SYN_RCVD))
+				||	  
+				((relevant_conn_row->tcp_state == TCP_STATE_SYN_RCVD) &&
+					((relevant_opposite_conn_row->tcp_state == TCP_STATE_ESTABLISHED)
+					||(relevant_opposite_conn_row->tcp_state == TCP_STATE_FIN_WAIT_1)))
+				||
+				( (relevant_conn_row->tcp_state == TCP_STATE_ESTABLISHED) && 
+					((relevant_opposite_conn_row->tcp_state == TCP_STATE_ESTABLISHED)
+					|| (relevant_opposite_conn_row->tcp_state == TCP_STATE_SYN_RCVD)
+					|| (relevant_opposite_conn_row->tcp_state == TCP_STATE_FIN_WAIT_1)) )
+				)
+			{
+				//Next line won't change anything if both states were ESTABLISHED:
+				relevant_conn_row->tcp_state = TCP_STATE_ESTABLISHED;
+				relevant_conn_row->timestamp = pckt_lg_info->timestamp;
+				pckt_lg_info->action = NF_ACCEPT;
+				pckt_lg_info->reason = REASON_FOUND_MATCHING_TCP_CONNECTION;
+				return true;
+			} 
+			
+			//The 6th valid case is when:
+			//	6. This packet is the last ack of a TCP connection. In
+			//		our implementation, since we update only the sender's 
+			//		TCP-state for each packet, the sender's side is
+			//		in TCP_STATE_FIN_WAIT_1 (not in TCP_STATE_FIN_WAIT_2):
+			else if ((relevant_conn_row->tcp_state == TCP_STATE_FIN_WAIT_1) &&
+				(relevant_opposite_conn_row->tcp_state == TCP_STATE_LAST_ACK))
+			{
+				//This is the only time we update the TCP state of both sides:
+				relevant_conn_row->tcp_state = TCP_STATE_TIME_WAIT;
+				relevant_conn_row->timestamp = pckt_lg_info->timestamp;
+				//Since no other packet supposed to arrive from the opposite side:
+				relevant_opposite_conn_row->tcp_state = TCP_STATE_CLOSED;
+				relevant_opposite_conn_row->timestamp = pckt_lg_info->timestamp;
+				//Both rows will be deleted when timedout.
+				pckt_lg_info->action = NF_ACCEPT;
+				pckt_lg_info->reason = REASON_FOUND_MATCHING_TCP_CONNECTION;
+				
+				return true;
+			}
+		}
+		
+		pckt_lg_info->action = NF_DROP;
+		pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION;
+		
+		return true;
+			
+	} 
+	else //relevant_conn_row->need_to_fake_connection == true
+	{
+		//In case this IS a part of a faked TCP connection:
+		if(relevant_opposite_conn_row == NULL){
+			if( relevant_conn_row->fake_tcp_state == TCP_STATE_SYN_RCVD ||
+				relevant_conn_row->fake_tcp_state == TCP_STATE_ESTABLISHED)
+			{
+				//First valid case:
+				//1. this packet is an ack of a handshake between client&proxy server
+				//	(when other-side's fake-connection wasn't established yet): 
+				relevant_conn_row->fake_tcp_state = TCP_STATE_ESTABLISHED;
+				relevant_conn_row->timestamp = pckt_lg_info->timestamp;
+				pckt_lg_info->action = NF_ACCEPT;
+				pckt_lg_info->reason = REASON_PART_OF_PROXY_HANDSHAKE;
+				return true;
+			} else {
+				//TODO:: Drop packet
+			}
+		}
+		else //relevant_opposite_conn_row != NULL
+		{
+			
+			//2. this packet is an ack of a handshake or communication
+			//	between client & proxy server, when other-side's fake-connection
+			//	is partially established:
+			if( (relevant_conn_row->tcp_state == TCP_STATE_SYN_SENT) &&
+				(relevant_opposite_conn_row->tcp_state == TCP_STATE_SYN_RCVD) &&
+				(relevant_conn_row->fake_tcp_state == TCP_STATE_SYN_RCVD ||
+				 relevant_conn_row->fake_tcp_state == TCP_STATE_ESTABLISHED) )
+			{
+				relevant_conn_row->tcp_state = TCP_STATE_ESTABLISHED;
+				relevant_conn_row->fake_tcp_state == TCP_STATE_ESTABLISHED
+				relevant_conn_row->timestamp = pckt_lg_info->timestamp;
+				pckt_lg_info->action = NF_ACCEPT;
+				pckt_lg_info->reason = REASON_FOUND_MATCHING_TCP_CONNECTION;
+				return true;
+			}
+			
+			//3.	The first ack sent from "server"s side, AFTER finising
+			//		the 3-way-handshake, and the other side is in state:
+			//		TCP_STATE_ESTABLISHED (no change in fake_tcp_state)
+			if ( (relevant_conn_row->tcp_state == TCP_STATE_SYN_RCVD) &&
+				(relevant_opposite_conn_row->tcp_state == TCP_STATE_ESTABLISHED) &&
+				(relevant_conn_row->fake_tcp_state == TCP_STATE_ESTABLISHED) )
+			{
+				relevant_conn_row->tcp_state = TCP_STATE_ESTABLISHED;
+				relevant_conn_row->timestamp = pckt_lg_info->timestamp;
+				pckt_lg_info->action = NF_ACCEPT;
+				pckt_lg_info->reason = REASON_FOUND_MATCHING_TCP_CONNECTION;
+				return true;
+			}
+			
+			//4.The first ack sent from "server"s side, AFTER finising
+			//		the 3-way-handshake, and the other side is in state:
+			//		TCP_STATE_FIN_WAIT_1(in FTP for example)
+			//		(no change in fake_tcp_state)
+			if ( (relevant_conn_row->tcp_state == TCP_STATE_SYN_RCVD) &&
+				(relevant_opposite_conn_row->tcp_state == TCP_STATE_FIN_WAIT_1) &&
+				(relevant_conn_row->fake_tcp_state == TCP_STATE_ESTABLISHED ||
+				 relevant_conn_row->fake_tcp_state == TCP_STATE_FIN_WAIT_1) )
+			{
+				relevant_conn_row->tcp_state = TCP_STATE_ESTABLISHED;
+				relevant_conn_row->timestamp = pckt_lg_info->timestamp;
+				pckt_lg_info->action = NF_ACCEPT;
+				pckt_lg_info->reason = REASON_FOUND_MATCHING_TCP_CONNECTION;
+				return true;
+			}
+			
+			///TODO:: continue to next cases (starting from "		//	3. An ordinary ack between established connection")
+			
+		}
+		
+
+	}
+	
+	
+/**	
+	
+	
+	//There are 8 cases in which OTHER packet is relevant to the connection,
+	//in first 7 cases both sides of the connection are NOT NULL:
 	if (relevant_conn_row != NULL && relevant_opposite_conn_row != NULL){
 		
 		//First 5 valid cases are when packet is:
@@ -630,11 +768,14 @@ static bool handle_OTHER_tcp_packet(log_row_t* pckt_lg_info,
 			return true;
 		} 
 		
-		//The 6th valid case is when:
-		//	6. This packet is the last ack of a TCP connection. In
+		//The 6th + 7th valid cases are:
+		//	6.	[NOT a faked connection:]
+		//		This packet is the last ack of a TCP connection. In
 		//		our implementation, since we update only the sender's 
 		//		TCP-state for each packet, the sender's side is
 		//		in TCP_STATE_FIN_WAIT_1 (not in TCP_STATE_FIN_WAIT_2):
+		//	7. [a faked connection:]
+		//		
 		else if ((relevant_conn_row->tcp_state == TCP_STATE_FIN_WAIT_1) &&
 			(relevant_opposite_conn_row->tcp_state == TCP_STATE_LAST_ACK))
 		{
@@ -648,41 +789,23 @@ static bool handle_OTHER_tcp_packet(log_row_t* pckt_lg_info,
 			pckt_lg_info->action = NF_ACCEPT;
 			pckt_lg_info->reason = REASON_FOUND_MATCHING_TCP_CONNECTION;
 			
-#ifdef CONN_DEBUG_MODE
-			//TODO:: I may delete all these lines, for testing only:
-			printk(KERN_INFO "NOTENOTENOTE: in handle_OTHER_tcp_packet(), ACCEPTING LAST ACK packet, its details:\n");
-			printk(KERN_INFO "timestamp: %lu,\nhooknum: %hhu,\nsrc_ip: %u,\ndst_ip: %u,\nsrc_port: %hu,\ndst_port: %hu.\n\n",
-				pckt_lg_info->timestamp,
-				pckt_lg_info->hooknum,
-				pckt_lg_info->src_ip,
-				pckt_lg_info->dst_ip,
-				pckt_lg_info->src_port,
-				pckt_lg_info->dst_port);
-#endif
-			
 			return true;
 		}
 	}
-	
-	pckt_lg_info->action = NF_DROP;
-	pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION;
+	//The 8th valid case is when:
+	//	8. 
+	else if(relevant_conn_row != NULL &&
+			relevant_conn_row->need_to_fake_connection == true)
+	{
 
-	//TODO:: delete all these lines, for testing!!!
-	printk(KERN_INFO "!!!!!!!!!!!!!in handle_OTHER_tcp_packet(), dropping packet\n");//TODO:: delete this line, for testing!!!
-	if (relevant_conn_row == NULL){
-		printk(KERN_INFO " relevant_conn_row == NULL\n");
-	} else {
-		printk(KERN_INFO " relevant_conn_row IS NOT NULL, its tcp_state is: %d\n", relevant_conn_row->tcp_state);
 	}
-	if (relevant_opposite_conn_row == NULL){
-		printk(KERN_INFO " relevant_opposite_conn_row == NULL\n");
-	} else {
-		printk(KERN_INFO " relevant_opposite_conn_row IS NOT NULL, its tcp_state is: %d\n", relevant_opposite_conn_row->tcp_state);
-	}
-	//END OF DELETIONS
 	
 	return true;
-	
+
+
+**/
+
+
 }
 
  /**
@@ -804,8 +927,18 @@ static bool handle_FIN_tcp_packet(log_row_t* pckt_lg_info,
 		{
 			if (relevant_opposite_conn_row->tcp_state == TCP_STATE_FIN_WAIT_1){
 				relevant_conn_row->tcp_state = TCP_STATE_LAST_ACK; //2nd FIN
+				if(relevant_conn_row->need_to_fake_connection){
+					if(relevant_conn_row->fake_tcp_state != TCP_STATE_FIN_WAIT_1){
+						printk(KERN_ERR "Error: handle_FIN_tcp_packet, fake_tcp_state is invalid.\n");
+						//TODO:: check if we need to drop packet?
+					}
+					relevant_conn_row->fake_tcp_state = TCP_STATE_LAST_ACK;
+				}
 			} else {
 				relevant_conn_row->tcp_state = TCP_STATE_FIN_WAIT_1; //1st FIN
+				if(relevant_conn_row->need_to_fake_connection){
+					relevant_conn_row->fake_tcp_state = TCP_STATE_FIN_WAIT_1;
+				}
 			}
 			relevant_conn_row->timestamp = pckt_lg_info->timestamp;
 			pckt_lg_info->action = NF_ACCEPT;
@@ -851,7 +984,7 @@ static bool handle_FIN_tcp_packet(log_row_t* pckt_lg_info,
  *	NOTE: if returned false, take care of pckt_lg_info->action, pckt_lg_info->reason!
  **/
 bool check_tcp_packet(log_row_t* pckt_lg_info, tcp_packet_t tcp_pckt_type){
-	
+	///TODO:: update after changing handle_SYN_ACK_packet()
 	connection_row_t* relevant_conn_row = NULL;
 	connection_row_t* relevant_opposite_conn_row = NULL;
 		
@@ -904,7 +1037,8 @@ bool check_tcp_packet(log_row_t* pckt_lg_info, tcp_packet_t tcp_pckt_type){
  * 			(needs to be sent to proxy server) - updates values of:
  * 			1. conn_row->need_to_fake_connection - to "true"
  * 			2. conn_row->fake_tcp_state - to "TCP_STATE_SYN_SENT"
- *			3. skb (fakes relevant fields!)
+ * 			3. conn_row->fake_dst_ip
+ * 			4. conn_row->fake_dst_port
  * 
  *	Returns:	1. on success: a pointer to the newly added connection-row
  * 				2. if failed: NULL
