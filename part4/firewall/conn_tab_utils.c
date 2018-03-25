@@ -646,16 +646,11 @@ static bool handle_OTHER_tcp_packet(log_row_t* pckt_lg_info,
 				return true;
 			}
 		}
-		
-		pckt_lg_info->action = NF_DROP;
-		pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION;
-		
-		return true;
 			
 	} 
 	else //relevant_conn_row->need_to_fake_connection == true
-	{
-		//In case this IS a part of a faked TCP connection:
+	{	 //In case this IS a part of a faked TCP connection:
+		
 		if(relevant_opposite_conn_row == NULL){
 			if( relevant_conn_row->fake_tcp_state == TCP_STATE_SYN_RCVD ||
 				relevant_conn_row->fake_tcp_state == TCP_STATE_ESTABLISHED)
@@ -668,8 +663,6 @@ static bool handle_OTHER_tcp_packet(log_row_t* pckt_lg_info,
 				pckt_lg_info->action = NF_ACCEPT;
 				pckt_lg_info->reason = REASON_PART_OF_PROXY_HANDSHAKE;
 				return true;
-			} else {
-				//TODO:: Drop packet
 			}
 		}
 		else //relevant_opposite_conn_row != NULL
@@ -691,28 +684,48 @@ static bool handle_OTHER_tcp_packet(log_row_t* pckt_lg_info,
 				return true;
 			}
 			
+			
+			if (
 			//3.	The first ack sent from "server"s side, AFTER finising
 			//		the 3-way-handshake, and the other side is in state:
 			//		TCP_STATE_ESTABLISHED (no change in fake_tcp_state)
-			if ( (relevant_conn_row->tcp_state == TCP_STATE_SYN_RCVD) &&
+			 ((relevant_conn_row->tcp_state == TCP_STATE_SYN_RCVD) &&
 				(relevant_opposite_conn_row->tcp_state == TCP_STATE_ESTABLISHED) &&
-				(relevant_conn_row->fake_tcp_state == TCP_STATE_ESTABLISHED) )
-			{
-				relevant_conn_row->tcp_state = TCP_STATE_ESTABLISHED;
-				relevant_conn_row->timestamp = pckt_lg_info->timestamp;
-				pckt_lg_info->action = NF_ACCEPT;
-				pckt_lg_info->reason = REASON_FOUND_MATCHING_TCP_CONNECTION;
-				return true;
-			}
-			
-			//4.The first ack sent from "server"s side, AFTER finising
+				(relevant_conn_row->fake_tcp_state == TCP_STATE_ESTABLISHED))
+				
+			||	
+			//4.	The first ack sent from "server"s side, AFTER finising
 			//		the 3-way-handshake, and the other side is in state:
 			//		TCP_STATE_FIN_WAIT_1(in FTP for example)
 			//		(no change in fake_tcp_state)
-			if ( (relevant_conn_row->tcp_state == TCP_STATE_SYN_RCVD) &&
+			 ((relevant_conn_row->tcp_state == TCP_STATE_SYN_RCVD) &&
 				(relevant_opposite_conn_row->tcp_state == TCP_STATE_FIN_WAIT_1) &&
 				(relevant_conn_row->fake_tcp_state == TCP_STATE_ESTABLISHED ||
-				 relevant_conn_row->fake_tcp_state == TCP_STATE_FIN_WAIT_1) )
+				 relevant_conn_row->fake_tcp_state == TCP_STATE_FIN_WAIT_1))
+			||
+			
+			//5.	An ordinary ack between established connection
+			//		(no change in fake_tcp_state)
+			 ((relevant_conn_row->tcp_state == TCP_STATE_ESTABLISHED) && 
+				(relevant_opposite_conn_row->tcp_state == TCP_STATE_ESTABLISHED) &&
+				(relevant_conn_row->fake_tcp_state == TCP_STATE_ESTABLISHED))
+			||
+			//6.  A packet sent from the client side, immediately after he
+			//		sent the last ack of the 3-way-handshake. (no change in fake_tcp_state)
+			 ((relevant_conn_row->tcp_state == TCP_STATE_ESTABLISHED) && 
+				(relevant_opposite_conn_row->tcp_state == TCP_STATE_SYN_RCVD) &&
+				(relevant_conn_row->fake_tcp_state == TCP_STATE_ESTABLISHED))
+			
+			||	
+			//7.	A packet sent from a side that not yet sent the 2nd FIN
+			//		(but the other side sent the 1st FIN) (no change in fake_tcp_state)
+			((relevant_conn_row->tcp_state == TCP_STATE_ESTABLISHED) && 
+				(relevant_opposite_conn_row->tcp_state == TCP_STATE_FIN_WAIT_1) &&
+				(relevant_conn_row->fake_tcp_state == TCP_STATE_ESTABLISHED ||
+				 relevant_conn_row->fake_tcp_state == TCP_STATE_FIN_WAIT_1 ||
+				 relevant_conn_row->fake_tcp_state == TCP_STATE_LAST_ACK ||
+				 relevant_conn_row->fake_tcp_state == TCP_STATE_TIME_WAIT))
+			)
 			{
 				relevant_conn_row->tcp_state = TCP_STATE_ESTABLISHED;
 				relevant_conn_row->timestamp = pckt_lg_info->timestamp;
@@ -721,91 +734,41 @@ static bool handle_OTHER_tcp_packet(log_row_t* pckt_lg_info,
 				return true;
 			}
 			
-			///TODO:: continue to next cases (starting from "		//	3. An ordinary ack between established connection")
+			//8.	This packet is the last ack of a TCP connection. In
+			//		our implementation, since we update only the sender's 
+			//		TCP-state for each packet, the sender's side is
+			//		in TCP_STATE_FIN_WAIT_1 (not in TCP_STATE_FIN_WAIT_2):
+			if ((relevant_conn_row->tcp_state == TCP_STATE_FIN_WAIT_1) &&
+				(relevant_conn_row->fake_tcp_state == TCP_STATE_LAST_ACK) &&
+					((relevant_opposite_conn_row->tcp_state == TCP_STATE_LAST_ACK) ||
+					 (relevant_opposite_conn_row->tcp_state == TCP_STATE_ESTABLISHED))
+				)
+			{
+				//This is the only time we update the TCP state of both sides:
+				if (relevant_opposite_conn_row->tcp_state == TCP_STATE_LAST_ACK){
+					relevant_conn_row->tcp_state = TCP_STATE_TIME_WAIT;
+					//Since no other packet supposed to arrive from the opposite side:
+					relevant_opposite_conn_row->tcp_state = TCP_STATE_CLOSED;
+					relevant_opposite_conn_row->timestamp = pckt_lg_info->timestamp;
+					//Both rows will be deleted when timedout.
+				}
+				//Otherwise, relevant_conn_row->tcp_state remains TCP_STATE_FIN_WAIT_1
+				//And relevant_opposite_conn_row->tcp_state remains TCP_STATE_ESTABLISHED
+				
+				relevant_conn_row->fake_tcp_state = TCP_STATE_TIME_WAIT;
+				relevant_conn_row->timestamp = pckt_lg_info->timestamp;
+				pckt_lg_info->action = NF_ACCEPT;
+				pckt_lg_info->reason = REASON_FOUND_MATCHING_TCP_CONNECTION;
+				return true;
+			}
 			
 		}
-		
-
 	}
 	
-	
-/**	
-	
-	
-	//There are 8 cases in which OTHER packet is relevant to the connection,
-	//in first 7 cases both sides of the connection are NOT NULL:
-	if (relevant_conn_row != NULL && relevant_opposite_conn_row != NULL){
-		
-		//First 5 valid cases are when packet is:
-		//	1. The last ack of the 3-way-handshake(syn, syn-ack, *ack*)
-		//	2. The first ack sent from "server"s side, AFTER finising
-		//		the 3-way-handshake.
-		//		In this case, the other side might be in states: TCP_STATE_ESTABLISHED
-		//		or TCP_STATE_FIN_WAIT_1(in FTP for example)
-		//	3. An ordinary ack between established connection
-		//	4. A packet sent from the client side, immediately after he
-		//		sent the last ack of the 3-way-handshake 
-		//	5. A packet sent from a side that not yet sent the 2nd FIN
-		//		(but the other side sent the 1st FIN)
-		if( ((relevant_conn_row->tcp_state == TCP_STATE_SYN_SENT) &&
-			(relevant_opposite_conn_row->tcp_state == TCP_STATE_SYN_RCVD))
-			||	  
-			((relevant_conn_row->tcp_state == TCP_STATE_SYN_RCVD) &&
-				((relevant_opposite_conn_row->tcp_state == TCP_STATE_ESTABLISHED)
-				||(relevant_opposite_conn_row->tcp_state == TCP_STATE_FIN_WAIT_1)))
-			||
-			( (relevant_conn_row->tcp_state == TCP_STATE_ESTABLISHED) && 
-				((relevant_opposite_conn_row->tcp_state == TCP_STATE_ESTABLISHED)
-				|| (relevant_opposite_conn_row->tcp_state == TCP_STATE_SYN_RCVD)
-				|| (relevant_opposite_conn_row->tcp_state == TCP_STATE_FIN_WAIT_1)) )
-			)
-		{
-			//Next line won't change anything if both states were ESTABLISHED:
-			relevant_conn_row->tcp_state = TCP_STATE_ESTABLISHED;
-			relevant_conn_row->timestamp = pckt_lg_info->timestamp;
-			pckt_lg_info->action = NF_ACCEPT;
-			pckt_lg_info->reason = REASON_FOUND_MATCHING_TCP_CONNECTION;
-			return true;
-		} 
-		
-		//The 6th + 7th valid cases are:
-		//	6.	[NOT a faked connection:]
-		//		This packet is the last ack of a TCP connection. In
-		//		our implementation, since we update only the sender's 
-		//		TCP-state for each packet, the sender's side is
-		//		in TCP_STATE_FIN_WAIT_1 (not in TCP_STATE_FIN_WAIT_2):
-		//	7. [a faked connection:]
-		//		
-		else if ((relevant_conn_row->tcp_state == TCP_STATE_FIN_WAIT_1) &&
-			(relevant_opposite_conn_row->tcp_state == TCP_STATE_LAST_ACK))
-		{
-			//This is the only time we update the TCP state of both sides:
-			relevant_conn_row->tcp_state = TCP_STATE_TIME_WAIT;
-			relevant_conn_row->timestamp = pckt_lg_info->timestamp;
-			//Since no other packet supposed to arrive from the opposite side:
-			relevant_opposite_conn_row->tcp_state = TCP_STATE_CLOSED;
-			relevant_opposite_conn_row->timestamp = pckt_lg_info->timestamp;
-			//Both rows will be deleted when timedout.
-			pckt_lg_info->action = NF_ACCEPT;
-			pckt_lg_info->reason = REASON_FOUND_MATCHING_TCP_CONNECTION;
-			
-			return true;
-		}
-	}
-	//The 8th valid case is when:
-	//	8. 
-	else if(relevant_conn_row != NULL &&
-			relevant_conn_row->need_to_fake_connection == true)
-	{
-
-	}
+	pckt_lg_info->action = NF_DROP;
+	pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION;
 	
 	return true;
-
-
-**/
-
-
 }
 
  /**
