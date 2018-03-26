@@ -202,3 +202,19 @@ bool fake_packets_details(struct sk_buff *skb, bool fake_src, __be32 fake_ip, __
 	return true;
 }
 
+/**
+ *	Checks if given packet_ip is relevant
+ * 	according to rule_ip & rule_prefix_mask
+ * 	(if packet_ip is inside the sub-network defined by rule_ip & rule_prefix_mask)
+ * 
+ *	Returns true is it is.
+ * 	
+ * 	@rule_ip - rule's ip in LOCAL endianness
+ * 	@rule_prefix_mask
+ * 	@packet_ip - packet's ip in LOCAL endianness
+ **/
+bool is_relevant_ip(__be32 rule_ip, __be32 rule_prefix_mask, __be32 packet_ip){
+	__be32 network_prefix = rule_ip & rule_prefix_mask; //Bitwise and. 
+	__be32 p_network_prefix = packet_ip & rule_prefix_mask;
+	return ( p_network_prefix == network_prefix );
+}

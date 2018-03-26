@@ -10,6 +10,7 @@
 #include <linux/netfilter_ipv4.h>
 #include <linux/ip.h>
 #include <linux/tcp.h>
+#include <net/tcp.h>		//For tcp_v4_check()
 #include <linux/udp.h>
 #include <linux/types.h> 	//For bool type
 #include <linux/uaccess.h> 	//For allowing user-space access
@@ -34,7 +35,7 @@
 //Fake ports & IPs:
 #define FAKE_HTTP_PORT (8080)
 #define FAKE_FTP_PORT (21212)
-#define FAKE_FTP_DATA_PORT(20202)
+#define FAKE_FTP_DATA_PORT (20202)
 #define NO_FAKE_NEEDED (-1)
 #define FW_IP_ETH_1 (167837955u)	//<=> 10.1.1.3
 #define FW_IP_ETH_2 (167838211u)	//<=> 10.1.2.3
@@ -238,6 +239,6 @@ tcp_packet_t get_tcp_packet_type(struct tcphdr* tcp_hdr);
 bool fake_packets_details(struct sk_buff *skb, bool fake_src, __be32 fake_ip, __be16 fake_port);
 bool is_XMAS(struct sk_buff* skb);
 struct tcphdr* get_tcp_header(struct sk_buff* skb);
-bool port_handled_by_proxy_server(__be16 port_number);
+bool is_relevant_ip(__be32 rule_ip, __be32 rule_prefix_mask, __be32 packet_ip);
 
 #endif // _FW_H_

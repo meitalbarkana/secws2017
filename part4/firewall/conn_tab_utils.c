@@ -412,6 +412,100 @@ static connection_row_t* add_new_connection_row(log_row_t* pckt_lg_info, bool is
 }
 
 /**
+ *	Helper function to be used on a NEW added connection-row that was 
+ *	"catched" in NF_INET_PRE_ROUTING hook-point: 
+ *	Checks if a current connection row should be faked,
+ *	and if so - updates:
+ *		1. relevant_conn_row->need_to_fake_connection to true
+ * 		2. relevant_conn_row->fake_src_ip (only in SYN-ACK packet)
+ *		3. relevant_conn_row->fake_src_port (only in SYN-ACK packet)
+ * 		4. relevant_conn_row->fake_dst_ip
+ * 		5. relevant_conn_row->fake_dst_port
+ * 		 
+ *	NOTE:	1.	Since this function operated on newly-added conn-rows,
+ * 				packets are SYN xor SYN-ACK.
+ * 			2.	In case this is a SYN-ACK packet, 
+ * 				relevant_opposite_conn_row should NOT be NULL!
+ * 				(test this before!)
+ *
+ *	Returs false if any error happend. 
+ **/
+static bool update_conn_rows_fake_details_if_needed(log_row_t* ptr_pckt_lg_info,
+		connection_row_t* relevant_conn_row,
+		connection_row_t* relevant_opposite_conn_row,
+		bool is_syn_packet)
+{
+	__be32 f_d_ip = 0;
+
+	if ( (ptr_pckt_lg_info == NULL || relevant_conn_row == NULL) ||
+		((!is_syn_packet)&&(relevant_opposite_conn_row == NULL)) )
+	{
+		printk(KERN_ERR "Error: function update_conn_rows_fake_details_if_needed() \
+				got invalid NULL argument.\n");
+		return false;
+	}
+	
+	//Initialize f_d_ip to contain relevant ip:
+	if (is_relevant_ip(FW_IP_ETH_1, FW_NET_MASK, ptr_pckt_lg_info->src_ip)){
+		f_d_ip = FW_IP_ETH_1;
+	} else if (is_relevant_ip(FW_IP_ETH_2, FW_NET_MASK, ptr_pckt_lg_info->src_ip)){
+		f_d_ip = FW_IP_ETH_2;
+	} else {
+		//Never supposed to get here:
+		printk(KERN_ERR "Error: function update_conn_rows_fake_details_if_needed() \
+				got undefined packet, no fake was done.\n");
+		return false;
+	}
+		
+	if(is_syn_packet)
+	{
+		//Checks if destination port is one of those we need to fake
+		if ( (ptr_pckt_lg_info->dst_port == PORT_HTTP) ||
+			 (ptr_pckt_lg_info->dst_port == PORT_FTP) )
+		{
+			relevant_conn_row->need_to_fake_connection = true;
+			relevant_conn_row->fake_tcp_state = TCP_STATE_SYN_SENT;
+			relevant_conn_row->fake_dst_ip = f_d_ip;
+			relevant_conn_row->fake_dst_port = 
+				(ptr_pckt_lg_info->dst_port == PORT_HTTP)?FAKE_HTTP_PORT:FAKE_FTP_PORT;
+		} 
+		else if(ptr_pckt_lg_info->dst_port == PORT_FTP_DATA){
+			//Never supposed to get here, since we don't use this
+			//function on FTP_DATA connections
+			printk(KERN_ERR "Error: function update_conn_rows_fake_details_if_needed() \
+					got packet with invalid destination port.\n");
+			return false;
+		} 
+		else {
+#ifdef FAKING_DEBUG_MODE		
+			printk(KERN_INFO "In update_conn_rows_fake_details_if_needed(), no fake needed.\n");
+			//default value of relevant_conn_row->need_to_fake_connection == false
+#endif
+		}		
+		return true;
+	}
+	
+	//If gets here, it's SYN_ACK packet, relevant_opposite_conn_row != NULL
+	//[relevant_opposite_conn_row is of the first "SYN" connection with the proxy]
+	if (relevant_opposite_conn_row->need_to_fake_connection == false) {
+#ifdef FAKING_DEBUG_MODE		
+		printk(KERN_INFO "In update_conn_rows_fake_details_if_needed(), no fake needed.\n");
+		//default value of relevant_conn_row->need_to_fake_connection == false
+#endif
+		return true;
+	}
+	
+	//If gets here, it's a fake connection:
+	relevant_conn_row->need_to_fake_connection = true;
+	relevant_conn_row->fake_tcp_state = TCP_STATE_SYN_RCVD;
+	relevant_conn_row->fake_dst_ip = relevant_opposite_conn_row->fake_src_ip;
+	relevant_conn_row->fake_dst_port = relevant_opposite_conn_row->fake_src_port;
+	relevant_conn_row->fake_src_ip = relevant_opposite_conn_row->fake_dst_ip;
+	relevant_conn_row->fake_src_port = relevant_opposite_conn_row->fake_dst_port;
+	return true;	
+}
+
+/**
  *	Gets a pointer to a SYN,src_port==PORT_FTP_DATA packet's log_row_t, 
  *	and 2 pointers to relevant connection rows (if any).
  *	Checks if that connection already have relevant "TCP_STATE_LISTEN" connection-row,
@@ -680,7 +774,7 @@ static bool handle_OTHER_tcp_packet(log_row_t* pckt_lg_info,
 				 relevant_conn_row->fake_tcp_state == TCP_STATE_ESTABLISHED) )
 			{
 				relevant_conn_row->tcp_state = TCP_STATE_ESTABLISHED;
-				relevant_conn_row->fake_tcp_state == TCP_STATE_ESTABLISHED
+				relevant_conn_row->fake_tcp_state == TCP_STATE_ESTABLISHED;
 				relevant_conn_row->timestamp = pckt_lg_info->timestamp;
 				pckt_lg_info->action = NF_ACCEPT;
 				pckt_lg_info->reason = REASON_FOUND_MATCHING_TCP_CONNECTION;
@@ -1032,100 +1126,6 @@ connection_row_t* add_first_SYN_connection(log_row_t* syn_pckt_lg_info,
 	update_conn_rows_fake_details_if_needed(syn_pckt_lg_info, conn_row, NULL, true);
 	
 	return conn_row;
-}
-
-/**
- *	Helper function to be used on a NEW added connection-row that was 
- *	"catched" in NF_INET_PRE_ROUTING hook-point: 
- *	Checks if a current connection row should be faked,
- *	and if so - updates:
- *		1. relevant_conn_row->need_to_fake_connection to true
- * 		2. relevant_conn_row->fake_src_ip (only in SYN-ACK packet)
- *		3. relevant_conn_row->fake_src_port (only in SYN-ACK packet)
- * 		4. relevant_conn_row->fake_dst_ip
- * 		5. relevant_conn_row->fake_dst_port
- * 		 
- *	NOTE:	1.	Since this function operated on newly-added conn-rows,
- * 				packets are SYN xor SYN-ACK.
- * 			2.	In case this is a SYN-ACK packet, 
- * 				relevant_opposite_conn_row should NOT be NULL!
- * 				(test this before!)
- *
- *	Returs false if any error happend. 
- **/
-bool update_conn_rows_fake_details_if_needed(log_row_t* ptr_pckt_lg_info,
-		connection_row_t* relevant_conn_row,
-		connection_row_t* relevant_opposite_conn_row,
-		bool is_syn_packet)
-{
-	__be32 f_d_ip = 0;
-
-	if ( (ptr_pckt_lg_info == NULL || relevant_conn_row == NULL) ||
-		((!is_syn_packet)&&(relevant_opposite_conn_row == NULL)) )
-	{
-		printk(KERN_ERR "Error: function update_conn_rows_fake_details_if_needed() \
-				got invalid NULL argument.\n");
-		return false;
-	}
-	
-	//Initialize f_d_ip to contain relevant ip:
-	if (is_relevant_ip(FW_IP_ETH_1, FW_NET_MASK, ptr_pckt_lg_info->src_ip)){
-		f_d_ip = FW_IP_ETH_1;
-	} else if (is_relevant_ip(FW_IP_ETH_2, FW_NET_MASK, ptr_pckt_lg_info->src_ip)){
-		f_d_ip = FW_IP_ETH_2;
-	} else {
-		//Never supposed to get here:
-		printk(KERN_ERR "Error: function update_conn_rows_fake_details_if_needed() \
-				got undefined packet, no fake was done.\n");
-		return false;
-	}
-		
-	if(is_syn_packet)
-	{
-		//Checks if destination port is one of those we need to fake
-		if ( (ptr_pckt_lg_info->dst_port == PORT_HTTP) ||
-			 (ptr_pckt_lg_info->dst_port == PORT_FTP) )
-		{
-			relevant_conn_row->need_to_fake_connection = true;
-			relevant_conn_row->fake_tcp_state = TCP_STATE_SYN_SENT;
-			relevant_conn_row->fake_dst_ip = f_d_ip;
-			relevant_conn_row->fake_dst_port = 
-				(ptr_pckt_lg_info->dst_port == PORT_HTTP)?FAKE_HTTP_PORT:FAKE_FTP_PORT;
-		} 
-		else if(ptr_pckt_lg_info->dst_port == PORT_FTP_DATA){
-			//Never supposed to get here, since we don't use this
-			//function on FTP_DATA connections
-			printk(KERN_ERR "Error: function update_conn_rows_fake_details_if_needed() \
-					got packet with invalid destination port.\n");
-			return false;
-		} 
-		else {
-#ifdef FAKING_DEBUG_MODE		
-			printk(KERN_INFO "In update_conn_rows_fake_details_if_needed(), no fake needed.\n");
-			//default value of relevant_conn_row->need_to_fake_connection == false
-#endif
-		}		
-		return true;
-	}
-	
-	//If gets here, it's SYN_ACK packet, relevant_opposite_conn_row != NULL
-	//[relevant_opposite_conn_row is of the first "SYN" connection with the proxy]
-	if (relevant_opposite_conn_row->need_to_fake_connection == false) {
-#ifdef FAKING_DEBUG_MODE		
-		printk(KERN_INFO "In update_conn_rows_fake_details_if_needed(), no fake needed.\n");
-		//default value of relevant_conn_row->need_to_fake_connection == false
-#endif
-		return true;
-	}
-	
-	//If gets here, it's a fake connection:
-	relevant_conn_row->need_to_fake_connection = true;
-	relevant_conn_row->fake_tcp_state = TCP_STATE_SYN_RCVD;
-	relevant_conn_row->fake_dst_ip = relevant_opposite_conn_row->fake_src_ip;
-	relevant_conn_row->fake_dst_port = relevant_opposite_conn_row->fake_src_port;
-	relevant_conn_row->fake_src_ip = relevant_opposite_conn_row->fake_dst_ip;
-	relevant_conn_row->fake_src_port = relevant_opposite_conn_row->fake_dst_port;
-	return true;	
 }
 
 /**

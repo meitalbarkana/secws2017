@@ -694,23 +694,6 @@ static bool is_relevant_direction(direction_t rule_direction, direction_t packet
 }
 
 /**
- *	Checks if given packet_ip is relevant
- * 	according to rule_ip & rule_prefix_mask
- * 	(if packet_ip is inside the sub-network defined by rule_ip & rule_prefix_mask)
- * 
- *	Returns true is it is.
- * 	
- * 	@rule_ip - rule's ip in LOCAL endianness
- * 	@rule_prefix_mask
- * 	@packet_ip - packet's ip in LOCAL endianness
- **/
-static bool is_relevant_ip(__be32 rule_ip, __be32 rule_prefix_mask, __be32 packet_ip){
-	__be32 network_prefix = rule_ip & rule_prefix_mask; //Bitwise and. 
-	__be32 p_network_prefix = packet_ip & rule_prefix_mask;
-	return ( p_network_prefix == network_prefix );
-}
-
-/**
  *	Checks if given packet_port is relevant to rule_port
  *	Returns true is it is.
  * 
@@ -1006,6 +989,7 @@ unsigned int decide_outer_packet_action(struct sk_buff* skb,
 		direction_t* packet_direction)
 {
 	///TODO::
+	return NF_ACCEPT;
 	/**
 	enum action_t answer = is_relevant_rule(&g_buildin_rule, ptr_pckt_lg_info, packet_ack, packet_direction);
 	if (answer == RULE_NOT_RELEVANT) {
