@@ -70,43 +70,30 @@ static unsigned int check_packet_hookp_pre_routing(struct sk_buff* skb,
 }
 
 /**
- *	This function would be called as a helper function,
- *  when hooknum is NF_INET_LOCAL_OUT
- *  for IPv4 packets
+ *	This function would be called as a helper function, to fake
+ *	packet's source if needed (if FW is on & packet is a part of faked TCP connection). 
+ *  Used when hooknum is NF_INET_LOCAL_OUT
+ *  for IPv4 packets.
  *
  *	@skb - contains all of packet's data
  *	@in - pointer to net_device.
  *	@out - pointer to net_device.
  *	@hooknum - NF_INET_LOCAL_OUT
  * 
- *	Returns: NF_ACCEPT/NF_DROP according to packet data.
+ *	Returns: NF_ACCEPT
  *	
- *	Note: WILL ALLOW ONLY PACKETS FROM LOCALHOST TO ITSELF
+ *	Note:	1.Function won't add anything to log
+ * 			2.No rules will be checked.
  **/
 static unsigned int check_packet_hookp_out(struct sk_buff* skb, 
 		const struct net_device* in, const struct net_device* out,
 		unsigned int hooknum)
 {
-	///TODO:: EDIT THIS FUNCTION!
-	//NOTE: NO NEED TO LOG - so memory allocated is freed at the end
-	log_row_t* pckt_lg_info = NULL; 
-	ack_t packet_ack;
-	direction_t packet_direction;
-	unsigned int ans;
+	connection_row_t* relevant_conn_row = NULL;
 	
-	//Initiate: pckt_lg_info, packet_ack , packet_direction
-	if( (pckt_lg_info = init_log_row(skb, hooknum, &packet_ack,
-			&packet_direction, in, out)) == NULL)
-	{
-		return NF_ACCEPT;//An error occured, never supposed to get here.
-	}
-	
-	ans = decide_outer_packet_action(skb, pckt_lg_info, &packet_ack,
-			&packet_direction);
-	
-	//Frees memory allocated in init_log_row
-	kfree(pckt_lg_info);
-	return ans;
+	fake_outer_packet_if_needed(skb, in, out);
+
+	return NF_ACCEPT;
 }
 
 /**

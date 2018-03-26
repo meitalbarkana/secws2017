@@ -360,6 +360,66 @@ void search_relevant_rows(log_row_t* pckt_lg_info,
 }
 
 
+
+/*******************************/
+
+/**
+ *	Passes over g_connections_list in search of connection-rows of "faked"
+ * 	TCP connections, and are relevant to data provided.
+ *
+ *	Updates:
+ *		1. ptr_fake_conn_row: to point at the relevant, same proxy-client
+ *			side of the connection, or NULL if none was found.
+ * 		2. ptr_opposite_fake_conn_row: to point at the relevant
+ * 		 	OTHER proxy-client connection, or NULL if none was found.
+ * 
+ * NOTE: At most one of ptr_fake_conn_row / ptr_opposite_fake_conn_row
+ *		can be not-NULL
+ * 
+ **/
+void search_fake_connection_row(__be32 packet_src_ip, __be32 packet_dst_ip,
+		__be16 packet_src_port, __be16	packet_dst_port,
+		connection_row_t** ptr_fake_conn_row,
+		connection_row_t** ptr_opposite_fake_conn_row)
+{
+	struct list_head *pos, *q;
+	connection_row_t* temp_row;
+	*ptr_fake_conn_row = NULL;
+	*ptr_opposite_fake_conn_row = NULL;
+
+	list_for_each_safe(pos, q, &g_connections_list){
+		
+		temp_row = list_entry(pos, connection_row_t, list);
+		
+		//If a row is too old - deletes it and continues to next row:
+		if(is_row_timedout(temp_row)){
+			delete_specific_row_by_list_node(pos);
+			continue;
+		}
+		
+		if(temp_row->need_to_fake_connection){
+			
+			if (packet_src_ip == temp_row->fake_dst_ip &&
+				packet_src_port == temp_row->fake_dst_port &&
+				packet_dst_ip == temp_row->src_ip &&
+				packet_dst_port == temp_row->src_port)
+			{
+				*ptr_fake_conn_row = temp_row;
+				return;
+			}
+			
+			if (packet_dst_ip == temp_row->dst_ip &&
+				packet_dst_port == temp_row->dst_port && 
+				temp_row->fake_src_ip == 0 &&
+				temp_row->fake_src_port == 0)
+			{
+				*ptr_opposite_fake_conn_row = temp_row;
+				return;
+			}					
+		}
+	}
+}
+
 /**
  *	Gets a pointer to a packet's log_row_t, 
  *	adds a relevant NEW connection-row (SYN/SYN_ACK) to g_connections_list:
@@ -1096,6 +1156,44 @@ bool check_tcp_packet(log_row_t* pckt_lg_info, tcp_packet_t tcp_pckt_type){
 	}
 
 }
+
+
+/**
+ *	Helper function (used by fake_outer_packet_if_needed) - 
+ *	Fakes source of TCP packet, if needed, according to the relevant connection-row.
+ * 
+ *	Updates:	1.
+ * 				2. 
+ * 				3. 
+ *	
+ * 
+ *	NOTE: 
+ **/
+void handle_outer_tcp_packet(struct sk_buff* skb, struct tcphdr* tcp_hdr)
+{
+	connection_row_t* fake_conn_row = NULL;
+	connection_row_t* opposite_fake_conn_row = NULL;
+	
+	if (skb == NULL || tcp_hdr == NULL) {
+		printk(KERN_ERR "Error: handle_outer_tcp_packet got NULL argument.\n");
+		return;
+	}
+	
+///TODO::Finish this function.... call search_fake_connection_row()
+	
+	/**
+	void search_fake_connection_row(__be32 packet_src_ip, __be32 packet_dst_ip,
+		__be16 packet_src_port, __be16	packet_dst_port,
+		connection_row_t** ptr_fake_conn_row,
+		connection_row_t** ptr_opposite_fake_conn_row)
+	
+	**/
+	
+	
+}
+
+
+
 
 /**
  *	Gets a pointer to a SYN packet's log_row_t, 

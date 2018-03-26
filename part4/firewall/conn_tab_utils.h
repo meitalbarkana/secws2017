@@ -26,6 +26,7 @@ bool check_tcp_packet(log_row_t* pckt_lg_info, tcp_packet_t tcp_pckt_type);
 void search_relevant_rows(log_row_t* pckt_lg_info,
 		connection_row_t** ptr_relevant_conn_row,
 		connection_row_t** ptr_relevant_opposite_conn_row);
+void handle_outer_tcp_packet(struct sk_buff* skb, struct tcphdr* tcp_hdr);
 int init_conn_tab_device(struct class* fw_class);
 void destroy_conn_tab_device(struct class* fw_class);
 

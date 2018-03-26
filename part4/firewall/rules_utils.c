@@ -970,36 +970,28 @@ bool is_loopback(log_row_t* ptr_pckt_lg_info,
 
 
 /**
- *	Decides the action that should be taken on AN outer packet
- *	(a packet caught in hook-point: NF_INET_LOCAL_OUT) 
+ *	Checks if an "outer" packet (a packet caught in hook-point:
+ * 	NF_INET_LOCAL_OUT) should be "faked",
+ *	and fakes it using handle_outer_tcp_packet().
  * 
- *	Updates: ptr_pckt_lg_info->action 
- * 			(if build-in rule is relevant to current packet)
- * //TODO: edit "Updates"
- * 
- *	Note: 1.function should be called AFTER ptr_pckt_lg_info,
- * 		  	*packet_ack and *packet_direction were initiated
- * 		  	(using init_log_row).
- *		  2.function should be used on packets that WON'T BE LOGGED,
- * 			using log_row_t* since it's easier :)
- * 		
+ *	Note:
  **/
-unsigned int decide_outer_packet_action(struct sk_buff* skb, 
-		log_row_t* ptr_pckt_lg_info, ack_t* packet_ack,
-		direction_t* packet_direction)
+void fake_outer_packet_if_needed(struct sk_buff* skb)
 {
-	///TODO::
-	return NF_ACCEPT;
-	/**
-	enum action_t answer = is_relevant_rule(&g_buildin_rule, ptr_pckt_lg_info, packet_ack, packet_direction);
-	if (answer == RULE_NOT_RELEVANT) {
-		//Since in those hook-points, we block any packet which doesn't fit g_buildin_rule:
-		return NF_DROP;
+	struct tcphdr* tcp_hdr = NULL;
+	
+	if (g_fw_is_active == FW_OFF || skb == NULL) {
+		return;
 	}
-	//If gets here, ptr_pckt_lg_info->action must be NF_ACCEPT
-
-	return ptr_pckt_lg_info->action;
-	**/
+	
+	if((tcp_hdr = get_tcp_header(skb)) != NULL){ //It is a TCP packet:
+		handle_outer_tcp_packet(skb, tcp_hdr);
+	} else {
+#ifdef FAKING_DEBUG_MODE
+		printk(KERN_INFO "In fake_outer_packet_if_needed, firewall is on, and this is NOT a TCP packet!\n");
+#endif	
+	}
+	
 }
 
 /**

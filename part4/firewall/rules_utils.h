@@ -70,9 +70,7 @@ static const rule_t g_buildin_rule =
 
 //Functions that will be used outside rules_utils: 
 void decide_packet_action(struct sk_buff* skb, log_row_t* ptr_pckt_lg_info, ack_t* packet_ack, direction_t* packet_direction);
-unsigned int decide_outer_packet_action(struct sk_buff* skb, 
-		log_row_t* ptr_pckt_lg_info, ack_t* packet_ack,
-		direction_t* packet_direction);
+void fake_outer_packet_if_needed(struct sk_buff* skb);
 int init_rules_device(struct class* fw_class);
 void destroy_rules_device(struct class* fw_class);
 
