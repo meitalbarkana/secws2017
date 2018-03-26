@@ -190,7 +190,15 @@ bool fake_packets_details(struct sk_buff *skb, bool fake_src, __be32 fake_ip, __
 	skb->ip_summed = CHECKSUM_NONE; //stop offloading
 	ip_header->check = 0;
 	ip_header->check = ip_fast_csum((u8 *)ip_header, ip_header->ihl);
-	
+
+#ifdef FAKING_DEBUG_MODE
+	if (fake_src) {
+		printk(KERN_INFO "In fake_packets_details(), faked source details.\n");
+	} else {
+		printk(KERN_INFO "In fake_packets_details(), faked destination details.\n");
+	}
+#endif	
+
 	return true;
 }
 

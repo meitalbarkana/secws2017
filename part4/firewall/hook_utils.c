@@ -29,6 +29,9 @@ static unsigned int check_packet_hookp_pre_routing(struct sk_buff* skb,
 	log_row_t* pckt_lg_info = NULL; 
 	ack_t packet_ack;
 	direction_t packet_direction;
+	connection_row_t* relevant_conn_row = NULL;
+	connection_row_t* relevant_opposite_conn_row = NULL;
+	
 	
 	//Initiate: pckt_lg_info, packet_ack , packet_direction
 	if( (pckt_lg_info = init_log_row(skb, NF_INET_PRE_ROUTING,
@@ -38,30 +41,31 @@ static unsigned int check_packet_hookp_pre_routing(struct sk_buff* skb,
 		//(Error already been printed inside init_log_row)
 		return NF_ACCEPT;
 	}
-	///TODO:: EDIT THIS FUNCTION!!
+
 	//Calls function that decides packet-action
 	decide_packet_action(skb, pckt_lg_info, &packet_ack, &packet_direction);
-	
-	
-	//TODO:: add here an "if" that checks if pckt_lg_info->reason == REASON_LOOPBACK_PACKET,
-	//		and if it does - frees that log-row.
-	//something like:	kfree(pckt_lg_info);
-	//					return pckt_lg_info->action;
-	//
-	
-	
-	//TODO:: delete this "if":
-	if(pckt_lg_info->action == NF_DROP){
-		printk(KERN_INFO "***ALERT***: dropping packet - its info:\n");
-		print_log_row(pckt_lg_info);
-	}
 
+	//Un-log rows that are of packets that are loopback
 	//Inserts row to log-rows:
-	if (!insert_row(pckt_lg_info)){ ///TODO:: not sure if any row should be inserted!
-		//An error occured, error already printed in insert_row()
+	if ( pckt_lg_info->reason == REASON_LOOPBACK_PACKET ||
+		(!insert_row(pckt_lg_info)))
+	{
 		kfree(pckt_lg_info);
 		return NF_ACCEPT;
 	}
+
+	if(pckt_lg_info->protocol == PROT_TCP && pckt_lg_info->action == NF_ACCEPT){
+		//Fake packet details, if needed:
+		search_relevant_rows(pckt_lg_info, &relevant_conn_row,
+				&relevant_opposite_conn_row);
+		if (relevant_conn_row && relevant_conn_row->need_to_fake_connection){
+#ifdef FAKING_DEBUG_MODE
+			printk(KERN_INFO "About to fake packet's destination details!\n");
+#endif
+			fake_packets_details(skb, false, relevant_conn_row->fake_dst_ip, relevant_conn_row->fake_dst_port);
+		}
+	}
+
 	return pckt_lg_info->action;
 }
 

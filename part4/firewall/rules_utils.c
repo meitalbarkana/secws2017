@@ -875,58 +875,6 @@ static int get_relevant_rule_num_from_table(log_row_t* ptr_pckt_lg_info,
 	return (-1);
 }
 
-
-/**
- *	Helper function that fakes the destination ip&port (of skb's packet)
- *  to be the proxy server's, IF NEEDED 
- *	(if this is an HTTP/FTP/DATA_FTP packet)
- **/
-void fake_destination_details(struct sk_buff* skb,
-		log_row_t* ptr_pckt_lg_info, connection_row_t* tcp_conn_row)
-{
-	__be32 f_d_ip = 0;
-	__be16 f_d_port = 0;
-
-	if (skb == NULL || ptr_pckt_lg_info == NULL || tcp_conn_row == NULL){
-		printk(KERN_ERR "Error: function fake_destination_details() got NULL argument.\n");
-		return;
-	}
-
-	//Initialize f_d_port to contain relevant port:
-	if (ptr_pckt_lg_info->dst_port == PORT_HTTP) {
-		f_d_port == FAKE_HTTP_PORT;
-	} else if(ptr_pckt_lg_info->dst_port == PORT_FTP) {
-		f_d_port == FAKE_FTP_PORT;
-	} else if(ptr_pckt_lg_info->dst_port == PORT_FTP_DATA){
-		f_d_port == FAKE_FTP_DATA_PORT;
-	} else {
-#ifdef FAKING_DEBUG_MODE		
-		printk(KERN_INFO "In function fake_destination_details(), no need to fake\n");
-#endif
-		return;
-	}
-
-	//Initialize f_d_ip to contain relevant ip:
-	if (is_relevant_ip(FW_IP_ETH_1, FW_NET_MASK, ptr_pckt_lg_info->src_ip)){
-		f_d_ip = FW_IP_ETH_1;
-	} else if (is_relevant_ip(FW_IP_ETH_2, FW_NET_MASK, ptr_pckt_lg_info->src_ip)){
-		f_d_ip = FW_IP_ETH_2;
-	} else {
-		//Never supposed to get here:
-		printk(KERN_ERR "Error: function decide_packet_action() \
-				got undefined first-SYN packet, no fake was done\n");
-		return;
-	}	
-	//Fake destination:
-	fake_packets_details(skb, false, f_d_ip, f_d_port);
-	tcp_conn_row->fake_dst_ip = f_d_ip;
-	tcp_conn_row->fake_dst_port = f_d_port;
-#ifdef FAKING_DEBUG_MODE		
-		printk(KERN_INFO "In function fake_destination_details(), faked dst ip&port to be: %u, %hu\n",
-				f_d_ip,f_d_port);
-#endif
-}
-
 /**
  *	Decides the action that should be taken on packet:
  *	Updates: ptr_pckt_lg_info->action
@@ -985,10 +933,6 @@ void decide_packet_action(struct sk_buff* skb, log_row_t* ptr_pckt_lg_info,
 				printk(KERN_ERR "Error: internal error while checking TCP packet, allow it to pass.\n");
 				ptr_pckt_lg_info->action = NF_ACCEPT;
 				ptr_pckt_lg_info->reason = REASON_CONN_TAB_ERR;	
-			} else {
-				//check_tcp_packet() succeeded:
-				///TODO:: check if ptr_pckt_lg_info->action = NF_ACCEPT,
-				///and if so - call an helper function that fakes this packet only if needed 
 			}
 			return;
 	 	}
@@ -1007,7 +951,7 @@ void decide_packet_action(struct sk_buff* skb, log_row_t* ptr_pckt_lg_info,
 		
 		if (ptr_pckt_lg_info->protocol == PROT_TCP){ 
 			//Its a SYN packet & no rule was found - since we accept it,
-			//we add it to the connections table (and fake its destination, if needed):
+			//we add it to the connections table:
 			tcp_conn_row = add_first_SYN_connection(ptr_pckt_lg_info, skb);
 		}
 			

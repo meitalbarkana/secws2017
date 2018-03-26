@@ -313,7 +313,7 @@ static bool packet_fits_opp_conn_row(log_row_t* pckt_lg_info, connection_row_t* 
  * 		 OPPOSITE direction connection-row, or NULL if none was found.
  * 
  **/
-static void search_relevant_rows(log_row_t* pckt_lg_info,
+void search_relevant_rows(log_row_t* pckt_lg_info,
 		connection_row_t** ptr_relevant_conn_row,
 		connection_row_t** ptr_relevant_opposite_conn_row)
 {
@@ -895,50 +895,52 @@ static bool handle_FIN_tcp_packet(log_row_t* pckt_lg_info,
 			return true;
 		} 
 		
-	} 
+	}
+	//Options for FAKED connection:
 	else if (relevant_conn_row != NULL && relevant_opposite_conn_row != NULL &&
 			relevant_conn_row->need_to_fake_connection)
 	{
-		///TODO:: add take care of faked connections
-		///TODO:: check if there's a case in which other side is NULL (maybe when client handshakes and fin-handshakes right away?)
 		//First case is when packet is the 1st FIN packet, 2 options:
 		//	1. both sides are in TCP_STATE_ESTABLISHED
 		//	2. the side that sent this FIN is in TCP_STATE_ESTABLISHED,
 		//		the other is in TCP_STATE_SYN_RCVD
 		//Second valid case is when this packet is the second FIN.
-		//	In this case, sender's side is in TCP_STATE_ESTABLISHED
+		//	In this case, sender's side is in TCP_STATE_ESTABLISHED 
+		//	(I don't handle an option of TCP_STATE_SYN_RCVD)
 		//	and the reciever side in in TCP_STATE_FIN_WAIT_1
-		if ( relevant_conn_row->tcp_state == TCP_STATE_ESTABLISHED
-			&&
-			(relevant_opposite_conn_row->tcp_state == TCP_STATE_ESTABLISHED 
-			|| relevant_opposite_conn_row->tcp_state == TCP_STATE_SYN_RCVD
-			|| relevant_opposite_conn_row->tcp_state == TCP_STATE_FIN_WAIT_1) )
-		{
-			if (relevant_opposite_conn_row->tcp_state == TCP_STATE_FIN_WAIT_1){
-				relevant_conn_row->tcp_state = TCP_STATE_LAST_ACK; //2nd FIN
-				if(relevant_conn_row->need_to_fake_connection){
-					if(relevant_conn_row->fake_tcp_state != TCP_STATE_FIN_WAIT_1){
-						printk(KERN_ERR "Error: handle_FIN_tcp_packet, fake_tcp_state is invalid.\n");
-						//TODO:: check if we need to drop packet?
-					}
-					relevant_conn_row->fake_tcp_state = TCP_STATE_LAST_ACK;
-				}
-			} else {
-				relevant_conn_row->tcp_state = TCP_STATE_FIN_WAIT_1; //1st FIN
-				if(relevant_conn_row->need_to_fake_connection){
-					relevant_conn_row->fake_tcp_state = TCP_STATE_FIN_WAIT_1;
-				}
+		if (relevant_conn_row->tcp_state == TCP_STATE_ESTABLISHED)
+		{	
+			//2nd FIN:	
+			if (relevant_opposite_conn_row->tcp_state == TCP_STATE_FIN_WAIT_1 &&
+				relevant_conn_row->fake_tcp_state == TCP_STATE_FIN_WAIT_1)
+			{
+				relevant_conn_row->tcp_state = TCP_STATE_LAST_ACK;
+				relevant_conn_row->fake_tcp_state == TCP_STATE_LAST_ACK;
+				relevant_conn_row->timestamp = pckt_lg_info->timestamp;
+				pckt_lg_info->action = NF_ACCEPT;
+				pckt_lg_info->reason = REASON_FOUND_MATCHING_TCP_CONNECTION;
+				return true;
 			}
-			relevant_conn_row->timestamp = pckt_lg_info->timestamp;
-			pckt_lg_info->action = NF_ACCEPT;
-			pckt_lg_info->reason = REASON_FOUND_MATCHING_TCP_CONNECTION;
-			return true;
-		}		
+			//1st FIN:
+			else if((relevant_opposite_conn_row->tcp_state == TCP_STATE_SYN_RCVD &&
+						(relevant_conn_row->fake_tcp_state == TCP_STATE_SYN_RCVD //Not needed probably
+						||relevant_conn_row->fake_tcp_state == TCP_STATE_ESTABLISHED))
+					||
+					(relevant_opposite_conn_row->tcp_state == TCP_STATE_ESTABLISHED))
+			{
+				relevant_conn_row->tcp_state = TCP_STATE_FIN_WAIT_1;
+				relevant_conn_row->fake_tcp_state = TCP_STATE_FIN_WAIT_1;
+				relevant_conn_row->timestamp = pckt_lg_info->timestamp;
+				pckt_lg_info->action = NF_ACCEPT;
+				pckt_lg_info->reason = REASON_FOUND_MATCHING_TCP_CONNECTION;
+				return true;
+			}
+			//Otherwise, its invalid tcp-state. drop packet.
+		}	
 	}	
 	pckt_lg_info->action = NF_DROP;
 	pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION;
-	return true;	
-	
+	return true;
 }
 
 /**
@@ -957,7 +959,6 @@ static bool handle_FIN_tcp_packet(log_row_t* pckt_lg_info,
  *	NOTE: if returned false, take care of pckt_lg_info->action, pckt_lg_info->reason!
  **/
 bool check_tcp_packet(log_row_t* pckt_lg_info, tcp_packet_t tcp_pckt_type){
-	///TODO:: update after changing handle_SYN_ACK_packet()
 	connection_row_t* relevant_conn_row = NULL;
 	connection_row_t* relevant_opposite_conn_row = NULL;
 		
