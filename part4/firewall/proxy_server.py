@@ -67,7 +67,7 @@ def find_real_destination(real_src_ip, real_src_port, current_fake_dst_ip, curre
 	@fake destination ip & port (ours!)
 
 	searches for relevant connections in fw's connection table - 
-	and returns a tuple of <real_destination_ip, real_destination_port>
+	and returns a tuple of <real_destination_ip(in string format:"x.x.x.x"), real_destination_port>
 	If None was found or an error occured, returns <None, None>
 	"""
 	conn_tab_as_str = read_conn_tab_to_buff()
@@ -110,7 +110,7 @@ def find_real_destination(real_src_ip, real_src_port, current_fake_dst_ip, curre
 					print("******Found a match! line is:******")
 					print(line)
 					print("***********************************")
-					return (dst_ip,dst_port)
+					return (socket.inet_ntoa(struct.pack('!I', dst_ip)),dst_port)
 
 			except:
 				print("Error while trying to split lines from connection table: wrong format.")
@@ -133,7 +133,6 @@ def is_valid_content_length(all_data):
 			2. False otherwise (includes the case were all_data doesn't contain this header)
 	NOTE: USE THIS ONLY ON HTTP DATA!
 	"""
-
 	source = FakeSocket(all_data)
 	response = HTTPResponse(source)
 	response.begin()
@@ -143,7 +142,6 @@ def is_valid_content_length(all_data):
 	for h in response.getheaders():
 		print (h)  # For testing alone, TODO:: delete this.
 	"""
-
 	content_len_value = int(response.getheader('content-length', -1))
 	if content_len_value == -1 or content_len_value > MAX_HTTP_CONTENT_LENGTH:
 		return False
@@ -165,35 +163,29 @@ def is_valid_file(file_as_str):
 	"""
 
 
-def get_remote_servers_details(current_connection_socket):
-	#TODO::
+def get_remote_servers_details(current_connection_socket, client_address):
 	"""
-	Will return a tuple of (remot_addr,remote_port) according to the relevant connection (http/ftp on 20/ftp on 21)
+	Returns a tuple of (remot_addr,remote_port) according to the relevant connection (http/ftp on 20/ftp on 21)
 	"""
 	our_sock_ip, our_sock_port = current_connection_socket.getsockname()
-	print "Socket ip is: ",our_sock_ip,", socket port is: ",our_sock_port#TODO:: Delete this line!!!!
-	print "Socket ip type is: ",type(our_sock_ip),", socket port type is: ",type(our_sock_port)#TODO:: Delete this line!!!!
-	
 	our_sock_ip_as_int = struct.unpack("!I",socket.inet_aton(our_sock_ip))[0]
-	print "our_sock_ip_as_int type is: ", type(our_sock_ip_as_int) #TODO:: test this!!
-	#print "Socket ip as an int is: ",our_sock_ip_as_int
-	sys.exit(0)#TODO:: DELETE this line!
-
+	client_sock_ip_as_int = struct.unpack("!I",socket.inet_aton(client_address[0]))[0]
 
 	#find_real_destination(real_src_ip, real_src_port, current_fake_dst_ip, current_fake_dst_port):
-	dst_ip, dst_port = find_real_destination(167838210, 21, 167838211, 21212)
+	(dst_ip, dst_port) = find_real_destination(client_sock_ip_as_int, client_address[1], our_sock_ip_as_int, our_sock_port)
+	if dst_ip == None:
+		return False
+	return (dst_ip, dst_port)
 
-	return False
 
-
-def remote_connection(sock):
+def remote_connection(sock, client_address):
 	"""
 	Creates a connection to the relevant remote-server.
 	Returns False if any error occurred.
 	"""
 	try:
 		remote_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-		remote_details = get_remote_servers_details(sock)
+		remote_details = get_remote_servers_details(sock, client_address)
 		if remote_details == False:
 			print("Error: failed to extract remote-server's details.")
 			return False
@@ -287,10 +279,10 @@ def start():
 
 			for sock in ready_to_read_sockets:
 				if sock in server_sockets:
-					remote_server = remote_connection(sock)
+					client_connection, client_address = sock.accept()
+					print('Accepted connection {0} {1}'.format(client_address[0], client_address[1]))
+					remote_server = remote_connection(sock, client_address)
 					if remote_server:
-						client_connection, client_address = sock.accept()
-						print('Accepted connection {0} {1}'.format(client_address[0], client_address[1]))
 						#client_connection.setblocking(0)#not sure if needed :X
 						input_sockets.append(client_connection)
 						input_sockets.append(remote_server)
@@ -298,7 +290,9 @@ def start():
 						messages_queue[remote_server] = client_connection
 						break
 					else:
-						print('The connection with the remote server can\'t be established,')
+						print('The connection with the remote server can\'t be established, closing connection with client: {0} {1}'.format(client_address[0], client_address[1]))
+						client_connection.close()
+
 				else:	
 					data = received_from(sock, 3)
 					messages_queue[sock].send(data)
@@ -310,13 +304,14 @@ def start():
 						#TODO:: delete the next row, just for testing:
 						hexdump(data)
 
-	except KeyBoardInterrupt:
+	except KeyboardInterrupt:
 		print("Ending server.")
 	except Exception, e:
 		print(e)
 		sys.exit(0)
-	finally:
-		sys.exit(0)
+	#finally:
+	#	print("Got to \'finally\'!")
+	#	sys.exit(0)
 
 
 #def conn_string(conn, data, addr):

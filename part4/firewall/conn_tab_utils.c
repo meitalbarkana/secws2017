@@ -161,7 +161,7 @@ static void delete_specific_row_by_conn_ptr(connection_row_t* row){
  *	Deletes all connection-rows from g_connections_list
  *	(frees all allocated memory)
  **/
-static void delete_all_conn_rows(void){
+void delete_all_conn_rows(void){
 
 	connection_row_t *row, *temp_row;
 	

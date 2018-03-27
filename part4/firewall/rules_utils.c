@@ -142,6 +142,10 @@ ssize_t change_active_stat(struct device* dev, struct device_attribute* attr, co
 			printk(KERN_INFO "User tried do deactivate already-off firewall\n");
 		} else {
 			printk(KERN_INFO "User successfully deactivated firewall\n");
+			delete_all_conn_rows();
+#ifdef FAKING_DEBUG_MODE 
+			printk(KERN_INFO "User deactivated firewall - connection table was deleted.\n");
+#endif
 			g_fw_is_active = FW_OFF;
 		}
 	} else { //buf[0] =='1'
