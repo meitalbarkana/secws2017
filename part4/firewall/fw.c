@@ -193,9 +193,9 @@ bool fake_packets_details(struct sk_buff *skb, bool fake_src, __be32 fake_ip, __
 
 #ifdef FAKING_DEBUG_MODE
 	if (fake_src) {
-		printk(KERN_INFO "In fake_packets_details(), faked source details.\n");
+		printk(KERN_INFO "In fake_packets_details(), faked source details are:\tip[%u]\tport[%hu]\n",fake_ip, fake_port);
 	} else {
-		printk(KERN_INFO "In fake_packets_details(), faked destination details.\n");
+		printk(KERN_INFO "In fake_packets_details(), faked destination details are:\tip[%u]\tport[%hu]\n",fake_ip, fake_port);
 	}
 #endif	
 

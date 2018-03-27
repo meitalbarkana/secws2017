@@ -988,7 +988,7 @@ void fake_outer_packet_if_needed(struct sk_buff* skb)
 		handle_outer_tcp_packet(skb, tcp_hdr);
 	} else {
 #ifdef FAKING_DEBUG_MODE
-		printk(KERN_INFO "In fake_outer_packet_if_needed, firewall is on, and this is NOT a TCP packet!\n");
+		printk(KERN_INFO "In fake_outer_packet_if_needed, firewall is on, and this is NOT a TCP packet - no faking needed.\n");
 #endif	
 	}
 	

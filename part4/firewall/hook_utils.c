@@ -59,9 +59,6 @@ static unsigned int check_packet_hookp_pre_routing(struct sk_buff* skb,
 		search_relevant_rows(pckt_lg_info, &relevant_conn_row,
 				&relevant_opposite_conn_row);
 		if (relevant_conn_row && relevant_conn_row->need_to_fake_connection){
-#ifdef FAKING_DEBUG_MODE
-			printk(KERN_INFO "About to fake packet's destination details!\n");
-#endif
 			fake_packets_details(skb, false, relevant_conn_row->fake_dst_ip, relevant_conn_row->fake_dst_port);
 		}
 	}
@@ -83,16 +80,13 @@ static unsigned int check_packet_hookp_pre_routing(struct sk_buff* skb,
  *	Returns: NF_ACCEPT
  *	
  *	Note:	1.Function won't add anything to log
- * 			2.No rules will be checked.
+ * 			2.No rules will be checked (only connection table).
  **/
 static unsigned int check_packet_hookp_out(struct sk_buff* skb, 
 		const struct net_device* in, const struct net_device* out,
 		unsigned int hooknum)
 {
-	connection_row_t* relevant_conn_row = NULL;
-	
-	fake_outer_packet_if_needed(skb, in, out);
-
+	fake_outer_packet_if_needed(skb);
 	return NF_ACCEPT;
 }
 
@@ -112,16 +106,10 @@ static unsigned int hook_func_callback(unsigned int hooknum,
 
 	if (hooknum == NF_INET_PRE_ROUTING) 
 	{
-#ifdef FAKING_DEBUG_MODE
-		printk(KERN_INFO "IN hook_func_callback, hooknum is NF_INET_PRE_ROUTING\n");
-#endif
 		return check_packet_hookp_pre_routing(skb, in, out);
 	}
 	else if (hooknum == NF_INET_LOCAL_OUT) 
 	{
-#ifdef FAKING_DEBUG_MODE
-		printk(KERN_INFO "IN hook_func_callback, hooknum is NF_INET_LOCAL_OUT\n");
-#endif	
 		return check_packet_hookp_out(skb, in, out, hooknum);	
 	}
 	
