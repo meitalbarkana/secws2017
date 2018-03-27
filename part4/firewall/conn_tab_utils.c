@@ -373,7 +373,7 @@ void search_relevant_rows(log_row_t* pckt_lg_info,
  * 		2. ptr_opposite_fake_conn_row: to point at the relevant
  * 		 	OTHER proxy-client connection, or NULL if none was found.
  * 
- * NOTE: At most one of ptr_fake_conn_row / ptr_opposite_fake_conn_row
+ * NOTE: *At most* one of ptr_fake_conn_row / ptr_opposite_fake_conn_row
  *		can be not-NULL
  * 
  **/
@@ -1157,42 +1157,144 @@ bool check_tcp_packet(log_row_t* pckt_lg_info, tcp_packet_t tcp_pckt_type){
 
 }
 
+/**
+ *	Helper function: gets the relevant connection row and the TCP packet's type,
+ *	Updates:	1. fake_conn_row->fake_tcp_state
+ *				[according to its previous value and the TCP packet's type]
+ * 				2. fake_conn_row->timestamp
+ **/
+static void update_conn_rows_fake_tcp_state(connection_row_t* fake_conn_row,
+		tcp_packet_t tcp_pckt_type)
+{
+	struct timespec ts = { .tv_sec = 0,.tv_nsec = 0};
+	getnstimeofday(&ts);	
+	
+	if (fake_conn_row == NULL){
+		printk(KERN_ERR "Error: update_conn_rows_fake_tcp_state got NULL argument .\n");
+		return;
+	}
+	
+	//Update timestamp:
+	fake_conn_row->timestamp = ts.tv_sec;
+	
+	switch (tcp_pckt_type){	
+		
+		case(TCP_SYN_PACKET): //This function should never be used on syn packets
+			printk(KERN_ERR "Error: update_conn_rows_fake_tcp_state got \
+					invalid tcp_pckt_type: TCP_SYN_PACKET.\n");
+			break;
+			
+		case(TCP_SYN_ACK_PACKET):
+			if(fake_conn_row->fake_tcp_state == TCP_STATE_SYN_SENT){
+				fake_conn_row->fake_tcp_state = TCP_STATE_SYN_RCVD;
+			} 
+			else if(fake_conn_row->fake_tcp_state != TCP_STATE_SYN_RCVD){
+				printk(KERN_ERR "Error: in update_conn_rows_fake_tcp_state, \
+					fake_tcp_state is not reasonable for a TCP_SYN_ACK_PACKET.\n");
+			}
+			break;
+		
+		case(TCP_FIN_PACKET):
+			if(fake_conn_row->fake_tcp_state == TCP_STATE_ESTABLISHED){
+				//1st FIN:
+				fake_conn_row->fake_tcp_state = TCP_STATE_FIN_WAIT_1;
+			} 
+			else if(fake_conn_row->fake_tcp_state == TCP_STATE_FIN_WAIT_1){
+				//2nd FIN:
+				fake_conn_row->fake_tcp_state = TCP_STATE_LAST_ACK;
+			}
+			else {
+				printk(KERN_ERR "Error: in update_conn_rows_fake_tcp_state, \
+					fake_tcp_state is not reasonable for a TCP_FIN_PACKET.\n");
+			}
+			break;
+		
+		case(TCP_OTHER_PACKET):
+			if(fake_conn_row->fake_tcp_state == TCP_STATE_SYN_RCVD){
+				fake_conn_row->fake_tcp_state = TCP_STATE_ESTABLISHED;
+			}
+			else if (fake_conn_row->fake_tcp_state == TCP_STATE_ESTABLISHED
+					|| fake_conn_row->fake_tcp_state == TCP_STATE_FIN_WAIT_1)
+			{//No change (a valid status).
+			}
+			else if(fake_conn_row->fake_tcp_state == TCP_STATE_LAST_ACK){
+				fake_conn_row->fake_tcp_state = TCP_STATE_TIME_WAIT;
+			}
+			else {
+				printk(KERN_ERR "Error: in update_conn_rows_fake_tcp_state, \
+					fake_tcp_state is not reasonable for a TCP_OTHER_PACKET.\n");
+			}
+			break;
+		
+		case(TCP_RESET_PACKET):
+			fake_conn_row->fake_tcp_state = TCP_STATE_CLOSED;
+			break;
+			
+		default: //TCP_ERROR_PACKET or TCP_INVALID_PACKET
+			printk(KERN_ERR "Error: update_conn_rows_fake_tcp_state got invalid tcp_pckt_type.\n");
+	}
+}
 
 /**
  *	Helper function (used by fake_outer_packet_if_needed) - 
- *	Fakes source of TCP packet, if needed, according to the relevant connection-row.
+ *	Fakes source of TCP packet, if needed, according to the information 
+ *	held in the relevant connection-row.
  * 
- *	Updates:	1.
- * 				2. 
- * 				3. 
- *	
- * 
+ *	Updates(if needed):	1. skb's source ip
+ * 						2. skb's source port
+ * 						3. fake_conn_row-> fake_tcp_state, timestamp
+ *						4. opposite_fake_conn_row-> fake_src_ip, fake_src_port
+ * 						5. 
  *	NOTE: 
  **/
 void handle_outer_tcp_packet(struct sk_buff* skb, struct tcphdr* tcp_hdr)
 {
 	connection_row_t* fake_conn_row = NULL;
 	connection_row_t* opposite_fake_conn_row = NULL;
+	struct iphdr* ptr_ipv4_hdr;
+	__be32 packet_src_ip = 0;	
+	__be16 packet_src_port = 0;
+	__be32 packet_dst_ip = 0;
+	__be16 packet_dst_port = 0;
+	tcp_packet_t tcp_pckt_type;
 	
-	if (skb == NULL || tcp_hdr == NULL) {
+	if (skb == NULL || tcp_hdr == NULL ||
+		((ptr_ipv4_hdr = ip_hdr(skb)) == NULL))
+	{
 		printk(KERN_ERR "Error: handle_outer_tcp_packet got NULL argument.\n");
 		return;
 	}
 	
-///TODO::Finish this function.... call search_fake_connection_row()
+	packet_src_ip = ntohl(ptr_ipv4_hdr->saddr);	
+	packet_src_port = ntohs(tcp_hdr->source);
+	packet_dst_ip = ntohl(ptr_ipv4_hdr->daddr);
+	packet_dst_port = ntohs(tcp_hdr->dest);
+	tcp_pckt_type = get_tcp_packet_type(tcp_hdr); 
 	
-	/**
-	void search_fake_connection_row(__be32 packet_src_ip, __be32 packet_dst_ip,
-		__be16 packet_src_port, __be16	packet_dst_port,
-		connection_row_t** ptr_fake_conn_row,
-		connection_row_t** ptr_opposite_fake_conn_row)
+	search_fake_connection_row(packet_src_ip, packet_dst_ip,
+			packet_src_port, packet_dst_port, &fake_conn_row,
+			&opposite_fake_conn_row);
 	
-	**/
-	
-	
+	if(fake_conn_row) //fake_conn_row!=NULL
+	{
+		//UPDATE fake_conn_row fake_tcp_state (including its timestamp):
+		update_conn_rows_fake_tcp_state(fake_conn_row, tcp_pckt_type);
+
+		//Fake packet's source according to this relevant connection-row:
+		fake_packets_details(skb, true, fake_conn_row->dst_ip, fake_conn_row->dst_port);
+	}
+	else if(opposite_fake_conn_row)
+	{
+		//Update first-seen values (of proxy initiates connection to the "other side"):
+		opposite_fake_conn_row->fake_src_ip = packet_src_ip;
+		opposite_fake_conn_row->fake_src_port = packet_src_port;
+		
+		//Fake packet's source according to the "other side" connection-row details:
+		fake_packets_details(skb, true, opposite_fake_conn_row->src_ip, 
+				opposite_fake_conn_row->src_port);
+		
+	}//Oterwise, both are NULL - no need to do fake anything
 }
-
-
 
 
 /**

@@ -984,7 +984,7 @@ void fake_outer_packet_if_needed(struct sk_buff* skb)
 		return;
 	}
 	
-	if((tcp_hdr = get_tcp_header(skb)) != NULL){ //It is a TCP packet:
+	if( (tcp_hdr = get_tcp_header(skb)) != NULL ){ //It is a TCP packet:
 		handle_outer_tcp_packet(skb, tcp_hdr);
 	} else {
 #ifdef FAKING_DEBUG_MODE
