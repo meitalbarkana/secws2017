@@ -527,6 +527,21 @@ static bool tran_reason_to_str(int reason, char* str){
 		case(REASON_ILLEGAL_VALUE):
 			strncpy(str, "Illegal value", MAX_STRLEN_OF_REASON+1);
 			break;
+		case(REASON_NO_MATCHING_TCP_CONNECTION):
+			strncpy(str, "No matching TCP connection", MAX_STRLEN_OF_REASON+1);
+			break;
+		case(REASON_FOUND_MATCHING_TCP_CONNECTION):
+			strncpy(str, "Found matching TCP connection", MAX_STRLEN_OF_REASON+1);
+			break;			
+		case(REASON_CONN_TAB_ERR):
+			strncpy(str, "Connection-table error", MAX_STRLEN_OF_REASON+1);
+			break;
+		case(REASON_LOOPBACK_PACKET):
+			strncpy(str, "Loopback packet", MAX_STRLEN_OF_REASON+1);
+			break;
+		case(REASON_PART_OF_PROXY_HANDSHAKE):
+			strncpy(str, "Packet's part of proxy handshake", MAX_STRLEN_OF_REASON+1);
+			break;		
 		default: //reason is an index
 			snprintf(str, MAX_STRLEN_OF_REASON, "Rule number: %d", reason);
 	}
