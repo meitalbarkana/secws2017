@@ -1197,8 +1197,7 @@ static void update_conn_rows_fake_tcp_state(connection_row_t* fake_conn_row,
 	switch (tcp_pckt_type){	
 		
 		case(TCP_SYN_PACKET): //This function should never be used on syn packets
-			printk(KERN_ERR "Error: update_conn_rows_fake_tcp_state got \
-					invalid tcp_pckt_type: TCP_SYN_PACKET.\n");
+			printk(KERN_ERR "Error: update_conn_rows_fake_tcp_state got invalid tcp_pckt_type: TCP_SYN_PACKET.\n");
 			break;
 			
 		case(TCP_SYN_ACK_PACKET):
@@ -1206,8 +1205,7 @@ static void update_conn_rows_fake_tcp_state(connection_row_t* fake_conn_row,
 				fake_conn_row->fake_tcp_state = TCP_STATE_SYN_RCVD;
 			} 
 			else if(fake_conn_row->fake_tcp_state != TCP_STATE_SYN_RCVD){
-				printk(KERN_ERR "Error: in update_conn_rows_fake_tcp_state, \
-					fake_tcp_state is not reasonable for a TCP_SYN_ACK_PACKET.\n");
+				printk(KERN_ERR "Error: in update_conn_rows_fake_tcp_state, fake_tcp_state is not reasonable for a TCP_SYN_ACK_PACKET.\n");
 			}
 			break;
 		
@@ -1221,8 +1219,7 @@ static void update_conn_rows_fake_tcp_state(connection_row_t* fake_conn_row,
 				fake_conn_row->fake_tcp_state = TCP_STATE_LAST_ACK;
 			}
 			else {
-				printk(KERN_ERR "Error: in update_conn_rows_fake_tcp_state, \
-					fake_tcp_state is not reasonable for a TCP_FIN_PACKET.\n");
+				printk(KERN_ERR "Error: in update_conn_rows_fake_tcp_state, fake_tcp_state[%d] is not reasonable for a TCP_FIN_PACKET.\n", fake_conn_row->fake_tcp_state);
 			}
 			break;
 		
@@ -1238,8 +1235,7 @@ static void update_conn_rows_fake_tcp_state(connection_row_t* fake_conn_row,
 				fake_conn_row->fake_tcp_state = TCP_STATE_TIME_WAIT;
 			}
 			else {
-				printk(KERN_ERR "Error: in update_conn_rows_fake_tcp_state, \
-					fake_tcp_state is not reasonable for a TCP_OTHER_PACKET.\n");
+				printk(KERN_ERR "Error: in update_conn_rows_fake_tcp_state, fake_tcp_state is not reasonable for a TCP_OTHER_PACKET.\n");
 			}
 			break;
 		

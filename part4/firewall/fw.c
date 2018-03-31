@@ -171,7 +171,7 @@ bool fake_packets_details(struct sk_buff *skb, bool fake_src, __be32 fake_ip, __
 {
 	struct iphdr *ip_header;
 	struct tcphdr *tcp_header;
-	int tcplen;
+	int tcplen;	
 	
 	if ( skb == NULL 
 		|| skb_linearize(skb) != 0
@@ -184,9 +184,17 @@ bool fake_packets_details(struct sk_buff *skb, bool fake_src, __be32 fake_ip, __
 
 	//Change routing:
 	if (fake_src){
+#ifdef FAKING_DEBUG_MODE
+		printk(KERN_INFO "In fake_packets_details(), faking source details.\n\
+old details are:\tip[%u]\tport[%hu],\t\tfaked details are:\tip[%u]\tport[%hu]\n",ntohl(ip_header->saddr), ntohs(tcp_header->source), fake_ip, fake_port);
+#endif	
 		ip_header->saddr = htonl(fake_ip);
 		tcp_header->source = htons(fake_port);
 	} else {
+#ifdef FAKING_DEBUG_MODE
+		printk(KERN_INFO "In fake_packets_details(), faking destination details.\n\
+old details are:\tip[%u]\tport[%hu],\t\tfaked details are:\tip[%u]\tport[%hu]\n", ntohl(ip_header->daddr), ntohs(tcp_header->dest), fake_ip, fake_port);
+#endif	
 		ip_header->daddr = htonl(fake_ip);
 		tcp_header->dest = htons(fake_port);
 	}
@@ -198,14 +206,6 @@ bool fake_packets_details(struct sk_buff *skb, bool fake_src, __be32 fake_ip, __
 	skb->ip_summed = CHECKSUM_NONE; //stop offloading
 	ip_header->check = 0;
 	ip_header->check = ip_fast_csum((u8 *)ip_header, ip_header->ihl);
-
-#ifdef FAKING_DEBUG_MODE
-	if (fake_src) {
-		printk(KERN_INFO "In fake_packets_details(), faked source details are:\tip[%u]\tport[%hu]\n",fake_ip, fake_port);
-	} else {
-		printk(KERN_INFO "In fake_packets_details(), faked destination details are:\tip[%u]\tport[%hu]\n",fake_ip, fake_port);
-	}
-#endif	
 
 	return true;
 }

@@ -64,11 +64,11 @@ static unsigned int check_packet_hookp_pre_routing(struct sk_buff* skb,
 	}
 
 	//TODO:: delete this:
-	if(pckt_lg_info->action == NF_DROP){
-		printk(KERN_INFO "*****************\nPacket's about to be DROPped, its details:\n");
-		print_log_row(pckt_lg_info);
-		printk(KERN_INFO "*****************\n");		
-	}
+	//if(pckt_lg_info->action == NF_DROP){
+	//	printk(KERN_INFO "*****************\nPacket's about to be DROPped, its details:\n");
+	//	print_log_row(pckt_lg_info);
+	//	printk(KERN_INFO "*****************\n");		
+	//}
 	//END OF DELETE.
 
 	return pckt_lg_info->action;
