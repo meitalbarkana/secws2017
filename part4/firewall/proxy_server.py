@@ -84,8 +84,8 @@ def find_real_destination(real_src_ip, real_src_port, current_fake_dst_ip, curre
 		for line in lines:
 			try:
 				#Since line format is;
-				#"<src ip> <source port> <dst ip> <dest port> <tcp_state> <timestamp> <fake src ip> <fake src port> <fake dst ip> <fake dst port>"
-				src_ip, src_port, dst_ip, dst_port, tcp_state, timestamp,fake_src_ip, fake_src_port, fake_dst_ip, fake_dst_port  = line.split()
+				#"<src ip> <source port> <dst ip> <dest port> <tcp_state> <timestamp> <fake src ip> <fake src port> <fake dst ip> <fake dst port> <fake_tcp_state>"
+				src_ip, src_port, dst_ip, dst_port, tcp_state, timestamp,fake_src_ip, fake_src_port, fake_dst_ip, fake_dst_port, fake_tcp_state  = line.split()
 				src_ip = long(src_ip)
 				src_port = int(src_port)
 				dst_ip = long(dst_ip)
@@ -96,7 +96,7 @@ def find_real_destination(real_src_ip, real_src_port, current_fake_dst_ip, curre
 				fake_src_port = int(fake_src_port)
 				fake_dst_ip = long(fake_dst_ip)
 				fake_dst_port = int(fake_dst_port)
-
+				fake_tcp_state = int(fake_tcp_state)
 				"""
 				print "src_ip: ",src_ip,", src_port: ", src_port, ", dst_ip: ", dst_ip, ", dst_port: ",dst_port, \
 				", tcp_state: ", tcp_state, ", timestamp: ", timestamp,", fake_src_ip: ",fake_src_ip, \
@@ -109,7 +109,7 @@ def find_real_destination(real_src_ip, real_src_port, current_fake_dst_ip, curre
 					#TODO:: delete the first 3 lines:
 					print("******Found a match! line is:******")
 					print(line)
-					print("***********************************")
+					print("***********************************\n")
 					return (socket.inet_ntoa(struct.pack('!I', dst_ip)),dst_port)
 
 			except:
@@ -185,10 +185,13 @@ def remote_connection(sock, client_address):
 	"""
 	try:
 		remote_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+		remote_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)#TODO:: check if needed..
 		remote_details = get_remote_servers_details(sock, client_address)
 		if remote_details == False:
 			print("Error: failed to extract remote-server's details.")
 			return False
+		else:
+			print ("In remote_connection(), remote_details are: dst_ip=[{0}] dst_port=[{1}]".format(remote_details[0], remote_details[1]))#TODO:: delete, for debugging
 		remote_socket.connect(remote_details)
 		return remote_socket
 	except Exception as e:
@@ -249,16 +252,18 @@ def start():
 		server_sockets = [socket.socket(socket.AF_INET, socket.SOCK_STREAM) for i in xrange(6)]
 
 		for i in xrange(3):
-			server_sockets[i].setblocking(0)
+			#server_sockets[i].setblocking(0)
+			server_sockets[i].setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 			server_sockets[i].bind((VLAN_1, listening_ports[i]))				#Bind it to a our host and (well-known) relevant port
 			server_sockets[i].listen(MAX_CONN)									#Start listening
-			print('[*] Listening on {0} {1}'  .format(VLAN_1, listening_ports[i]))
+			print('[*] Listening on {0} {1}'.format(VLAN_1, listening_ports[i]))
 
 		for i in xrange(3):
-			server_sockets[i+3].setblocking(0)
+			#server_sockets[i+3].setblocking(0)
+			server_sockets[i+3].setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 			server_sockets[i+3].bind((VLAN_2, listening_ports[i]))				#Bind it to a our host and (well-known) relevant port
 			server_sockets[i+3].listen(MAX_CONN)									#Start listening
-			print('[*] Listening on {0} {1}'  .format(VLAN_2, listening_ports[i]))
+			print('[*] Listening on {0} {1}'.format(VLAN_2, listening_ports[i]))
 
 
 	except Exception, e:
@@ -272,13 +277,19 @@ def start():
 
 	try:
 		while input_sockets:
-			print ("In while loop")
+			print ("In while loop, input_sockets length is: {0}".format(len(input_sockets)))#TODO:: delete, for debugging
 
 			ready_to_read_sockets, ready_to_write_sockets, in_error_sockets = \
 				select.select(input_sockets, output_sockets, input_sockets)
 
 			for sock in ready_to_read_sockets:
+				print ("In for loop, ready_to_read_sockets length is: {0}".format(len(ready_to_read_sockets)))#TODO:: delete, for debugging
+
 				if sock in server_sockets:
+					
+					iiiiiip, pppppport = sock.getsockname()##TODO:: delete, for debugging
+					print ("sock is in server_sockets, its info: ip=[{0}] port=[{1}]".format(iiiiiip, pppppport))#TODO:: delete, for debugging
+					
 					client_connection, client_address = sock.accept()
 					print('Accepted connection {0} {1}'.format(client_address[0], client_address[1]))
 					remote_server = remote_connection(sock, client_address)
@@ -293,7 +304,11 @@ def start():
 						print('The connection with the remote server can\'t be established, closing connection with client: {0} {1}'.format(client_address[0], client_address[1]))
 						client_connection.close()
 
-				else:	
+				else:
+
+					iiiiiip, pppppport = sock.getsockname()##TODO:: delete, for debugging
+					print ("sock is NOT in server_sockets, its info: ip=[{0}] port=[{1}], trying to accept data from it.".format(iiiiiip, pppppport))#TODO:: delete, for debugging
+
 					data = received_from(sock, 3)
 					messages_queue[sock].send(data)
 					if len(data) == 0:

@@ -45,6 +45,14 @@ static unsigned int check_packet_hookp_pre_routing(struct sk_buff* skb,
 	//Calls function that decides packet-action
 	decide_packet_action(skb, pckt_lg_info, &packet_ack, &packet_direction);
 
+	//TODO:: delete this - only for debugging:
+	if(pckt_lg_info->reason == REASON_ILLEGAL_VALUE){
+		printk(KERN_ERR "*****************\nTCP INVALID PACKET's details are:\n");
+		print_log_row(pckt_lg_info);
+		printk(KERN_ERR "*****************\n");
+	}
+	//END OF DELETE
+
 	//Un-log rows that are of packets that are loopback
 	//Inserts row to log-rows:
 	if ( pckt_lg_info->reason == REASON_LOOPBACK_PACKET ||

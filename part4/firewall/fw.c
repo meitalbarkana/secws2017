@@ -52,15 +52,23 @@ tcp_packet_t get_tcp_packet_type(struct tcphdr* tcp_hdr){
 	//Note: no URG check, since (I think) it might be used
 	
 	if (tcp_hdr->ack == 0) {
-		if ((tcp_hdr->syn == 1) &&
-			(tcp_hdr->fin == 0) &&
-			(tcp_hdr->rst == 0) &&
-			(tcp_hdr->psh == 0) ) 
+		//ack==0 only in 2 cases:
+		//	1.	The first SYN packet 
+		//	2.	RST packet
+		if ((tcp_hdr->fin == 0) && (tcp_hdr->psh == 0))
 		{
-			return TCP_SYN_PACKET;
+			if ((tcp_hdr->syn == 1) && (tcp_hdr->rst == 0)){
+				return TCP_SYN_PACKET;
+			} else if ((tcp_hdr->syn == 0) && (tcp_hdr->rst == 1)){
+				return TCP_RESET_PACKET;
+			}
 		} 
-		//Only (the first) SYN packet has ack==0
+		
 		printk(KERN_INFO "In function get_tcp_packet_type(), TCP packet has invalid flags (ack is 0).\n");
+		printk(KERN_INFO "syn: %d, ",(tcp_hdr->syn == 1));//TODO:: delete.
+		printk(KERN_INFO "fin: %d, ",(tcp_hdr->fin == 1));//TODO:: delete.
+		printk(KERN_INFO "rst: %d, ",(tcp_hdr->rst == 1));//TODO:: delete.
+		printk(KERN_INFO "psh: %d.\n",(tcp_hdr->psh == 1));//TODO:: delete.
 		return TCP_INVALID_PACKET;
 	}
 	

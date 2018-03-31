@@ -192,7 +192,7 @@ static bool is_row_timedout(connection_row_t* row){
  *	Sysfs show implementation:
  * 
  * Connection-row format:
- * "<src ip> <source port> <dst ip> <dest port> <tcp_state> <timestamp> <fake src ip> <fake source port> <fake dst ip> <fake dest port>'\n'"
+ * "<src ip> <source port> <dst ip> <dest port> <tcp_state> <timestamp> <fake src ip> <fake source port> <fake dst ip> <fake dest port> <fake_tcp_state>'\n'"
  * 
  *	NOTE: user of this sysfs should allocate enough space for buf (PAGE_SIZE)
  **/
@@ -224,7 +224,7 @@ ssize_t display(struct device *dev, struct device_attribute *attr, char *buf)
 		
 		//"<src ip> <src port> <dst ip> <dst port> <tcp_state> <timestamp> <fake src ip> <fake src port> <fake dst ip> <fake dst port>'\n'"
 		if ( (len = (sprintf(conn_row_str,
-					"%u %hu %u %hu %d %lu %u %hu %u %hu\n",
+					"%u %hu %u %hu %d %lu %u %hu %u %hu %d\n",
 					temp_row->src_ip,
 					temp_row->src_port,				
 					temp_row->dst_ip,
@@ -234,7 +234,8 @@ ssize_t display(struct device *dev, struct device_attribute *attr, char *buf)
 					temp_row->fake_src_ip,
 					temp_row->fake_src_port,				
 					temp_row->fake_dst_ip,
-					temp_row->fake_dst_port)) ) < 10)
+					temp_row->fake_dst_port,
+					temp_row->fake_tcp_state)) ) < 11)
 		{
 			printk(KERN_ERR "Error converting to connection-row format.\n");
 			return -1;
@@ -977,7 +978,9 @@ static bool handle_RESET_tcp_packet(log_row_t* pckt_lg_info,
 				relevant_opposite_conn_row->fake_tcp_state = TCP_STATE_CLOSED;
 			}
 		}
-		
+#ifdef FAKING_DEBUG_MODE
+		printk(KERN_INFO "In handle_RESET_tcp_packet(), deleted relevant connection row.\n");
+#endif			
 		pckt_lg_info->action = NF_ACCEPT;
 		pckt_lg_info->reason = REASON_FOUND_MATCHING_TCP_CONNECTION;
 		return true;

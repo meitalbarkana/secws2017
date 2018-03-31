@@ -119,7 +119,7 @@ static int get_log_size(){
  * 
  *	Gets buffer containing a string representing all the connection table,
  *	its rows are in format:
- *	"<src ip> <source port> <dst ip> <dest port> <tcp_state> <timestamp> <fake src ip> <fake source port> <fake dst ip> <fake dest port>'\n'"
+ *	"<src ip> <source port> <dst ip> <dest port> <tcp_state> <timestamp> <fake src ip> <fake source port> <fake dst ip> <fake dest port> <fake tcp state>'\n'"
  * 
  *	If any error happens, prints it to the screen.
  **/
@@ -131,7 +131,7 @@ static void print_conn_tab_nicely(const char* buff){
 		return;		
 	}
 	
-	printf("<src ip> <src port> <dst ip> <dst port> <tcp_state> <timestamp> <fake src ip> <fake src port> <fake dst ip> <fake dst port>\n");
+	printf("<src ip> <src port> <dst ip> <dst port> <tcp_state> <timestamp> <fake src ip> <fake src port> <fake dst ip> <fake dst port> <fake tcp state>\n");
 	
 	
 	size_t ip_len_str = strlen("XXX.XXX.XXX.XXX")+1;
@@ -152,7 +152,7 @@ static void print_conn_tab_nicely(const char* buff){
 	strncpy(str, buff, strlen(buff)+1);
 	pStr = str;
 	
-	int tcp_state;
+	int tcp_state, fake_tcp_state;
 	long unsigned timestamp;
 	unsigned int src_ip, dst_ip, fake_src_ip, fake_dst_ip;
 	unsigned short src_port, dst_port, fake_src_port, fake_dst_port;
@@ -165,9 +165,9 @@ static void print_conn_tab_nicely(const char* buff){
 			continue;
 		}
 		
-		if ( (sscanf(curr_token, "%u %hu %u %hu %d %lu %u %hu %u %hu", &src_ip, &src_port,
+		if ( (sscanf(curr_token, "%u %hu %u %hu %d %lu %u %hu %u %hu %d", &src_ip, &src_port,
 				&dst_ip, &dst_port, &tcp_state, &timestamp, &fake_src_ip,
-				&fake_src_port, &fake_dst_ip, &fake_dst_port)) < NUM_FIELDS_IN_CONN_ROW_FORMAT ) 
+				&fake_src_port, &fake_dst_ip, &fake_dst_port, &fake_tcp_state)) < NUM_FIELDS_IN_CONN_ROW_FORMAT ) 
 		{
 			printf("Couldn't parse row to valid fields, continues to next row.\n");
 		} else {
@@ -197,9 +197,9 @@ static void print_conn_tab_nicely(const char* buff){
 				continue; //To next iteration
 			}
 
-			printf("%s\t%hu\t%s\t%hu\t%d\t%lu\t%s\t%hu\t%s\t%hu\n", ip_src_str, src_port,
+			printf("%s\t%hu\t%s\t%hu\t%d\t%lu\t%s\t%hu\t%s\t%hu\t%d\n", ip_src_str, src_port,
 				ip_dst_str, dst_port, tcp_state, timestamp, ip_fake_src_str,
-				fake_src_port, ip_fake_dst_str, fake_dst_port);
+				fake_src_port, ip_fake_dst_str, fake_dst_port, fake_tcp_state);
 		}
 	}
 	

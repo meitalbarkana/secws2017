@@ -908,7 +908,7 @@ void decide_packet_action(struct sk_buff* skb, log_row_t* ptr_pckt_lg_info,
 	//that is a SYN packet with source port==PORT_FTP_DATA):
 	if (tcp_hdr) { 
 		tcp_pckt_type = get_tcp_packet_type(tcp_hdr);
-		
+				
 		//Takes care of TCP packets that aren't SYN, and
 		//of packets that are SYN AND their source port is PORT_FTP_DATA
 		if ( (tcp_pckt_type != TCP_SYN_PACKET) ||
