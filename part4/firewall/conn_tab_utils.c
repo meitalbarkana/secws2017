@@ -954,9 +954,7 @@ static bool handle_RESET_tcp_packet(log_row_t* pckt_lg_info,
 		connection_row_t* relevant_opposite_conn_row)
 {
 	bool delete_opposite_row = true;
-#ifdef FAKING_DEBUG_MODE
-		printk(KERN_INFO "In handle_RESET_tcp_packet(), checking relevant connection rows.\n");
-#endif	
+
 	if(pckt_lg_info == NULL){
 		printk(KERN_ERR "In handle_RESET_tcp_packet(), function got NULL argument.\n");
 		return false;
@@ -966,20 +964,36 @@ static bool handle_RESET_tcp_packet(log_row_t* pckt_lg_info,
 	{
 		//Delete rows, if needed:
 		if (relevant_conn_row){
+#ifdef FAKING_DEBUG_MODE
+			printk(KERN_INFO "In handle_RESET_tcp_packet(), deleting relevant connection row:");
+			print_conn_row(relevant_conn_row);
+			printk(KERN_INFO "Its fake tcp state is: %d\n", relevant_conn_row->fake_tcp_state);
+#endif				
 			if(relevant_conn_row->need_to_fake_connection){
 				delete_opposite_row = false;
 			}
 			delete_specific_row_by_conn_ptr(relevant_conn_row);
 		}
 		if (relevant_opposite_conn_row){
+#ifdef FAKING_DEBUG_MODE
+			printk(KERN_INFO "In handle_RESET_tcp_packet(), checking opposite connection row:");
+			print_conn_row(relevant_opposite_conn_row);
+			printk(KERN_INFO "Its fake tcp state is: %d\n", relevant_opposite_conn_row->fake_tcp_state);
+#endif	
 			if(delete_opposite_row){
+#ifdef FAKING_DEBUG_MODE
+				printk(KERN_INFO "This was relevant_opposite_conn_row, and it is deleted.\n");
+#endif			
 				delete_specific_row_by_conn_ptr(relevant_opposite_conn_row);
 			} else {
+#ifdef FAKING_DEBUG_MODE
+				printk(KERN_INFO "This was relevant_opposite_conn_row, and it WASN'T deleted.\n");
+#endif	
 				relevant_opposite_conn_row->fake_tcp_state = TCP_STATE_CLOSED;
 			}
 		}
 #ifdef FAKING_DEBUG_MODE
-		printk(KERN_INFO "In handle_RESET_tcp_packet(), deleted relevant connection row.\n");
+		printk(KERN_INFO "END OF handle_RESET_tcp_packet().\n");
 #endif			
 		pckt_lg_info->action = NF_ACCEPT;
 		pckt_lg_info->reason = REASON_FOUND_MATCHING_TCP_CONNECTION;
