@@ -13,6 +13,7 @@ FTP_LISTENING_PORT_2 = 20202
 MAX_CONN = 5
 MAX_BUFFER_SIZE = 8192												#=2^13. since we should block only size > 5000, 4096 isn't enough
 MAX_HTTP_CONTENT_LENGTH = 5000
+CONN_TIMEOUT = 25
 
 """NOTE: not all states are relevant"""
 #"State" before a connection actually begins OR after it's closed:
@@ -77,7 +78,7 @@ def find_real_destination(real_src_ip, real_src_port, current_fake_dst_ip, curre
 	print("\treal_src_ip: "+str(real_src_ip)+" ("+socket.inet_ntoa(struct.pack('!I', real_src_ip))+"), real_src_port: "+str(real_src_port))
 	print("\tcurrent_fake_dst_ip: "+str(current_fake_dst_ip)+" ("+socket.inet_ntoa(struct.pack('!I', current_fake_dst_ip))+"), current_fake_dst_port: "+str(current_fake_dst_port))
 	print("\nConnection table is:")
-	print conn_tab_as_str, "\n"
+	print(conn_tab_as_str)
 	
 	if conn_tab_as_str != False:
 		lines = conn_tab_as_str.splitlines()
@@ -185,7 +186,7 @@ def remote_connection(sock, client_address):
 	"""
 	try:
 		remote_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-		remote_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)#TODO:: check if needed..
+		remote_socket.settimeout(CONN_TIMEOUT)#TODO:: check if needed..
 		remote_details = get_remote_servers_details(sock, client_address)
 		if remote_details == False:
 			print("Error: failed to extract remote-server's details.")
@@ -277,19 +278,41 @@ def start():
 
 	try:
 		while input_sockets:
-			print ("In while loop, input_sockets length is: {0}".format(len(input_sockets)))#TODO:: delete, for debugging
+			print ("In while loop, input_sockets length is: {0}, here they come:".format(len(input_sockets)))#TODO:: delete, for debugging
+
+			for s in input_sockets:#TODO:: delete, for debugging
+				a, b = s.getsockname()#TODO:: delete, for debugging
+				print("s details -> ip=[{0}] port=[{1}]".format(a, b))#TODO:: delete, for debugging
+				try:
+					print "s peer name is: ", s.getpeername()
+				except:
+					print ("s in not connected.")
 
 			ready_to_read_sockets, ready_to_write_sockets, in_error_sockets = \
 				select.select(input_sockets, output_sockets, input_sockets)
+
+			print ("[*]Ready_to_read_sockets length is: {0}".format(len(ready_to_read_sockets)))#TODO:: delete, for debugging
+			print ("[*]Ready_to_write_sockets length is: {0}".format(len(ready_to_write_sockets)))#TODO:: delete, for debugging
+			print ("[*]In_error_sockets length is: {0}".format(len(in_error_sockets)))#TODO:: delete, for debugging
+
 
 			for sock in ready_to_read_sockets:
 				print ("In for loop, ready_to_read_sockets length is: {0}".format(len(ready_to_read_sockets)))#TODO:: delete, for debugging
 
 				if sock in server_sockets:
 					
-					iiiiiip, pppppport = sock.getsockname()##TODO:: delete, for debugging
+					if sock in server_sockets[0:6]:
+						print("Sock is an **ORIGINAL** server socket")
+					else:
+						print("Sock is a LISTENING server socket!")
+
+					iiiiiip, pppppport = sock.getsockname()#TODO:: delete, for debugging
 					print ("sock is in server_sockets, its info: ip=[{0}] port=[{1}]".format(iiiiiip, pppppport))#TODO:: delete, for debugging
-					
+					try:
+						print "sock peer name is: ", sock.getpeername()
+					except:
+						print ("sock in not connected.")
+
 					client_connection, client_address = sock.accept()
 					print('Accepted connection {0} {1}'.format(client_address[0], client_address[1]))
 					remote_server = remote_connection(sock, client_address)
