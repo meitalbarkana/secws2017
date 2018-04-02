@@ -63,7 +63,6 @@ def read_conn_tab_to_buff():
 def find_real_destination(real_src_ip, real_src_port, current_fake_dst_ip, current_fake_dst_port):
 	"""
 	Helper function to get_remote_servers_details():
-	
 	@real source ip & source port as provided by "the packet" (the flow)
 	@fake destination ip & port (ours!)
 
@@ -78,7 +77,7 @@ def find_real_destination(real_src_ip, real_src_port, current_fake_dst_ip, curre
 	print("\treal_src_ip: "+str(real_src_ip)+" ("+socket.inet_ntoa(struct.pack('!I', real_src_ip))+"), real_src_port: "+str(real_src_port))
 	print("\tcurrent_fake_dst_ip: "+str(current_fake_dst_ip)+" ("+socket.inet_ntoa(struct.pack('!I', current_fake_dst_ip))+"), current_fake_dst_port: "+str(current_fake_dst_port))
 	print("\nConnection table is:")
-	print(conn_tab_as_str)
+	print conn_tab_as_str
 	
 	if conn_tab_as_str != False:
 		lines = conn_tab_as_str.splitlines()
@@ -98,12 +97,6 @@ def find_real_destination(real_src_ip, real_src_port, current_fake_dst_ip, curre
 				fake_dst_ip = long(fake_dst_ip)
 				fake_dst_port = int(fake_dst_port)
 				fake_tcp_state = int(fake_tcp_state)
-				"""
-				print "src_ip: ",src_ip,", src_port: ", src_port, ", dst_ip: ", dst_ip, ", dst_port: ",dst_port, \
-				", tcp_state: ", tcp_state, ", timestamp: ", timestamp,", fake_src_ip: ",fake_src_ip, \
-				", fake_src_port: ", fake_src_port,", fake_dst_ip: ", fake_dst_ip, ", fake_dst_port: ",fake_dst_port,"\n"
-				"""
-
 				
 				if real_src_ip == src_ip and real_src_port == src_port and \
 				fake_dst_ip == current_fake_dst_ip and fake_dst_port == current_fake_dst_port:
@@ -137,16 +130,15 @@ def is_valid_content_length(all_data):
 	source = FakeSocket(all_data)
 	response = HTTPResponse(source)
 	response.begin()
-
-	"""
+	"""#For testing:
 	print ("headers are:")
 	for h in response.getheaders():
-		print (h)  # For testing alone, TODO:: delete this.
+		print (h)  
 	"""
 	content_len_value = int(response.getheader('content-length', -1))
 	if content_len_value == -1 or content_len_value > MAX_HTTP_CONTENT_LENGTH:
 		return False
-	"""
+	"""#For testing:
 	print ("content length's value is: ")
 	print (content_len_value)
 	print ("content length's type is: ")
@@ -230,26 +222,10 @@ def close_sock(sock, input_sockets, messages_queue):
 	del messages_queue[relevant_server_sock]
 
 
-'''
-Simple implementation of hexdump
-https://gist.github.com/JonathonReinhart/509f9a8094177d050daa84efcd4486cb
-'''
-def hexdump(data, length=16):
-	filter = ''.join([(len(repr(chr(x))) == 3) and chr(x) or '.' for x in range(256)])
-	lines = []
-	digits = 4 if isinstance(data, str) else 2
-	for c in range(0, len(data), length):
-		chars = data[c:c+length]
-		hex = ' '.join(["%0*x" % (digits, (x)) for x in chars])
-		printable = ''.join(["%s" % (((x) <= 127 and filter[(x)]) or '.') for x in chars])
-		lines.append("%04x  %-*s  %s\n" % (c, length*3, hex, printable))
-	print(''.join(lines))
-
-
 def start():
 	try:
 		listening_ports = [HTTP_LISTENING_PORT, FTP_LISTENING_PORT_1, FTP_LISTENING_PORT_2]
-		#Initiate 6 INET, STREAMing sockets (for listening):
+		#Initiate 6 AF_INET (IPv4) SOCK_STREAM (TCP) sockets (for listening):
 		server_sockets = [socket.socket(socket.AF_INET, socket.SOCK_STREAM) for i in xrange(6)]
 
 		for i in xrange(3):
@@ -275,6 +251,7 @@ def start():
 	output_sockets = []
 	input_sockets = server_sockets
 	messages_queue = {}
+	number_of_sever_sockets = len(server_sockets)
 
 	try:
 		while input_sockets:
@@ -297,21 +274,16 @@ def start():
 
 
 			for sock in ready_to_read_sockets:
-				print ("In for loop, ready_to_read_sockets length is: {0}".format(len(ready_to_read_sockets)))#TODO:: delete, for debugging
 
-				if sock in server_sockets:
+				m = min(number_of_sever_sockets,len(server_sockets))
+				if sock in server_sockets[0:m]:
 					
-					if sock in server_sockets[0:6]:
-						print("Sock is an **ORIGINAL** server socket")
-					else:
-						print("Sock is a LISTENING server socket!")
-
 					iiiiiip, pppppport = sock.getsockname()#TODO:: delete, for debugging
-					print ("sock is in server_sockets, its info: ip=[{0}] port=[{1}]".format(iiiiiip, pppppport))#TODO:: delete, for debugging
+					print ("sock is in original server_sockets, its info: ip=[{0}] port=[{1}]".format(iiiiiip, pppppport))#TODO:: delete, for debugging
 					try:
-						print "sock peer name is: ", sock.getpeername()
+						print "sock's peer name is: ", sock.getpeername()
 					except:
-						print ("sock in not connected.")
+						print ("sock is not connected.")
 
 					client_connection, client_address = sock.accept()
 					print('Accepted connection {0} {1}'.format(client_address[0], client_address[1]))
@@ -330,7 +302,11 @@ def start():
 				else:
 
 					iiiiiip, pppppport = sock.getsockname()##TODO:: delete, for debugging
-					print ("sock is NOT in server_sockets, its info: ip=[{0}] port=[{1}], trying to accept data from it.".format(iiiiiip, pppppport))#TODO:: delete, for debugging
+					print ("sock is NOT in original server_sockets, its info: ip=[{0}] port=[{1}], trying to accept data from it.".format(iiiiiip, pppppport))#TODO:: delete, for debugging
+					try:
+						print "sock's peer name is: ", sock.getpeername()
+					except:
+						print ("sock's not connected.")
 
 					data = received_from(sock, 3)
 					messages_queue[sock].send(data)
@@ -338,21 +314,17 @@ def start():
 						close_sock(sock, input_sockets, messages_queue)
 						break
 					else:
-						print('Received {} bytes from client '.format(len(data)))
-						#TODO:: delete the next row, just for testing:
-						hexdump(data)
+						print('Received {} bytes from client. Validating input'.format(len(data)))
+						#TODO::
+						#is_valid_content_length(data)
+						 
 
 	except KeyboardInterrupt:
 		print("Ending server.")
 	except Exception, e:
 		print(e)
 		sys.exit(0)
-	#finally:
-	#	print("Got to \'finally\'!")
-	#	sys.exit(0)
 
-
-#def conn_string(conn, data, addr):
 
 def main():
 	start()
