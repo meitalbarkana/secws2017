@@ -3,8 +3,7 @@ from httplib import HTTPResponse
 from StringIO import StringIO
 
 PATH_TO_CONN_TAB_ATTR = "/sys/class/fw/fw/conn_tab"
-LOCALHOST = ''
-#TODO:: update uses of LOCALHOST to vlan1/vlan2
+
 VLAN_1 = '10.1.1.3'
 VLAN_2 = '10.1.2.3'
 HTTP_LISTENING_PORT = 8080											#"Spoof" port
@@ -15,39 +14,21 @@ MAX_BUFFER_SIZE = 8192												#=2^13. since we should block only size > 5000
 MAX_HTTP_CONTENT_LENGTH = 5000
 CONN_TIMEOUT = 25
 
-"""NOTE: not all states are relevant"""
-#"State" before a connection actually begins OR after it's closed:
-TCP_STATE_CLOSED = 1,
-#State a server is in when waiting for a request to start a connection:
-TCP_STATE_LISTEN = 2,
-#State after client sent a SYN packet and is waiting for SYN-ACK reply:
-TCP_STATE_SYN_SENT = 3,
-#State a server is in after receiving a SYN packet and replying with its SYN-ACK reply:
-TCP_STATE_SYN_RCVD = 4,
-#State a connection is in after its necessary ACK packet has been received - 
-# client goes into this state after receiving a SYN-ACK,
-# server goes into this state after receiving the lone ACK:
-TCP_STATE_ESTABLISHED = 5,
-#Client's state after he sent an initial FIN packet asking for a graceful close of the TCP connection:
-TCP_STATE_FIN_WAIT_1 = 6,
-#Server's state after it receives an initial FIN and sends back an ACK to acknowledge the FIN:
-TCP_STATE_CLOSE_WAIT = 7,
-#Client's state when receiving the ACK response to its initial FIN,
-# as it waits for a final FIN from server:
-TCP_STATE_FIN_WAIT_2 = 8,
-
-#Server's state when just sent the second FIN needed to gracefully
-# close the TCP connection back to (initiating) client, while it waits for acknowledgment:
-TCP_STATE_LAST_ACK = 9,
-
-#State of the initiating client that received the final FIN and has sent
-# an ACK to close the connection:
+"""TCP states:"""
+TCP_STATE_CLOSED = 1
+TCP_STATE_LISTEN = 2
+TCP_STATE_SYN_SENT = 3
+TCP_STATE_SYN_RCVD = 4
+TCP_STATE_ESTABLISHED = 5
+TCP_STATE_FIN_WAIT_1 = 6
+TCP_STATE_CLOSE_WAIT = 7
+TCP_STATE_FIN_WAIT_2 = 8
+TCP_STATE_LAST_ACK = 9
 TCP_STATE_TIME_WAIT = 10
 """"""
 
 def read_conn_tab_to_buff():
 	buff = False
-
 	try:
 		with open(PATH_TO_CONN_TAB_ATTR,'r') as f:
 			buff = f.read()
@@ -57,7 +38,6 @@ def read_conn_tab_to_buff():
 		print "\t", e
 
 	return buff
-
 
 
 def find_real_destination(real_src_ip, real_src_port, current_fake_dst_ip, current_fake_dst_port):
@@ -205,21 +185,59 @@ def received_from(sock, timeout):
 	return data
 
 
-def close_sock(sock, input_sockets, messages_queue):
+def close_sock(sock, input_sockets, messages_queue, close_immediately=False):
 	"""
 	Closes sock and its corresponding server socket,
-	deletes them from input_sockets and from messages_queue
+	deletes them from input_sockets and from messages_queue.
+
+	If close_immediately==True, sends RST packet to both sides of the connection
+	(to be used when proxy got data it should block)
 	"""
-	print ('End of connection with {}'.format(sock.getpeername()))
-	relevant_server_sock = messages_queue[sock]
-	input_sockets.remove(relevant_server_sock)
-	input_sockets.remove(sock)
+	if sock==None:
+		return
 
-	relevant_server_sock.close()
-	sock.close()
+	l_onoff = 1 
+	l_linger = 0
 
-	del messages_queue[sock]
-	del messages_queue[relevant_server_sock]
+	try:
+		relevant_server_sock = messages_queue[sock]
+	except:
+		relevant_server_sock = None #Not supposed to get here
+
+	if relevant_server_sock:
+		if close_immediately:
+			print ("Closing connection immediately with:\n1.{0}\n2.{1}".format(sock.getpeername(),relevant_server_sock.getpeername()))
+		else:
+			print ("End of connection with:\n1.{0}\n2.{1}".format(sock.getpeername(),relevant_server_sock.getpeername()))
+		input_sockets.remove(relevant_server_sock)
+		input_sockets.remove(sock)
+
+		if close_immediately: #Send RST packets, credit: https://stackoverflow.com/a/6440364/5928769:
+			if relevant_server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER,struct.pack('ii', l_onoff, l_linger)) != 0 :
+				#Not supposed to get here:
+				print("Failed set relevant_server_sock's SO_LINGER, closing it might not send RST")
+			if sock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack('ii', l_onoff, l_linger)) != 0 :
+				#Not supposed to get here:
+				print("Failed set socket's SO_LINGER, closing it might not send RST")
+
+		relevant_server_sock.close()
+		sock.close()
+		del messages_queue[sock]
+		del messages_queue[relevant_server_sock]
+
+	else: #relevant_server_sock == None, not supposed to get here
+		print("Couldn't find relevant_server_sock")
+		if close_immediately:
+			print ("Closing connection immediately with: {}".format(sock.getpeername()))
+		else:
+			print ("End of connection with: {}".format(sock.getpeername()))
+		input_sockets.remove(sock)
+
+		if close_immediately: #Send RST packet:
+			if sock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack('ii', l_onoff, l_linger)) != 0 :
+				print("Failed set socket's SO_LINGER, closing it might not send RST")
+		sock.close()
+		del messages_queue[sock]
 
 
 def start():
