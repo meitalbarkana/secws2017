@@ -191,6 +191,20 @@ def received_from(sock, timeout):
 	return data
 
 
+
+def close_one_sock(sock, input_sockets, messages_queue):
+##TODO:: EDIT!
+
+	"""
+	Closes only received socket.
+	Deletes it from input_sockets and its "messages" from messages_queue
+	"""
+	print ('End of connection with {}'.format(sock.getpeername()))
+	input_sockets.remove(sock)
+	sock.close()
+	del messages_queue[sock]
+
+
 def close_sock(sock, input_sockets, messages_queue, close_immediately=False):
 	"""
 	Closes sock and its corresponding server socket,
@@ -279,7 +293,7 @@ def start():
 
 	try:
 		while input_sockets:
-			print ("In while loop, input_sockets length is: {0}, here they come:".format(len(input_sockets)))#TODO:: delete, for debugging
+			print ("\nIn while loop, input_sockets length is: {0}, here they come:".format(len(input_sockets)))#TODO:: delete, for debugging
 
 			for s in input_sockets:#TODO:: delete, for debugging
 				a, b = s.getsockname()#TODO:: delete, for debugging
@@ -336,8 +350,9 @@ def start():
 					data = received_from(sock, 3)
 					
 					if len(data) == 0:
+						print("Received-data's length is 0")#TODO:: delete
 						messages_queue[sock].send(data)	
-						close_sock(sock, input_sockets, messages_queue)
+						close_one_sock(sock, input_sockets, messages_queue)#TODO:: test this!!
 						break
 
 					#len(data) > 0:
@@ -351,10 +366,10 @@ def start():
 
 					elif peer_port_as_int == FTP_PORT:
 						#TODO::
-
+						print("FTP port(21)")#TODO:: delete
 					elif peer_port_as_int == FTP_DATA_PORT:
 						#TODO::
-
+						print("FTP-DATA port(20)")#TODO:: delete
 					else:
 						messages_queue[sock].send(data)
 						print("Received {} bytes from inner network, and sent it to remote server.".format(len(data)))
