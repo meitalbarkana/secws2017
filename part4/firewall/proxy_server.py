@@ -9,6 +9,9 @@ VLAN_2 = '10.1.2.3'
 HTTP_LISTENING_PORT = 8080											#"Spoof" port
 FTP_LISTENING_PORT_1 = 21212
 FTP_LISTENING_PORT_2 = 20202
+HTTP_PORT = 80
+FTP_PORT = 21
+FTP_DATA_PORT = 20
 MAX_CONN = 5
 MAX_BUFFER_SIZE = 8192												#=2^13. since we should block only size > 5000, 4096 isn't enough
 MAX_HTTP_CONTENT_LENGTH = 5000
@@ -100,7 +103,7 @@ class FakeSocket():
 		return self._file
 
 
-def is_valid_content_length(all_data):
+def http_has_valid_content_length(all_data):
 	"""
 	Gets HTTP data, returns:
 			1. True if it has a header "content_length" and its value <= MAX_HTTP_CONTENT_LENGTH,
@@ -110,11 +113,14 @@ def is_valid_content_length(all_data):
 	source = FakeSocket(all_data)
 	response = HTTPResponse(source)
 	response.begin()
-	"""#For testing:
+
+
+	#TODO:: add as a comment. For testing:
 	print ("headers are:")
 	for h in response.getheaders():
 		print (h)  
-	"""
+	""""""
+
 	content_len_value = int(response.getheader('content-length', -1))
 	if content_len_value == -1 or content_len_value > MAX_HTTP_CONTENT_LENGTH:
 		return False
@@ -294,10 +300,12 @@ def start():
 			for sock in ready_to_read_sockets:
 
 				m = min(number_of_sever_sockets,len(server_sockets))
+				sock_ip_as_str, sock_port_as_int = sock.getsockname()#TODO:: delete, for debugging
+				peer_ip_as_str = ""
+				peer_port_as_int = 0
+
 				if sock in server_sockets[0:m]:
-					
-					iiiiiip, pppppport = sock.getsockname()#TODO:: delete, for debugging
-					print ("sock is in original server_sockets, its info: ip=[{0}] port=[{1}]".format(iiiiiip, pppppport))#TODO:: delete, for debugging
+					print ("sock is in original server_sockets, its info: ip=[{0}] port=[{1}]".format(sock_ip_as_str, sock_port_as_int))#TODO:: delete, for debugging
 					try:
 						print "sock's peer name is: ", sock.getpeername()
 					except:
@@ -318,23 +326,39 @@ def start():
 						client_connection.close()
 
 				else:
-
-					iiiiiip, pppppport = sock.getsockname()##TODO:: delete, for debugging
-					print ("sock is NOT in original server_sockets, its info: ip=[{0}] port=[{1}], trying to accept data from it.".format(iiiiiip, pppppport))#TODO:: delete, for debugging
+					print ("sock is NOT in original server_sockets, its info: ip=[{0}] port=[{1}], trying to accept data from it.".format(sock_ip_as_str, sock_port_as_int))#TODO:: delete, for debugging
 					try:
-						print "sock's peer name is: ", sock.getpeername()
+						peer_ip_as_str, peer_port_as_int = sock.getpeername()
+						print ("sock's peer name is: ({0},{1})".format(peer_ip_as_str, peer_port_as_int))
 					except:
 						print ("sock's not connected.")
-
+					
 					data = received_from(sock, 3)
-					messages_queue[sock].send(data)
+					
 					if len(data) == 0:
+						messages_queue[sock].send(data)	
 						close_sock(sock, input_sockets, messages_queue)
 						break
-					else:
-						print('Received {} bytes from client. Validating input'.format(len(data)))
+
+					#len(data) > 0:
+					if peer_port_as_int == HTTP_PORT:
+						if http_has_valid_content_length(data):
+							messages_queue[sock].send(data)
+							print("Received {} VALID http bytes from remote server, passed it to inner network.".format(len(data)))
+						else:
+							print("Received INVALID incoming http data ({} bytes) from remote server, closing connection.".format(len(data)))
+							close_sock(sock, input_sockets, messages_queue, True)
+
+					elif peer_port_as_int == FTP_PORT:
 						#TODO::
-						#is_valid_content_length(data)
+
+					elif peer_port_as_int == FTP_DATA_PORT:
+						#TODO::
+
+					else:
+						messages_queue[sock].send(data)
+						print("Received {} bytes from inner network, and sent it to remote server.".format(len(data)))
+							
 						 
 
 	except KeyboardInterrupt:
