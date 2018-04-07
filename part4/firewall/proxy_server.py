@@ -1,4 +1,4 @@
-import socket, sys, select, Queue, string, struct
+import socket, sys, select, Queue, string, struct, re
 from httplib import HTTPResponse
 from StringIO import StringIO
 
@@ -191,20 +191,6 @@ def received_from(sock, timeout):
 	return data
 
 
-
-def close_one_sock(sock, input_sockets, messages_queue):
-##TODO:: EDIT? use?
-
-	"""
-	Closes only received socket.
-	Deletes it from input_sockets and its "messages" from messages_queue
-	"""
-	print ('End of connection with {}'.format(sock.getpeername()))
-	input_sockets.remove(sock)
-	sock.close()
-	del messages_queue[sock]
-
-
 def close_sock(sock, input_sockets, messages_queue, close_immediately=False):
 	"""
 	Closes sock and its corresponding server socket,
@@ -258,6 +244,54 @@ def close_sock(sock, input_sockets, messages_queue, close_immediately=False):
 				print("Failed set socket's SO_LINGER, closing it might not send RST")
 		sock.close()
 		del messages_queue[sock]
+
+
+def write_new_ftp_data_to_conn_tab(src_ip, src_port, dst_ip, dst_port):
+	buff = "{0} {1} {2} {3}\n".format(src_ip, src_port, dst_ip, dst_port)
+	print("buff that is sent to connection table device is: {}".format(buff))#TODO:: delete this line
+	print("buff length that is sent to connection table device is: {}".format(len(buff)))#TODO:: delete this line
+	try:
+		with open(PATH_TO_CONN_TAB_ATTR,'w') as f:
+			f.write(buff)
+			f.close()
+	except EnvironmentError as e:
+		print("Error, opening device for writing to connection-table failed. Error details:")
+		print "\t", e
+		return False
+	return True
+
+
+def search_for_and_handle_PORT_command(data, other_side_socket):
+	print(data)
+	pattern = "PORT (\d+),(\d+),(\d+),(\d+),(\d+),(\d+)"
+	ip_as_int = -1
+
+	try:
+		original_server_ip_as_str, peer_port_as_int = other_side_socket.getpeername()
+	except:
+		print ("Couldn't extract other proxy-FTP side info")
+		return False
+
+	try:
+		port_command = re.match(pattern, data)
+		if port_command:
+			string_ip = port_command.group(1)+"."+port_command.group(2)+"."+port_command.group(3)+"."+port_command.group(4)
+			listening_port_num = int(port_command.group(5))*256 + int(port_command.group(6))
+			print("string_ip is: {0}, original_server_ip_as_str is: {1} ".format(string_ip, original_server_ip_as_str))
+			ip_as_int = struct.unpack("!I", socket.inet_aton(string_ip))[0]
+			original_server_ip_as_int = struct.unpack("!I", socket.inet_aton(original_server_ip_as_str))[0]
+			print("ip as an int value is: {0}, original_server_ip_as_int value is: {1}".format(ip_as_int, original_server_ip_as_int))
+			print("listening_port_num is: {}".format(listening_port_num))
+			if listening_port_num<0 or listening_port_num>65535:
+				print("Invalid listening_port_num value({})".format(listening_port_num))
+				return False
+
+			#TODO:: edit :)
+	except Exception, e:
+		print("Not a PORT command or Couldn't parse port command, exception is:")
+		print(e)
+
+	return True
 
 
 def start():
@@ -362,16 +396,32 @@ def start():
 							print("Received {} VALID http bytes from remote server, passed it to inner network.".format(len(data)))
 						else:
 							print("Received INVALID incoming http data ({} bytes) from remote server, closing connection.".format(len(data)))
-							print("Invalid data is:")
-							print(data)
+							print("Invalid data is:") #TODO: delete
+							print(data) #TODO: delete
 							close_sock(sock, input_sockets, messages_queue, True)
 
 					elif peer_port_as_int == FTP_PORT:
-						#TODO::
+						#TODO:: edit?
 						print("FTP port(21)")#TODO:: delete
+						messages_queue[sock].send(data)
+						print("Received {0} bytes of data from remote FTP server, sent to inner network.[peer_port_as_int value is:{1}]".format(len(data), peer_port_as_int))
+
 					elif peer_port_as_int == FTP_DATA_PORT:
-						#TODO::
+						#TODO::edit!!
 						print("FTP-DATA port(20)")#TODO:: delete
+
+					elif sock_port_as_int == FTP_LISTENING_PORT_1:
+						#TODO:: edit
+						print("Received data from FTP_PORT, searching it for PORT command:")
+						if search_for_and_handle_PORT_command(data, messages_queue[sock]):
+							messages_queue[sock].send(data)
+							print("{0} Bytes of data from inner network were sent to remote FTP(21) server.[peer_port_as_int value is:{1}]".format(len(data), peer_port_as_int))
+						else:
+							print("Received INVALID outgoing FTP data ({} bytes) from inner network, closing connection.".format(len(data)))
+							print("Invalid data is:") #TODO: delete
+							print(data) #TODO: delete
+							close_sock(sock, input_sockets, messages_queue, True)
+
 					else:
 						messages_queue[sock].send(data)
 						print("{0} Bytes of data from inner network were sent to remote server.[peer_port_as_int value is:{1}]".format(len(data), peer_port_as_int))

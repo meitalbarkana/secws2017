@@ -12,6 +12,12 @@
 //+12 for: 10 spaces(' '), 1 end-of line('\n'), 1 null-terminator('\0'): 
 #define MAX_STRLEN_OF_CONN_ROW_FORMAT (MAX_STRLEN_OF_ULONG + 6*MAX_STRLEN_OF_BE32 + 4*MAX_STRLEN_OF_BE16 + 12)
 
+//Adding new FTP-Data connection row format is:
+//<src ip> <source port> <dst ip> <dest port>'\n'
+//+5 for: 3 spaces, 1 end-of-line, 1 null terminator
+#define MAX_STRLEN_OF_WRITE_FTP_CONN_ROW (2*MAX_STRLEN_OF_BE32 + 2*MAX_STRLEN_OF_BE16+5)
+#define MIN_STRLEN_OF_WRITE_FTP_CONN_ROW (2+2+5)
+
 //Enum that helps "folding" up stages, 
 //used when: 1. initiating device stopped because of some error 
 //			 2. device is destroyed.

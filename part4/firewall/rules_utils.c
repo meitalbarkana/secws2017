@@ -119,7 +119,7 @@ static inline bool validate_activate_input(const char* buf, size_t count){
 
 /**
  * 	This function will be called when user tries to write to the "active" device,
- * 	meaning that the user wants to activate/diactivate the firewall.
+ * 	meaning that the user wants to activate/deactivate the firewall.
  *  Returns:	sizeof(unsigned char) on success,
  * 				a negative number otherwise.
  * 

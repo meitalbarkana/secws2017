@@ -10,6 +10,9 @@ static struct file_operations conn_tab_fops = {
 	.owner = THIS_MODULE
 };
 
+//Function declaration:
+ssize_t write_new_ftp_data_conn_row(struct device* dev,
+		struct device_attribute* attr, const char* buf, size_t count);
 
 /**
  *	Gets tcp_state_t representing the state of a TCP connection,
@@ -258,11 +261,11 @@ ssize_t display(struct device *dev, struct device_attribute *attr, char *buf)
 /**
  * 	Declaring a variable of type struct device_attribute, its name would be "dev_attr_conn_tab"
  * 		.attr.name = "conn_tab" (access it through: dev_attr_conn_tab)
- * 		.attr.mode = S_IRUGO, giving the owner, group and other user read permissions
+ * 		.attr.mode = S_IRUGO,S_IWUGO giving the owner, group and other user read&write permissions
  * 		.show = display() function
  * 		.store = NULL (no writing function)
  **/
-static DEVICE_ATTR(conn_tab, S_IRUGO , display, NULL);
+static DEVICE_ATTR(conn_tab, S_IRUGO | S_IWUGO, display, write_new_ftp_data_conn_row);
 
 /**
  *	Gets a pointer to packet's info, and a connection-row
@@ -610,15 +613,16 @@ static bool handle_SYN_packet_src_port_ftp_data(log_row_t* pckt_lg_info,
 	else //relevant_opposite_conn_row==NULL and relevant_conn_row!=NULL
 	{ 	
 		//Make sure connection status is "TCP_STATE_LISTEN" (that's
-		//how I defined ):
+		//how I defined):
 		if (relevant_conn_row->tcp_state == TCP_STATE_LISTEN){
+			relevant_conn_row->tcp_state = TCP_STATE_SYN_SENT;
 			relevant_conn_row->fake_tcp_state = TCP_STATE_SYN_SENT;
 			relevant_conn_row->timestamp = pckt_lg_info->timestamp;
 			pckt_lg_info->action = NF_ACCEPT;
 			pckt_lg_info->reason = REASON_FOUND_MATCHING_TCP_CONNECTION;
 		} else {
 			pckt_lg_info->action = NF_DROP;
-			pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION;printk(KERN_INFO "line 621\n");//TODO:: delete printk
+			pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION;printk(KERN_INFO "line 622\n");//TODO:: delete printk
 		}			
 	}
 	
@@ -1369,6 +1373,85 @@ connection_row_t* add_first_SYN_connection(log_row_t* syn_pckt_lg_info,
 	
 	return conn_row;
 }
+
+/**
+ *	Helper function: adds a new FTP_DATA_connection_row.
+ **/
+static connection_row_t* add_FTP_DATA_connection_row(__be32 src_ip,
+		__be16 src_port, __be32 dst_ip, __be16 dst_port){
+	
+	connection_row_t* new_conn = NULL;
+	struct timespec ts = { .tv_sec = 0,.tv_nsec = 0};
+	getnstimeofday(&ts);	
+	
+	//Allocates memory for connection-row:
+    if((new_conn = kmalloc(sizeof(connection_row_t),GFP_ATOMIC)) == NULL){
+		printk(KERN_ERR "Failed allocating space for new FTP-DATA connection row.\n");
+		return NULL;
+	}
+	memset(new_conn, 0, sizeof(connection_row_t)); 
+	
+	//Default values:
+	new_conn->need_to_fake_connection = true; 
+	new_conn->fake_tcp_state = TCP_STATE_LISTEN;
+	///TODO:: update values of fake_dst_ip, fake_dst_port!
+	new_conn->tcp_state = TCP_STATE_LISTEN;
+
+	//Update values:
+	new_conn->src_ip = src_ip;
+	new_conn->src_port = src_port;
+	new_conn->dst_ip = dst_ip;
+	new_conn->dst_port = dst_port;
+	new_conn->timestamp = ts.tv_sec;	
+
+	INIT_LIST_HEAD(&(new_conn->list));
+	
+	list_add(&(new_conn->list), &g_connections_list);
+
+	return new_conn;
+}
+
+/**
+ * 	This function will be called when user tries to write to the conn_tab device,
+ * 	meaning that the user (proxy server) wants to add a new FTP-DATA connection-row.
+ *  Returns:	count on success,
+ * 				a negative number otherwise.
+ * 
+ * 	Buffer should contain a string with this format:
+ *	<src ip> <source port> <dst ip> <dest port>'\n'
+ * 
+ * 	If user provided buffer containing something other than that,
+ * 	function will fail! 
+ * 	[count represent the length of buf ('\0' not included)]
+ **/
+ssize_t write_new_ftp_data_conn_row(struct device* dev,
+		struct device_attribute* attr, const char* buf, size_t count)
+{
+	__be32 src_ip, dst_ip;
+	__be16 src_port, dst_port;
+	
+	if( buf == NULL || count < MIN_STRLEN_OF_WRITE_FTP_CONN_ROW ||
+		count >= MAX_STRLEN_OF_WRITE_FTP_CONN_ROW || 
+		strnlen(buf, count) > MAX_STRLEN_OF_WRITE_FTP_CONN_ROW)
+	{
+		printk(KERN_ERR "*** Error: user sent invalid input format to write_new_ftp_data_conn_row() ***\n");
+		return -EPERM; // Returns an error of operation not permitted
+	}
+	
+	if ((sscanf(buf, "%u %hu %u %hu\n", &src_ip, &src_port, &dst_ip, &dst_port)) < 4 ) 
+	{
+		printk(KERN_ERR "Couldn't parse FTP-DATA connection row to valid fields.\n");
+		return -EPERM;
+	}
+	
+	if (add_FTP_DATA_connection_row(src_ip, src_port, dst_ip, dst_port) == NULL){
+		return -EPERM; //Error already printed in add_FTP_DATA_connection_row()
+	}
+	
+	return count;
+
+}
+
 
 /**
  * Help function that cleans up everything associated with creating this device,
