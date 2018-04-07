@@ -32,7 +32,6 @@ static unsigned int check_packet_hookp_pre_routing(struct sk_buff* skb,
 	connection_row_t* relevant_conn_row = NULL;
 	connection_row_t* relevant_opposite_conn_row = NULL;
 	
-	
 	//Initiate: pckt_lg_info, packet_ack , packet_direction
 	if( (pckt_lg_info = init_log_row(skb, NF_INET_PRE_ROUTING,
 		&packet_ack, &packet_direction, in, out)) == NULL)
@@ -62,14 +61,6 @@ static unsigned int check_packet_hookp_pre_routing(struct sk_buff* skb,
 			fake_packets_details(skb, false, relevant_conn_row->fake_dst_ip, relevant_conn_row->fake_dst_port);
 		}
 	}
-
-	//TODO:: delete this:
-	//if(pckt_lg_info->action == NF_DROP){
-	//	printk(KERN_INFO "*****************\nPacket's about to be DROPped, its details:\n");
-	//	print_log_row(pckt_lg_info);
-	//	printk(KERN_INFO "*****************\n");		
-	//}
-	//END OF DELETE.
 
 	return pckt_lg_info->action;
 }

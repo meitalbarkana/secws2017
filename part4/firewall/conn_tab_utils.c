@@ -605,7 +605,7 @@ static bool handle_SYN_packet_src_port_ftp_data(log_row_t* pckt_lg_info,
 	//Means no prior *inserted by proxy* connection-row found OR
 	//A prior, opposite direction connection was found: drop this packet.
 		pckt_lg_info->action = NF_DROP;
-		pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION;
+		pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION; printk(KERN_INFO "line 608\n");//TODO:: delete printk
 	} 
 	else //relevant_opposite_conn_row==NULL and relevant_conn_row!=NULL
 	{ 	
@@ -618,7 +618,7 @@ static bool handle_SYN_packet_src_port_ftp_data(log_row_t* pckt_lg_info,
 			pckt_lg_info->reason = REASON_FOUND_MATCHING_TCP_CONNECTION;
 		} else {
 			pckt_lg_info->action = NF_DROP;
-			pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION;
+			pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION;printk(KERN_INFO "line 621\n");//TODO:: delete printk
 		}			
 	}
 	
@@ -664,7 +664,7 @@ static bool handle_SYN_ACK_packet(log_row_t* pckt_lg_info,
 	//Means no prior SYN packet found OR
 	//A prior, same direction connection was found: so drop this packet.
 		pckt_lg_info->action = NF_DROP;
-		pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION;
+		pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION;printk(KERN_INFO "line 667\n");//TODO:: delete printk
 	} 
 	else //relevant_opposite_conn_row!=NULL and relevant_conn_row==NULL
 	{ 	
@@ -688,7 +688,7 @@ static bool handle_SYN_ACK_packet(log_row_t* pckt_lg_info,
 				//Since other side of faked connection should be in state: 
 				printk(KERN_INFO "In handle_SYN_ACK_packet, opposite_conn_row fake_tcp_state IS TCP_STATE_CLOSED.\n");
 				pckt_lg_info->action = NF_DROP;
-				pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION;
+				pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION; printk(KERN_INFO "line 691\n");//TODO:: delete printk
 			}
 	
 		} else {
@@ -740,7 +740,7 @@ static bool handle_OTHER_tcp_packet(log_row_t* pckt_lg_info,
 		printk(KERN_INFO "Function handle_OTHER_tcp_packet got NULL relevant_conn_row\n");
 #endif	
 		pckt_lg_info->action = NF_DROP;
-		pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION;
+		pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION; printk(KERN_INFO "line 743\n");//TODO:: delete printk
 		return true;
 	}
 	
@@ -891,9 +891,11 @@ static bool handle_OTHER_tcp_packet(log_row_t* pckt_lg_info,
 			if (relevant_conn_row->tcp_state == TCP_STATE_FIN_WAIT_1 &&
 				relevant_conn_row->fake_tcp_state == TCP_STATE_LAST_ACK &&
 					(relevant_opposite_conn_row->tcp_state == TCP_STATE_LAST_ACK ||
-					 relevant_opposite_conn_row->tcp_state == TCP_STATE_ESTABLISHED)
+					 relevant_opposite_conn_row->tcp_state == TCP_STATE_ESTABLISHED ||
+					 relevant_opposite_conn_row->tcp_state == TCP_STATE_SYN_RCVD)
 				)
 			{
+				printk(KERN_INFO "MEOWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW");///TODO:: delete this
 				//This is the only time we update the TCP state of both sides:
 				if (relevant_opposite_conn_row->tcp_state == TCP_STATE_LAST_ACK){
 					relevant_conn_row->tcp_state = TCP_STATE_TIME_WAIT;
@@ -903,8 +905,7 @@ static bool handle_OTHER_tcp_packet(log_row_t* pckt_lg_info,
 					//Both rows will be deleted when timedout.
 				}
 				//Otherwise, relevant_conn_row->tcp_state remains TCP_STATE_FIN_WAIT_1
-				//And relevant_opposite_conn_row->tcp_state remains TCP_STATE_ESTABLISHED
-				
+				//And relevant_opposite_conn_row->tcp_state remains as is
 				relevant_conn_row->fake_tcp_state = TCP_STATE_TIME_WAIT;
 				relevant_conn_row->timestamp = pckt_lg_info->timestamp;
 				pckt_lg_info->action = NF_ACCEPT;
@@ -912,11 +913,33 @@ static bool handle_OTHER_tcp_packet(log_row_t* pckt_lg_info,
 				return true;
 			}
 			
+			//9.	The first ack sent from "server"s side, AFTER finising
+			//		the 3-way-handshake, and the other side is in state:
+			//		TCP_STATE_SYN_SENT - but the fake connection is established,
+			//		no change in tcp_state/fake_tcp_state:
+			if (relevant_conn_row->tcp_state == TCP_STATE_SYN_RCVD &&
+				relevant_opposite_conn_row->tcp_state == TCP_STATE_SYN_SENT &&
+				relevant_conn_row->fake_tcp_state == TCP_STATE_ESTABLISHED &&
+				relevant_opposite_conn_row->fake_tcp_state == TCP_STATE_ESTABLISHED)
+			{
+				relevant_conn_row->timestamp = pckt_lg_info->timestamp;
+				pckt_lg_info->action = NF_ACCEPT;
+				pckt_lg_info->reason = REASON_FOUND_MATCHING_TCP_CONNECTION;
+				return true;
+			}
+
 		}
 	}
 	
+	///TODO:: delete, for testing:
+	printk(KERN_INFO "relevant_conn_row->tcp_state: %d\nrelevant_opposite_conn_row->tcp_state: %d\n\
+	relevant_conn_row->fake_tcp_state: %d\nrelevant_opposite_conn_row->fake_tcp_state: %d\n",
+	relevant_conn_row->tcp_state,relevant_opposite_conn_row->tcp_state,
+	relevant_conn_row->fake_tcp_state, relevant_opposite_conn_row->fake_tcp_state);
+	///END OF deletions
+	
 	pckt_lg_info->action = NF_DROP;
-	pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION;
+	pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION; printk(KERN_INFO "line 942\n");//TODO:: delete printk
 	
 	return true;
 }
@@ -1002,7 +1025,7 @@ static bool handle_RESET_tcp_packet(log_row_t* pckt_lg_info,
 	
 	//Packet's not relevant for any tcp connection:
 	pckt_lg_info->action = NF_DROP;
-	pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION;
+	pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION; printk(KERN_INFO "line 1006\n");//TODO:: delete printk
 	
 	return true;
 }
@@ -1071,46 +1094,52 @@ static bool handle_FIN_tcp_packet(log_row_t* pckt_lg_info,
 	else if (relevant_conn_row != NULL && relevant_opposite_conn_row != NULL &&
 			relevant_conn_row->need_to_fake_connection)
 	{
-		//First case is when packet is the 1st FIN packet, 2 options:
-		//	1. both sides are in TCP_STATE_ESTABLISHED
-		//	2. the side that sent this FIN is in TCP_STATE_ESTABLISHED,
-		//		the other is in TCP_STATE_SYN_RCVD
-		//Second valid case is when this packet is the second FIN.
-		//	In this case, sender's side is in TCP_STATE_ESTABLISHED 
-		//	(I don't handle an option of TCP_STATE_SYN_RCVD)
-		//	and the reciever side in in TCP_STATE_FIN_WAIT_1
-		if (relevant_conn_row->tcp_state == TCP_STATE_ESTABLISHED)
-		{	
-			//2nd FIN:	
-			if (relevant_opposite_conn_row->tcp_state == TCP_STATE_FIN_WAIT_1 &&
-				relevant_conn_row->fake_tcp_state == TCP_STATE_FIN_WAIT_1)
-			{
-				relevant_conn_row->tcp_state = TCP_STATE_LAST_ACK;
-				relevant_conn_row->fake_tcp_state == TCP_STATE_LAST_ACK;
-				relevant_conn_row->timestamp = pckt_lg_info->timestamp;
-				pckt_lg_info->action = NF_ACCEPT;
-				pckt_lg_info->reason = REASON_FOUND_MATCHING_TCP_CONNECTION;
-				return true;
-			}
-			//1st FIN:
-			else if((relevant_opposite_conn_row->tcp_state == TCP_STATE_SYN_RCVD &&
-						(relevant_conn_row->fake_tcp_state == TCP_STATE_SYN_RCVD //Not needed probably
-						||relevant_conn_row->fake_tcp_state == TCP_STATE_ESTABLISHED))
-					||
-					(relevant_opposite_conn_row->tcp_state == TCP_STATE_ESTABLISHED))
-			{
-				relevant_conn_row->tcp_state = TCP_STATE_FIN_WAIT_1;
-				relevant_conn_row->fake_tcp_state = TCP_STATE_FIN_WAIT_1;
-				relevant_conn_row->timestamp = pckt_lg_info->timestamp;
-				pckt_lg_info->action = NF_ACCEPT;
-				pckt_lg_info->reason = REASON_FOUND_MATCHING_TCP_CONNECTION;
-				return true;
-			}
-			//Otherwise, its invalid tcp-state. drop packet.
-		}	
-	}	
+		
+		//Valid 1st FIN tcp-state options:
+		if( (relevant_conn_row->tcp_state == TCP_STATE_ESTABLISHED &&
+			 relevant_conn_row->fake_tcp_state != TCP_STATE_FIN_WAIT_1 &&
+				((relevant_opposite_conn_row->tcp_state == TCP_STATE_SYN_RCVD &&
+					(relevant_conn_row->fake_tcp_state == TCP_STATE_SYN_RCVD ||
+					relevant_conn_row->fake_tcp_state == TCP_STATE_ESTABLISHED))
+				 ||(relevant_opposite_conn_row->tcp_state == TCP_STATE_ESTABLISHED)))
+			||
+			(relevant_conn_row->tcp_state == TCP_STATE_SYN_RCVD &&
+			relevant_conn_row->fake_tcp_state == TCP_STATE_ESTABLISHED &&
+			relevant_opposite_conn_row->fake_tcp_state == TCP_STATE_ESTABLISHED))
+		{
+			relevant_conn_row->tcp_state = TCP_STATE_FIN_WAIT_1;
+			relevant_conn_row->fake_tcp_state = TCP_STATE_FIN_WAIT_1;
+			relevant_conn_row->timestamp = pckt_lg_info->timestamp;
+			pckt_lg_info->action = NF_ACCEPT;
+			pckt_lg_info->reason = REASON_FOUND_MATCHING_TCP_CONNECTION;
+			return true;		
+		}
+		
+		//Valid 2nd FIN tcp-state options:
+		if( (relevant_conn_row->tcp_state == TCP_STATE_ESTABLISHED ||
+			 relevant_conn_row->tcp_state == TCP_STATE_SYN_SENT) &&
+			relevant_opposite_conn_row->tcp_state == TCP_STATE_FIN_WAIT_1 &&
+			relevant_conn_row->fake_tcp_state == TCP_STATE_FIN_WAIT_1 )
+		{
+			relevant_conn_row->tcp_state = TCP_STATE_LAST_ACK;
+			relevant_conn_row->fake_tcp_state == TCP_STATE_LAST_ACK;
+			relevant_conn_row->timestamp = pckt_lg_info->timestamp;
+			pckt_lg_info->action = NF_ACCEPT;
+			pckt_lg_info->reason = REASON_FOUND_MATCHING_TCP_CONNECTION;
+			return true;			
+		}
+		
+	}
+	//Otherwise, its invalid tcp-state. drop packet:
+	///TODO:: delete, for testing:
+	printk(KERN_INFO "relevant_conn_row->tcp_state: %d\nrelevant_opposite_conn_row->tcp_state: %d\n\
+	relevant_conn_row->fake_tcp_state: %d\nrelevant_opposite_conn_row->fake_tcp_state: %d\n",
+	relevant_conn_row->tcp_state,relevant_opposite_conn_row->tcp_state,
+	relevant_conn_row->fake_tcp_state, relevant_opposite_conn_row->fake_tcp_state);
+	///END OF deletions
+		
 	pckt_lg_info->action = NF_DROP;
-	pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION;
+	pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION; printk(KERN_INFO "line 1142\n");//TODO:: delete printk
 	return true;
 }
 

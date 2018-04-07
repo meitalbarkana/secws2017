@@ -193,7 +193,7 @@ def received_from(sock, timeout):
 
 
 def close_one_sock(sock, input_sockets, messages_queue):
-##TODO:: EDIT!
+##TODO:: EDIT? use?
 
 	"""
 	Closes only received socket.
@@ -352,7 +352,7 @@ def start():
 					if len(data) == 0:
 						print("Received-data's length is 0")#TODO:: delete
 						messages_queue[sock].send(data)	
-						close_one_sock(sock, input_sockets, messages_queue)#TODO:: test this!!
+						close_sock(sock, input_sockets, messages_queue)#TODO:: test this!!
 						break
 
 					#len(data) > 0:
@@ -362,6 +362,8 @@ def start():
 							print("Received {} VALID http bytes from remote server, passed it to inner network.".format(len(data)))
 						else:
 							print("Received INVALID incoming http data ({} bytes) from remote server, closing connection.".format(len(data)))
+							print("Invalid data is:")
+							print(data)
 							close_sock(sock, input_sockets, messages_queue, True)
 
 					elif peer_port_as_int == FTP_PORT:
@@ -372,7 +374,7 @@ def start():
 						print("FTP-DATA port(20)")#TODO:: delete
 					else:
 						messages_queue[sock].send(data)
-						print("Received {} bytes from inner network, and sent it to remote server.".format(len(data)))
+						print("{0} Bytes of data from inner network were sent to remote server.[peer_port_as_int value is:{1}]".format(len(data), peer_port_as_int))
 							
 						 
 
