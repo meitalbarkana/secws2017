@@ -608,7 +608,7 @@ static bool handle_SYN_packet_src_port_ftp_data(log_row_t* pckt_lg_info,
 	//Means no prior *inserted by proxy* connection-row found OR
 	//A prior, opposite direction connection was found: drop this packet.
 		pckt_lg_info->action = NF_DROP;
-		pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION; printk(KERN_INFO "line 608\n");//TODO:: delete printk
+		pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION; printk(KERN_INFO "line 611\n");//TODO:: delete printk
 	} 
 	else //relevant_opposite_conn_row==NULL and relevant_conn_row!=NULL
 	{ 	
@@ -622,7 +622,7 @@ static bool handle_SYN_packet_src_port_ftp_data(log_row_t* pckt_lg_info,
 			pckt_lg_info->reason = REASON_FOUND_MATCHING_TCP_CONNECTION;
 		} else {
 			pckt_lg_info->action = NF_DROP;
-			pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION;printk(KERN_INFO "line 622\n");//TODO:: delete printk
+			pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION;printk(KERN_INFO "line 625\n");//TODO:: delete printk
 		}			
 	}
 	
@@ -668,7 +668,7 @@ static bool handle_SYN_ACK_packet(log_row_t* pckt_lg_info,
 	//Means no prior SYN packet found OR
 	//A prior, same direction connection was found: so drop this packet.
 		pckt_lg_info->action = NF_DROP;
-		pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION;printk(KERN_INFO "line 667\n");//TODO:: delete printk
+		pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION;printk(KERN_INFO "line 671\n");//TODO:: delete printk
 	} 
 	else //relevant_opposite_conn_row!=NULL and relevant_conn_row==NULL
 	{ 	
@@ -692,7 +692,7 @@ static bool handle_SYN_ACK_packet(log_row_t* pckt_lg_info,
 				//Since other side of faked connection should be in state: 
 				printk(KERN_INFO "In handle_SYN_ACK_packet, opposite_conn_row fake_tcp_state IS TCP_STATE_CLOSED.\n");
 				pckt_lg_info->action = NF_DROP;
-				pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION; printk(KERN_INFO "line 691\n");//TODO:: delete printk
+				pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION; printk(KERN_INFO "line 695\n");//TODO:: delete printk
 			}
 	
 		} else {
@@ -744,7 +744,7 @@ static bool handle_OTHER_tcp_packet(log_row_t* pckt_lg_info,
 		printk(KERN_INFO "Function handle_OTHER_tcp_packet got NULL relevant_conn_row\n");
 #endif	
 		pckt_lg_info->action = NF_DROP;
-		pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION; printk(KERN_INFO "line 743\n");//TODO:: delete printk
+		pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION; printk(KERN_INFO "line 747\n");//TODO:: delete printk
 		return true;
 	}
 	
@@ -1029,7 +1029,7 @@ static bool handle_RESET_tcp_packet(log_row_t* pckt_lg_info,
 	
 	//Packet's not relevant for any tcp connection:
 	pckt_lg_info->action = NF_DROP;
-	pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION; printk(KERN_INFO "line 1006\n");//TODO:: delete printk
+	pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION; printk(KERN_INFO "line 1032\n");//TODO:: delete printk
 	
 	return true;
 }
@@ -1143,7 +1143,7 @@ static bool handle_FIN_tcp_packet(log_row_t* pckt_lg_info,
 	///END OF deletions
 		
 	pckt_lg_info->action = NF_DROP;
-	pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION; printk(KERN_INFO "line 1142\n");//TODO:: delete printk
+	pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION; printk(KERN_INFO "line 1146\n");//TODO:: delete printk
 	return true;
 }
 
@@ -1392,10 +1392,12 @@ static connection_row_t* add_FTP_DATA_connection_row(__be32 src_ip,
 	memset(new_conn, 0, sizeof(connection_row_t)); 
 	
 	//Default values:
+	new_conn->tcp_state = TCP_STATE_LISTEN;
 	new_conn->need_to_fake_connection = true; 
 	new_conn->fake_tcp_state = TCP_STATE_LISTEN;
-	///TODO:: update values of fake_dst_ip, fake_dst_port!
-	new_conn->tcp_state = TCP_STATE_LISTEN;
+	new_conn->fake_dst_ip = (is_relevant_ip(FW_IP_ETH_1, FW_NET_MASK, src_ip))?
+			FW_IP_ETH_1: FW_IP_ETH_2;
+	new_conn->fake_dst_port = FAKE_FTP_DATA_PORT;
 
 	//Update values:
 	new_conn->src_ip = src_ip;
