@@ -285,8 +285,7 @@ def search_for_and_handle_PORT_command(data, other_side_socket):
 			if listening_port_num<0 or listening_port_num>65535:
 				print("Invalid listening_port_num value({})".format(listening_port_num))
 				return False
-
-			#TODO:: edit :)
+			return write_new_ftp_data_to_conn_tab(original_server_ip_as_int, FTP_DATA_PORT, ip_as_int, listening_port_num)
 	except Exception, e:
 		print("Not a PORT command or Couldn't parse port command, exception is:")
 		print(e)
@@ -409,6 +408,8 @@ def start():
 					elif peer_port_as_int == FTP_DATA_PORT:
 						#TODO::edit!!
 						print("FTP-DATA port(20)")#TODO:: delete
+						messages_queue[sock].send(data)
+						print("Received {0} bytes of data from remote DATA-FTP server, sent to inner network.[peer_port_as_int value is:{1}]".format(len(data), peer_port_as_int))
 
 					elif sock_port_as_int == FTP_LISTENING_PORT_1:
 						#TODO:: edit
@@ -417,7 +418,7 @@ def start():
 							messages_queue[sock].send(data)
 							print("{0} Bytes of data from inner network were sent to remote FTP(21) server.[peer_port_as_int value is:{1}]".format(len(data), peer_port_as_int))
 						else:
-							print("Received INVALID outgoing FTP data ({} bytes) from inner network, closing connection.".format(len(data)))
+							print("Received INVALID outgoing FTP data ({} bytes) from inner network OR an error happened. closing connection.".format(len(data)))
 							print("Invalid data is:") #TODO: delete
 							print(data) #TODO: delete
 							close_sock(sock, input_sockets, messages_queue, True)
