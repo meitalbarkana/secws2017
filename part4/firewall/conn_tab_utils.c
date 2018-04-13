@@ -1100,7 +1100,9 @@ static bool handle_FIN_tcp_packet(log_row_t* pckt_lg_info,
 					relevant_conn_row->fake_tcp_state == TCP_STATE_ESTABLISHED))
 				 ||(relevant_opposite_conn_row->tcp_state == TCP_STATE_ESTABLISHED)))
 			||
-			(relevant_conn_row->tcp_state == TCP_STATE_SYN_RCVD &&
+			((relevant_conn_row->tcp_state == TCP_STATE_SYN_RCVD ||
+				(relevant_conn_row->tcp_state == TCP_STATE_SYN_SENT &&
+				relevant_opposite_conn_row->tcp_state == TCP_STATE_SYN_RCVD)) &&
 			relevant_conn_row->fake_tcp_state == TCP_STATE_ESTABLISHED &&
 			relevant_opposite_conn_row->fake_tcp_state == TCP_STATE_ESTABLISHED))
 		{
@@ -1114,7 +1116,8 @@ static bool handle_FIN_tcp_packet(log_row_t* pckt_lg_info,
 		
 		//Valid 2nd FIN tcp-state options:
 		if( (relevant_conn_row->tcp_state == TCP_STATE_ESTABLISHED ||
-			 relevant_conn_row->tcp_state == TCP_STATE_SYN_SENT) &&
+			 relevant_conn_row->tcp_state == TCP_STATE_SYN_SENT ||
+			 relevant_conn_row->tcp_state == TCP_STATE_SYN_RCVD) &&
 			relevant_opposite_conn_row->tcp_state == TCP_STATE_FIN_WAIT_1 &&
 			relevant_conn_row->fake_tcp_state == TCP_STATE_FIN_WAIT_1 )
 		{
