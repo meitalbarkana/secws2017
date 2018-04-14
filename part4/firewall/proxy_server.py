@@ -1,6 +1,7 @@
 import socket, sys, select, Queue, string, struct, re
 from httplib import HTTPResponse
 from StringIO import StringIO
+from executable_constants import *
 
 PATH_TO_CONN_TAB_ATTR = "/sys/class/fw/fw/conn_tab"
 
@@ -131,15 +132,6 @@ def http_has_valid_content_length(all_data):
 	print (type(content_len_value))
 	"""
 	return True
-
-
-def is_valid_file(file_as_str):
-	"""
-	Gets FTP data, returns:
-			1. False if it's an .exe file
-			2. True otherwise.
-	NOTE: USE THIS ONLY ON FTP DATA (files)!
-	"""
 
 
 def get_remote_servers_details(current_connection_socket, client_address):
@@ -402,14 +394,24 @@ def start():
 					elif peer_port_as_int == FTP_PORT:
 						#TODO:: edit?
 						print("FTP port(21)")#TODO:: delete
-						messages_queue[sock].send(data)
-						print("Received {0} bytes of data from remote FTP server, sent to inner network.[peer_port_as_int value is:{1}]".format(len(data), peer_port_as_int))
+						print("Received {0} bytes of data from remote FTP (21) server, makes sure its not an executable file before sending it to inner network.[peer_port_as_int value is:{1}]".format(len(data), peer_port_as_int))
+						if(is_file_executable(data)):
+							print("Got executable file from FTP server! Ending connection")
+							close_sock(sock, input_sockets, messages_queue, True)
+						else:
+							messages_queue[sock].send(data)
+							print("Sent valid data ({} bytes) from FTP server to inner-network.".format(len(data)))
+
 
 					elif peer_port_as_int == FTP_DATA_PORT:
-						#TODO::edit!!
 						print("FTP-DATA port(20)")#TODO:: delete
-						messages_queue[sock].send(data)
-						print("Received {0} bytes of data from remote DATA-FTP server, sent to inner network.[peer_port_as_int value is:{1}]".format(len(data), peer_port_as_int))
+						print("Received {0} bytes of data from remote DATA-FTP server, makes sure its not an executable file before sending it to inner network.[peer_port_as_int value is:{1}]".format(len(data), peer_port_as_int))
+						if(is_file_executable(data)):
+							print("Got executable file from DATA-FTP server! Ending connection")
+							close_sock(sock, input_sockets, messages_queue, True)
+						else:
+							messages_queue[sock].send(data)
+							print("Sent valid data ({} bytes) from DATA-FTP server to inner-network.".format(len(data)))
 
 					elif sock_port_as_int == FTP_LISTENING_PORT_1:
 						#TODO:: edit
