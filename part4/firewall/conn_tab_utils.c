@@ -592,7 +592,7 @@ static bool handle_SYN_packet_src_port_ftp_data(log_row_t* pckt_lg_info,
 	//Means no prior *inserted by proxy* connection-row found OR
 	//A prior, opposite direction connection was found: drop this packet.
 		pckt_lg_info->action = NF_DROP;
-		pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION; printk(KERN_INFO "line 595\n");//TODO:: delete printk
+		pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION;
 	} 
 	else //relevant_opposite_conn_row==NULL and relevant_conn_row!=NULL
 	{ 	
@@ -606,7 +606,7 @@ static bool handle_SYN_packet_src_port_ftp_data(log_row_t* pckt_lg_info,
 			pckt_lg_info->reason = REASON_FOUND_MATCHING_TCP_CONNECTION;
 		} else {
 			pckt_lg_info->action = NF_DROP;
-			pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION;printk(KERN_INFO "line 610\n");//TODO:: delete printk
+			pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION;
 		}			
 	}
 	
@@ -652,7 +652,7 @@ static bool handle_SYN_ACK_packet(log_row_t* pckt_lg_info,
 	//Means no prior SYN packet found OR
 	//A prior, same direction connection was found: so drop this packet.
 		pckt_lg_info->action = NF_DROP;
-		pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION;printk(KERN_INFO "line 655\n");//TODO:: delete printk
+		pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION;
 	} 
 	else //relevant_opposite_conn_row!=NULL and relevant_conn_row==NULL
 	{ 	
@@ -676,7 +676,7 @@ static bool handle_SYN_ACK_packet(log_row_t* pckt_lg_info,
 				//Since other side of faked connection should be in state: 
 				printk(KERN_INFO "In handle_SYN_ACK_packet, opposite_conn_row fake_tcp_state IS TCP_STATE_CLOSED.\n");
 				pckt_lg_info->action = NF_DROP;
-				pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION; printk(KERN_INFO "line 680\n");//TODO:: delete printk
+				pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION;
 			}
 	
 		} else {
@@ -725,7 +725,7 @@ static bool handle_OTHER_tcp_packet(log_row_t* pckt_lg_info,
 	
 	if (relevant_conn_row == NULL){
 		pckt_lg_info->action = NF_DROP;
-		pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION; printk(KERN_INFO "line 728\n");//TODO:: delete printk
+		pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION;
 		return true;
 	}
 	
@@ -915,7 +915,7 @@ static bool handle_OTHER_tcp_packet(log_row_t* pckt_lg_info,
 	}
 	
 	pckt_lg_info->action = NF_DROP;
-	pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION; printk(KERN_INFO "line 918\n");//TODO:: delete printk
+	pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION;
 	
 	return true;
 }
@@ -983,7 +983,7 @@ static bool handle_RESET_tcp_packet(log_row_t* pckt_lg_info,
 	
 	//Packet's not relevant for any tcp connection:
 	pckt_lg_info->action = NF_DROP;
-	pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION; printk(KERN_INFO "line 986\n");//TODO:: delete printk
+	pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION;
 	
 	return true;
 }
@@ -1094,7 +1094,7 @@ static bool handle_FIN_tcp_packet(log_row_t* pckt_lg_info,
 	
 	//Otherwise, its invalid tcp-state. drop packet:		
 	pckt_lg_info->action = NF_DROP;
-	pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION; printk(KERN_INFO "line 1097\n");//TODO:: delete printk
+	pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION;
 	return true;
 }
 
@@ -1189,7 +1189,7 @@ static void update_conn_rows_fake_tcp_state(connection_row_t* fake_conn_row,
 				fake_conn_row->fake_tcp_state = TCP_STATE_SYN_RCVD;
 			} 
 			else if(fake_conn_row->fake_tcp_state != TCP_STATE_SYN_RCVD){
-				printk(KERN_ERR "Error: in update_conn_rows_fake_tcp_state, fake_tcp_state is not reasonable for a TCP_SYN_ACK_PACKET.\n");
+				printk(KERN_INFO "Note: in update_conn_rows_fake_tcp_state, fake_tcp_state is not reasonable for a TCP_SYN_ACK_PACKET.\n");
 			}
 			break;
 		
@@ -1203,7 +1203,7 @@ static void update_conn_rows_fake_tcp_state(connection_row_t* fake_conn_row,
 				fake_conn_row->fake_tcp_state = TCP_STATE_LAST_ACK;
 			}
 			else {
-				printk(KERN_ERR "Error: in update_conn_rows_fake_tcp_state, fake_tcp_state[%d] is not reasonable for a TCP_FIN_PACKET.\n", fake_conn_row->fake_tcp_state);
+				printk(KERN_INFO "Note: in update_conn_rows_fake_tcp_state, fake_tcp_state[%d] is not reasonable for a TCP_FIN_PACKET.\n", fake_conn_row->fake_tcp_state);
 			}
 			break;
 		
@@ -1219,7 +1219,7 @@ static void update_conn_rows_fake_tcp_state(connection_row_t* fake_conn_row,
 				fake_conn_row->fake_tcp_state = TCP_STATE_TIME_WAIT;
 			}
 			else {
-				printk(KERN_ERR "Error: in update_conn_rows_fake_tcp_state, fake_tcp_state is not reasonable for a TCP_OTHER_PACKET.\n");
+				printk(KERN_INFO "Note: in update_conn_rows_fake_tcp_state, fake_tcp_state is not reasonable for a TCP_OTHER_PACKET.\n");
 			}
 			break;
 		

@@ -94,6 +94,7 @@ def http_has_valid_content_length(all_data):
 
 	content_len_value = int(response.getheader('content-length', -1))
 	if content_len_value == -1 or content_len_value > MAX_HTTP_CONTENT_LENGTH:
+		print("Invalid (or missing) content-length header.")
 		return False
 
 	return True
@@ -121,7 +122,7 @@ def remote_connection(sock, client_address):
 	"""
 	try:
 		remote_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-		remote_socket.settimeout(CONN_TIMEOUT)#TODO:: check if needed..
+		remote_socket.settimeout(CONN_TIMEOUT)
 		remote_details = get_remote_servers_details(sock, client_address)
 		if remote_details == False:
 			print("Error: failed to extract remote-server's details.")
@@ -178,9 +179,12 @@ def close_sock(sock, input_sockets, messages_queue, close_immediately=False):
 				print("Couldn't set relevant_server_sock's SO_LINGER, closing it *might* not send RST")
 			if sock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack('ii', l_onoff, l_linger)) != 0 :
 				print("Couldn't set socket's SO_LINGER, closing it *might* not send RST")
+		try:
+			relevant_server_sock.close()
+			sock.close()
+		except Exception as e:
+			print("Failed closing sockets, error is: {}.".format(e))
 
-		relevant_server_sock.close()
-		sock.close()
 		del messages_queue[sock]
 		del messages_queue[relevant_server_sock]
 
@@ -195,7 +199,10 @@ def close_sock(sock, input_sockets, messages_queue, close_immediately=False):
 		if close_immediately: #Send RST packet:
 			if sock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack('ii', l_onoff, l_linger)) != 0 :
 				print("Couldn't set socket's SO_LINGER, closing it might not send RST")
-		sock.close()
+		try:
+			sock.close()
+		except Exception as e:
+			print("Failed closing sockets, error is: {}.".format(e))		
 		del messages_queue[sock]
 
 
@@ -272,7 +279,7 @@ def start():
 
 	try:
 		while input_sockets:
-			print ("\n*****************Proxy server about to call select(), input_sockets length is: {0}.*****************".format(len(input_sockets)))#TODO:: delete, for debugging
+			print ("\n*****************Proxy server about to call select(), input_sockets length is: {0}.*****************".format(len(input_sockets)))
 
 			ready_to_read_sockets, ready_to_write_sockets, in_error_sockets = \
 				select.select(input_sockets, output_sockets, input_sockets)
