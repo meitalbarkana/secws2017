@@ -93,9 +93,6 @@ static bool my_strict_strtoul(const char* str, size_t max_len, unsigned long* nu
 	char* endPtr;
 	
 	if (max_len == 0){
-#ifdef USER_DEBUG_MODE
-		printf("Tried to convert an empty string to numeric value and failed\n");
-#endif
 		return false;
 	}
 	
@@ -115,9 +112,7 @@ static bool my_strict_strtoul(const char* str, size_t max_len, unsigned long* nu
 		*num = temp;
 		return true;
 	}
-#ifdef USER_DEBUG_MODE
-	printf ("strtoul failed, endPtr is: %c\n", *endPtr);
-#endif
+
 	return false;
 }
 
@@ -548,7 +543,6 @@ static bool tran_reason_to_str(int reason, char* str){
 	return true;
 }
 
-
 /**
  * ONLY FOR TESTS.
  * 
@@ -623,10 +617,6 @@ static bool get_rule_as_str(rule_t* rule, char* str){
  * 		 4. rules' logic is NOT tested here, user should check it!
  **/
 static bool update_rule_from_string(const char* const_str){
-
-#ifdef USER_DEBUG_MODE
-	printf("str sent to update_rule_from_string() is: %s*********************\n", const_str);
-#endif	
 
 	char *str, *pStr;
 	size_t i = 0;
@@ -730,10 +720,6 @@ static bool update_rule_from_string(const char* const_str){
 	//If gets here, we have a valid rule:
 	free(pStr);
 	++g_num_of_valid_rules;
-	
-#ifdef USER_DEBUG_MODE
-	printf("g_num_of_valid_rules is updated to: %u.\n",g_num_of_valid_rules);
-#endif
 
 	return true;
 
@@ -761,7 +747,6 @@ static bool is_valid_rule_logic(rule_t* rule){
 		return false;
 	}
 	
-	//TODO:: think of more ideas to test..
 	return true;
 }
 
@@ -956,10 +941,6 @@ enum rules_recieved_t send_rules_to_fw(void){
 	
 	int bytes_to_write = strlen(buff);
 	int bytes_written = -1;
-	
-#ifdef USER_DEBUG_MODE	
-	printf("Bytes supposed to be written to fw_rules: %d\n", bytes_to_write);
-#endif	
 
 	if ( (bytes_written = write(fd, buff, bytes_to_write)) < 0){
 		printf("Error accured trying to write rules into fw_rules device\n");
@@ -967,27 +948,8 @@ enum rules_recieved_t send_rules_to_fw(void){
 		free(buff);
 		return NO_RULE_RECIEVED;
 	}
-	close(fd);
 	
-#ifdef USER_DEBUG_MODE	
-	printf("Bytes supposed to be written to fw_rules: %d, acctually written: %d\n", bytes_to_write, bytes_written);
-#endif	
-	
-	
-#ifdef USER_DEBUG_MODE
-	printf ("BUFF IS:\n***********************************************************************\n");
-	printf("%s", buff);
-	/**
-	for (size_t i = 0; i < strlen(buff); ++i){
-		if ( buff[i] == CHAR_CR || buff[i] == CHAR_LF){
-			printf("**%d**\n",buff[i]);
-		} else {
-			printf("%c",buff[i]);
-		}
-	}
-	**/
-#endif		
-
+	close(fd);	
 	free(buff);
 	
 	return ((bytes_written < bytes_to_write) ? PARTIAL_RULE_RECIEVED : ALL_RULE_RECIEVED);
@@ -1133,9 +1095,7 @@ static bool print_token_rule(char* rule_token){
 	char action_str[MAX_STRLEN_OF_ACTION+1];
 	
 	if(rule_token == NULL) {
-#ifdef USER_DEBUG_MODE
 		printf("function print_token_rule() got NULL argument\n");
-#endif
 		return false;
 	}
 	
@@ -1152,10 +1112,7 @@ static bool print_token_rule(char* rule_token){
 			&t_ack,
 			&t_action)) < NUM_OF_FIELDS_IN_FWRULE ) 
 	{
-		
-#ifdef USER_DEBUG_MODE
 		printf("Couldn't parse rule_token to valid fields.\n");
-#endif
 		return false;
 	}
 	
@@ -1187,9 +1144,7 @@ static bool print_token_rule(char* rule_token){
 									action_str);
 
 	if (num_of_chars_written < MIN_STRLEN_OF_RULE_FORMAT){
-#ifdef USER_DEBUG_MODE
 		printf("Failed translating rule to string\n");
-#endif
 		return false;
 	}
 	
@@ -1254,10 +1209,6 @@ int clear_rules(void){
 		printf("Error accured trying to open fw_rules device for clearing all rules, error number: %d\n", errno);
 		return -1;
 	}
-	
-#ifdef USER_DEBUG_MODE	
-	printf("Bytes supposed to be written to fw_rules: %d\n", strlen(buff));
-#endif	
 
 	if ( write(fd, buff, strlen(buff)) <= 0){
 		printf("Error accured trying to clear all fw rules\n");
@@ -1393,9 +1344,7 @@ static bool print_log_row_format(char* log_token){
 	char reason_str[MAX_STRLEN_OF_REASON+1];
 	
 	if(log_token == NULL) {
-#ifdef USER_DEBUG_MODE
 		printf("function print_log_row_format() got NULL argument\n");
-#endif
 		return false;
 	}
 	
@@ -1411,10 +1360,7 @@ static bool print_log_row_format(char* log_token){
 			&t_reason,
 			&t_count)) < NUM_OF_FIELDS_IN_LOG_ROW_T ) 
 	{
-		
-#ifdef USER_DEBUG_MODE
 		printf("Couldn't parse log_token to valid fields.\n");
-#endif
 		return false;
 	}
 	
@@ -1444,9 +1390,7 @@ static bool print_log_row_format(char* log_token){
 									t_count);
 
 	if (num_of_chars_written < MIN_STRLEN_OF_RULE_FORMAT){
-#ifdef USER_DEBUG_MODE
 		printf("Failed translating log-row to string\n");
-#endif
 		return false;
 	}
 	

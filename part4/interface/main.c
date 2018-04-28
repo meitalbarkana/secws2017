@@ -19,9 +19,7 @@ static int load_rules(const char* file_path){
 		printf ("No rules were loaded - file was empty or had no valid rules.\n Please use clear_rules if you want to delete all firewall rules.\n");
 		return 0;
 	}
-#ifdef USER_DEBUG_MODE
-	printf("Total rules from file: %d.\n",rules_read);
-#endif	
+	
 	enum rules_recieved_t rrcvd = send_rules_to_fw();
 	switch (rrcvd) {
 		case(NO_RULE_RECIEVED):
@@ -132,7 +130,6 @@ static void print_conn_tab_nicely(const char* buff){
 	}
 	
 	printf("<src ip> <src port> <dst ip> <dst port> <tcp_state> <timestamp> <fake src ip> <fake src port> <fake dst ip> <fake dst port> <fake tcp state>\n");
-	
 	
 	size_t ip_len_str = strlen("XXX.XXX.XXX.XXX")+1;
 	

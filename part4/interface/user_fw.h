@@ -3,18 +3,16 @@
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <string.h>
-#include <fcntl.h> // For open()
-#include <sys/types.h> // For open()
-#include <sys/stat.h> // For open()
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <errno.h>
-#include <unistd.h> // For close(), write(), read()
-#include <stdlib.h> // For calloc()
-#include <arpa/inet.h> //For inet_pton()
-#include <stdbool.h> //For bool
+#include <unistd.h>
+#include <stdlib.h> 	// For calloc()
+#include <arpa/inet.h>	//For inet_pton()
+#include <stdbool.h>
 #include <linux/netfilter.h> //For NF_ACCEPT, NF_DROP
 #include <ctype.h> //For isdigit()
-
-//#define USER_DEBUG_MODE (1) //For debug-printing 
 
 #define PATH_TO_RULE_DEV "/dev/fw_rules"
 #define PATH_TO_ACTIVE_ATTR "/sys/class/fw/fw_rules/active"
