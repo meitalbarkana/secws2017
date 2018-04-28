@@ -47,9 +47,6 @@ static int lfw_dev_open(struct inode *inodep, struct file *fp){
 	g_num_rows_read = 0;
 	g_last_row_read = &g_logs_list;
 	
-#ifdef LOG_DEBUG_MODE 
-	printk(KERN_INFO "fw_log: device is opened by %d process(es)\n", g_log_usage_counter);
-#endif
 	return 0;
 }
 
@@ -165,9 +162,7 @@ static void delete_all_rows(void){
 	}
 	g_num_of_rows = 0;
 	g_num_rows_read = 0;
-#ifdef LOG_DEBUG_MODE
-	printk(KERN_INFO "All log-rows were deleted from list\n"); 
-#endif
+
 }
 
 
@@ -324,9 +319,7 @@ log_row_t* init_log_row(struct sk_buff* skb, unsigned char hooknumber,
 				ptr_pckt_lg_info->dst_port = ntohs(temp_port_num); //Convert to local-endianness
 
 			}
-#ifdef LOG_DEBUG_MODE
-			printk(KERN_INFO "Successfully created and updated packet info:\n");
-#endif
+
 			return ptr_pckt_lg_info;
 		}
 		

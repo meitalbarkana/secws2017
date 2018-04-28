@@ -143,9 +143,6 @@ ssize_t change_active_stat(struct device* dev, struct device_attribute* attr, co
 		} else {
 			printk(KERN_INFO "User successfully deactivated firewall\n");
 			delete_all_conn_rows();
-#ifdef FAKING_DEBUG_MODE 
-			printk(KERN_INFO "User deactivated firewall - connection table was deleted.\n");
-#endif
 			g_fw_is_active = FW_OFF;
 		}
 	} else { //buf[0] =='1'
@@ -359,7 +356,6 @@ static bool is_valid_action(unsigned char num, rule_t* rule){
 }
 
 
-
 /**
  * Checks if rule is valid, if it does adds it to g_all_rules_table.
  * 
@@ -427,11 +423,6 @@ static bool is_valid_rule(const char* rule_str){
 	
 	//If gets here, rule_str was valid & added to g_all_rules_table[g_num_of_valid_rules]
 	++g_num_of_valid_rules;
-	
-#ifdef DEBUG_MODE
-	printk(KERN_INFO "In function is_valid_rule, done testing a VALID rule. Total valid rules so far: %hhu, \n",g_num_of_valid_rules);
-	print_rule(&(g_all_rules_table[(g_num_of_valid_rules-1)]));
-#endif	
 
 	return true;
 }
@@ -498,12 +489,7 @@ static ssize_t rfw_dev_write(struct file* filp, const char* buffer, size_t len, 
 		//Copying from user failed - aborts.
 		clean_g_write_buff(false);
 		return -EFAULT;
-	}
-
-#ifdef DEBUG_MODE
-		printk (KERN_INFO "Total bytes written to fw_rules in current write: %u, total written so far: %u\n",
-				len, g_bytes_written_so_far);
-#endif	
+	}	
 
 	g_bytes_written_so_far += len;
 	return len;
@@ -603,9 +589,6 @@ static ssize_t rfw_dev_read(struct file *filp, char *buffer, size_t len, loff_t 
  */
 static int rfw_dev_open(struct inode *inodep, struct file *fp){
 	g_usage_counter++;
-#ifdef DEBUG_MODE 
-   printk(KERN_INFO "fw_rules: device is opened by %d process(es)\n", g_usage_counter);
-#endif
 	return 0;
 }
 
@@ -677,9 +660,7 @@ static int rfw_dev_release(struct inode *inodep, struct file *fp){
 		
 	}
 	
-#ifdef DEBUG_MODE 
    printk(KERN_INFO "fw_rules: device successfully closed\n");
-#endif
 
    return 0;
 }
@@ -856,9 +837,6 @@ static int get_relevant_rule_num_from_table(log_row_t* ptr_pckt_lg_info,
 		}
 	}
 	//No rule was found
-#ifdef LOG_DEBUG_MODE
-	printk(KERN_INFO "In function get_relevant_rule_num_from_table, NO relevant rule was found.\n");
-#endif
 	return (-1);
 }
 

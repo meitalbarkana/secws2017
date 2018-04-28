@@ -7,29 +7,17 @@ PATH_TO_CONN_TAB_ATTR = "/sys/class/fw/fw/conn_tab"
 
 VLAN_1 = '10.1.1.3'
 VLAN_2 = '10.1.2.3'
-HTTP_LISTENING_PORT = 8080											#"Spoof" port
+HTTP_LISTENING_PORT = 8080		#"Spoof" port
 FTP_LISTENING_PORT_1 = 21212
 FTP_LISTENING_PORT_2 = 20202
 HTTP_PORT = 80
 FTP_PORT = 21
 FTP_DATA_PORT = 20
 MAX_CONN = 5
-MAX_BUFFER_SIZE = 8192												#=2^13. since we should block only size > 5000, 4096 isn't enough
+MAX_BUFFER_SIZE = 8192			#=2^13. since we should block only size > 5000, 4096 isn't enough
 MAX_HTTP_CONTENT_LENGTH = 5000
 CONN_TIMEOUT = 25
 
-"""TCP states:"""
-TCP_STATE_CLOSED = 1
-TCP_STATE_LISTEN = 2
-TCP_STATE_SYN_SENT = 3
-TCP_STATE_SYN_RCVD = 4
-TCP_STATE_ESTABLISHED = 5
-TCP_STATE_FIN_WAIT_1 = 6
-TCP_STATE_CLOSE_WAIT = 7
-TCP_STATE_FIN_WAIT_2 = 8
-TCP_STATE_LAST_ACK = 9
-TCP_STATE_TIME_WAIT = 10
-""""""
 
 def read_conn_tab_to_buff():
 	buff = False
@@ -56,13 +44,6 @@ def find_real_destination(real_src_ip, real_src_port, current_fake_dst_ip, curre
 	"""
 	conn_tab_as_str = read_conn_tab_to_buff()
 	
-	#TODO:: delete next 4 lines:
-	print("In function find_real_destination, received arguments:")
-	print("\treal_src_ip: "+str(real_src_ip)+" ("+socket.inet_ntoa(struct.pack('!I', real_src_ip))+"), real_src_port: "+str(real_src_port))
-	print("\tcurrent_fake_dst_ip: "+str(current_fake_dst_ip)+" ("+socket.inet_ntoa(struct.pack('!I', current_fake_dst_ip))+"), current_fake_dst_port: "+str(current_fake_dst_port))
-	print("\nConnection table is:")
-	print conn_tab_as_str
-	
 	if conn_tab_as_str != False:
 		lines = conn_tab_as_str.splitlines()
 		for line in lines:
@@ -84,10 +65,6 @@ def find_real_destination(real_src_ip, real_src_port, current_fake_dst_ip, curre
 				
 				if real_src_ip == src_ip and real_src_port == src_port and \
 				fake_dst_ip == current_fake_dst_ip and fake_dst_port == current_fake_dst_port:
-					#TODO:: delete the first 3 lines:
-					print("******Found a match! line is:******")
-					print(line)
-					print("***********************************\n")
 					return (socket.inet_ntoa(struct.pack('!I', dst_ip)),dst_port)
 
 			except:
@@ -115,22 +92,10 @@ def http_has_valid_content_length(all_data):
 	response = HTTPResponse(source)
 	response.begin()
 
-
-	#TODO:: add as a comment. For testing:
-	print ("headers are:")
-	for h in response.getheaders():
-		print (h)  
-	""""""
-
 	content_len_value = int(response.getheader('content-length', -1))
 	if content_len_value == -1 or content_len_value > MAX_HTTP_CONTENT_LENGTH:
 		return False
-	"""#For testing:
-	print ("content length's value is: ")
-	print (content_len_value)
-	print ("content length's type is: ")
-	print (type(content_len_value))
-	"""
+
 	return True
 
 
@@ -161,8 +126,6 @@ def remote_connection(sock, client_address):
 		if remote_details == False:
 			print("Error: failed to extract remote-server's details.")
 			return False
-		else:
-			print ("In remote_connection(), remote_details are: dst_ip=[{0}] dst_port=[{1}]".format(remote_details[0], remote_details[1]))#TODO:: delete, for debugging
 		remote_socket.connect(remote_details)
 		return remote_socket
 	except Exception as e:
@@ -212,18 +175,16 @@ def close_sock(sock, input_sockets, messages_queue, close_immediately=False):
 
 		if close_immediately: #Send RST packets, credit: https://stackoverflow.com/a/6440364/5928769:
 			if relevant_server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER,struct.pack('ii', l_onoff, l_linger)) != 0 :
-				#Not supposed to get here:
-				print("Failed set relevant_server_sock's SO_LINGER, closing it might not send RST")
+				print("Couldn't set relevant_server_sock's SO_LINGER, closing it *might* not send RST")
 			if sock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack('ii', l_onoff, l_linger)) != 0 :
-				#Not supposed to get here:
-				print("Failed set socket's SO_LINGER, closing it might not send RST")
+				print("Couldn't set socket's SO_LINGER, closing it *might* not send RST")
 
 		relevant_server_sock.close()
 		sock.close()
 		del messages_queue[sock]
 		del messages_queue[relevant_server_sock]
 
-	else: #relevant_server_sock == None, not supposed to get here
+	else: #relevant_server_sock == None, not supposed to get here:
 		print("Couldn't find relevant_server_sock")
 		if close_immediately:
 			print ("Closing connection immediately with: {}".format(sock.getpeername()))
@@ -233,15 +194,13 @@ def close_sock(sock, input_sockets, messages_queue, close_immediately=False):
 
 		if close_immediately: #Send RST packet:
 			if sock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack('ii', l_onoff, l_linger)) != 0 :
-				print("Failed set socket's SO_LINGER, closing it might not send RST")
+				print("Couldn't set socket's SO_LINGER, closing it might not send RST")
 		sock.close()
 		del messages_queue[sock]
 
 
 def write_new_ftp_data_to_conn_tab(src_ip, src_port, dst_ip, dst_port):
 	buff = "{0} {1} {2} {3}\n".format(src_ip, src_port, dst_ip, dst_port)
-	print("buff that is sent to connection table device is: {}".format(buff))#TODO:: delete this line
-	print("buff length that is sent to connection table device is: {}".format(len(buff)))#TODO:: delete this line
 	try:
 		with open(PATH_TO_CONN_TAB_ATTR,'w') as f:
 			f.write(buff)
@@ -269,11 +228,8 @@ def search_for_and_handle_PORT_command(data, other_side_socket):
 		if port_command:
 			string_ip = port_command.group(1)+"."+port_command.group(2)+"."+port_command.group(3)+"."+port_command.group(4)
 			listening_port_num = int(port_command.group(5))*256 + int(port_command.group(6))
-			print("string_ip is: {0}, original_server_ip_as_str is: {1} ".format(string_ip, original_server_ip_as_str))
 			ip_as_int = struct.unpack("!I", socket.inet_aton(string_ip))[0]
 			original_server_ip_as_int = struct.unpack("!I", socket.inet_aton(original_server_ip_as_str))[0]
-			print("ip as an int value is: {0}, original_server_ip_as_int value is: {1}".format(ip_as_int, original_server_ip_as_int))
-			print("listening_port_num is: {}".format(listening_port_num))
 			if listening_port_num<0 or listening_port_num>65535:
 				print("Invalid listening_port_num value({})".format(listening_port_num))
 				return False
@@ -292,17 +248,15 @@ def start():
 		server_sockets = [socket.socket(socket.AF_INET, socket.SOCK_STREAM) for i in xrange(6)]
 
 		for i in xrange(3):
-			#server_sockets[i].setblocking(0)
 			server_sockets[i].setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 			server_sockets[i].bind((VLAN_1, listening_ports[i]))				#Bind it to a our host and (well-known) relevant port
 			server_sockets[i].listen(MAX_CONN)									#Start listening
 			print('[*] Listening on {0} {1}'.format(VLAN_1, listening_ports[i]))
 
 		for i in xrange(3):
-			#server_sockets[i+3].setblocking(0)
 			server_sockets[i+3].setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 			server_sockets[i+3].bind((VLAN_2, listening_ports[i]))				#Bind it to a our host and (well-known) relevant port
-			server_sockets[i+3].listen(MAX_CONN)									#Start listening
+			server_sockets[i+3].listen(MAX_CONN)								#Start listening
 			print('[*] Listening on {0} {1}'.format(VLAN_2, listening_ports[i]))
 
 
@@ -318,43 +272,23 @@ def start():
 
 	try:
 		while input_sockets:
-			print ("\nIn while loop, input_sockets length is: {0}, here they come:".format(len(input_sockets)))#TODO:: delete, for debugging
-
-			for s in input_sockets:#TODO:: delete, for debugging
-				a, b = s.getsockname()#TODO:: delete, for debugging
-				print("s details -> ip=[{0}] port=[{1}]".format(a, b))#TODO:: delete, for debugging
-				try:
-					print "s peer name is: ", s.getpeername()
-				except:
-					print ("s in not connected.")
+			print ("\n*****************Proxy server about to call select(), input_sockets length is: {0}.*****************".format(len(input_sockets)))#TODO:: delete, for debugging
 
 			ready_to_read_sockets, ready_to_write_sockets, in_error_sockets = \
 				select.select(input_sockets, output_sockets, input_sockets)
 
-			print ("[*]Ready_to_read_sockets length is: {0}".format(len(ready_to_read_sockets)))#TODO:: delete, for debugging
-			print ("[*]Ready_to_write_sockets length is: {0}".format(len(ready_to_write_sockets)))#TODO:: delete, for debugging
-			print ("[*]In_error_sockets length is: {0}".format(len(in_error_sockets)))#TODO:: delete, for debugging
-
-
 			for sock in ready_to_read_sockets:
-
+				print("")
 				m = min(number_of_sever_sockets,len(server_sockets))
-				sock_ip_as_str, sock_port_as_int = sock.getsockname()#TODO:: delete, for debugging
+				sock_ip_as_str, sock_port_as_int = sock.getsockname()
 				peer_ip_as_str = ""
 				peer_port_as_int = 0
 
 				if sock in server_sockets[0:m]:
-					print ("sock is in original server_sockets, its info: ip=[{0}] port=[{1}]".format(sock_ip_as_str, sock_port_as_int))#TODO:: delete, for debugging
-					try:
-						print "sock's peer name is: ", sock.getpeername()
-					except:
-						print ("sock is not connected.")
-
 					client_connection, client_address = sock.accept()
-					print('Accepted connection {0} {1}'.format(client_address[0], client_address[1]))
+					print('Accepted new connection {0} {1}'.format(client_address[0], client_address[1]))
 					remote_server = remote_connection(sock, client_address)
 					if remote_server:
-						#client_connection.setblocking(0)#not sure if needed :X
 						input_sockets.append(client_connection)
 						input_sockets.append(remote_server)
 						messages_queue[client_connection] = remote_server
@@ -365,7 +299,7 @@ def start():
 						client_connection.close()
 
 				else:
-					print ("sock is NOT in original server_sockets, its info: ip=[{0}] port=[{1}], trying to accept data from it.".format(sock_ip_as_str, sock_port_as_int))#TODO:: delete, for debugging
+					print ("Trying to accept data from socket: ip=[{0}] port=[{1}].".format(sock_ip_as_str, sock_port_as_int))
 					try:
 						peer_ip_as_str, peer_port_as_int = sock.getpeername()
 						print ("sock's peer name is: ({0},{1})".format(peer_ip_as_str, peer_port_as_int))
@@ -375,26 +309,24 @@ def start():
 					data = received_from(sock, 3)
 					
 					if len(data) == 0:
-						print("Received-data's length is 0")#TODO:: delete
+						print("Received-data's length is 0 - meaning no more data will be received from this connection. Closing it.")
 						messages_queue[sock].send(data)	
-						close_sock(sock, input_sockets, messages_queue)#TODO:: test this!!
+						close_sock(sock, input_sockets, messages_queue)
 						break
 
-					#len(data) > 0:
+					#If gets here, len(data) > 0:
 					if peer_port_as_int == HTTP_PORT:
+						print("Handling data received from HTTP port(80)...")
 						if http_has_valid_content_length(data):
 							messages_queue[sock].send(data)
 							print("Received {} VALID http bytes from remote server, passed it to inner network.".format(len(data)))
 						else:
 							print("Received INVALID incoming http data ({} bytes) from remote server, closing connection.".format(len(data)))
-							print("Invalid data is:") #TODO: delete
-							print(data) #TODO: delete
 							close_sock(sock, input_sockets, messages_queue, True)
 
 					elif peer_port_as_int == FTP_PORT:
-						#TODO:: edit?
-						print("FTP port(21)")#TODO:: delete
-						print("Received {0} bytes of data from remote FTP (21) server, makes sure its not an executable file before sending it to inner network.[peer_port_as_int value is:{1}]".format(len(data), peer_port_as_int))
+						print("Handling data received from FTP port(21)...")
+						print("Received {0} bytes of data from remote FTP (21) server, makes sure its not an executable file before sending it to inner network.".format(len(data)))
 						if(is_file_executable(data)):
 							print("Got executable file from FTP server! Ending connection")
 							close_sock(sock, input_sockets, messages_queue, True)
@@ -404,8 +336,8 @@ def start():
 
 
 					elif peer_port_as_int == FTP_DATA_PORT:
-						print("FTP-DATA port(20)")#TODO:: delete
-						print("Received {0} bytes of data from remote DATA-FTP server, makes sure its not an executable file before sending it to inner network.[peer_port_as_int value is:{1}]".format(len(data), peer_port_as_int))
+						print("Handling data received from FTP-DATA port(20)...")
+						print("Received {0} bytes of data from remote DATA-FTP server, makes sure its not an executable file before sending it to inner network.".format(len(data)))
 						if(is_file_executable(data)):
 							print("Got executable file from DATA-FTP server! Ending connection")
 							close_sock(sock, input_sockets, messages_queue, True)
@@ -414,22 +346,17 @@ def start():
 							print("Sent valid data ({} bytes) from DATA-FTP server to inner-network.".format(len(data)))
 
 					elif sock_port_as_int == FTP_LISTENING_PORT_1:
-						#TODO:: edit
-						print("Received data from FTP_PORT, searching it for PORT command:")
+						print("Received data that is sent from inner network to FTP PORT (21), searching it for PORT command:")
 						if search_for_and_handle_PORT_command(data, messages_queue[sock]):
 							messages_queue[sock].send(data)
-							print("{0} Bytes of data from inner network were sent to remote FTP(21) server.[peer_port_as_int value is:{1}]".format(len(data), peer_port_as_int))
+							print("{0} Bytes of data from inner network were sent to remote FTP(21) server.".format(len(data)))
 						else:
 							print("Received INVALID outgoing FTP data ({} bytes) from inner network OR an error happened. closing connection.".format(len(data)))
-							print("Invalid data is:") #TODO: delete
-							print(data) #TODO: delete
 							close_sock(sock, input_sockets, messages_queue, True)
 
 					else:
 						messages_queue[sock].send(data)
-						print("{0} Bytes of data from inner network were sent to remote server.[peer_port_as_int value is:{1}]".format(len(data), peer_port_as_int))
-							
-						 
+						print("{0} Bytes of data from inner network were sent to remote server.".format(len(data)))					 
 
 	except KeyboardInterrupt:
 		print("Ending server.")

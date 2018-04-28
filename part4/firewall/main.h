@@ -10,5 +10,4 @@ enum main_state_to_fold {
 	M_ALL
 };
 
-
 #endif // _MAIN_H_

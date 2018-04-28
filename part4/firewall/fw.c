@@ -1,6 +1,5 @@
 #include "fw.h"
 
-
 /**
  *	Returns the direction of the packet,
  *	by comparing the interfaces' names
@@ -65,10 +64,6 @@ tcp_packet_t get_tcp_packet_type(struct tcphdr* tcp_hdr){
 		} 
 		
 		printk(KERN_INFO "In function get_tcp_packet_type(), TCP packet has invalid flags (ack is 0).\n");
-		printk(KERN_INFO "syn: %d, ",(tcp_hdr->syn == 1));//TODO:: delete.
-		printk(KERN_INFO "fin: %d, ",(tcp_hdr->fin == 1));//TODO:: delete.
-		printk(KERN_INFO "rst: %d, ",(tcp_hdr->rst == 1));//TODO:: delete.
-		printk(KERN_INFO "psh: %d.\n",(tcp_hdr->psh == 1));//TODO:: delete.
 		return TCP_INVALID_PACKET;
 	}
 	
@@ -183,18 +178,10 @@ bool fake_packets_details(struct sk_buff *skb, bool fake_src, __be32 fake_ip, __
 	}
 
 	//Change routing:
-	if (fake_src){
-#ifdef FAKING_DEBUG_MODE
-		printk(KERN_INFO "In fake_packets_details(), faking source details.\n\
-old details are:\tip[%u]\tport[%hu],\t\tfaked details are:\tip[%u]\tport[%hu]\n",ntohl(ip_header->saddr), ntohs(tcp_header->source), fake_ip, fake_port);
-#endif	
+	if (fake_src){	
 		ip_header->saddr = htonl(fake_ip);
 		tcp_header->source = htons(fake_port);
 	} else {
-#ifdef FAKING_DEBUG_MODE
-		printk(KERN_INFO "In fake_packets_details(), faking destination details.\n\
-old details are:\tip[%u]\tport[%hu],\t\tfaked details are:\tip[%u]\tport[%hu]\n", ntohl(ip_header->daddr), ntohs(tcp_header->dest), fake_ip, fake_port);
-#endif	
 		ip_header->daddr = htonl(fake_ip);
 		tcp_header->dest = htons(fake_port);
 	}

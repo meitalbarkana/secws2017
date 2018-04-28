@@ -17,14 +17,6 @@
 #include <linux/time.h>		//For timestamp value
 #include <linux/list.h> 	//For log's list
 
-/**
- * If one of the DEBUG_MODE's defined, code will print debug messages to KERN_INFO
- **/
-//#define LOG_DEBUG_MODE  (1)
-//#define CONN_DEBUG_MODE (1)	//For connection-table debug printing
-//#define FAKING_DEBUG_MODE (1)	//For statefull-firewall debug printing
-
-
 #define NO_REASON (-777)
 /*For test-printing mainly:*/
 #define MAX_STRLEN_OF_ULONG (20)//MAX_U_LONG = 2^64-1 = 18446744073709551615, 20 digits

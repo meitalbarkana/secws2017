@@ -173,9 +173,6 @@ void delete_all_conn_rows(void){
 		kfree(row);
 	}
 
-#ifdef CONN_DEBUG_MODE
-	printk(KERN_INFO "All connection-rows were deleted from list\n"); 
-#endif
 }
 
 
@@ -363,10 +360,6 @@ void search_relevant_rows(log_row_t* pckt_lg_info,
 	}
 }
 
-
-
-/*******************************/
-
 /**
  *	Passes over g_connections_list in search of connection-rows of "faked"
  * 	TCP connections, and are relevant to data provided.
@@ -540,22 +533,13 @@ static bool update_conn_rows_fake_details_if_needed(log_row_t* ptr_pckt_lg_info,
 					got packet with invalid destination port.\n");
 			return false;
 		} 
-		else {
-#ifdef FAKING_DEBUG_MODE		
-			//printk(KERN_INFO "In update_conn_rows_fake_details_if_needed(), no fake needed.\n");
-			//default value of relevant_conn_row->need_to_fake_connection == false
-#endif
-		}		
+		
 		return true;
 	}
 	
 	//If gets here, it's SYN_ACK packet, relevant_opposite_conn_row != NULL
 	//[relevant_opposite_conn_row is of the first "SYN" connection with the proxy]
 	if (relevant_opposite_conn_row->need_to_fake_connection == false) {
-//#ifdef FAKING_DEBUG_MODE		
-		//printk(KERN_INFO "In update_conn_rows_fake_details_if_needed(), no fake needed.\n");
-		//default value of relevant_conn_row->need_to_fake_connection == false
-//#endif
 		return true;
 	}
 	
@@ -608,7 +592,7 @@ static bool handle_SYN_packet_src_port_ftp_data(log_row_t* pckt_lg_info,
 	//Means no prior *inserted by proxy* connection-row found OR
 	//A prior, opposite direction connection was found: drop this packet.
 		pckt_lg_info->action = NF_DROP;
-		pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION; printk(KERN_INFO "line 611\n");//TODO:: delete printk
+		pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION; printk(KERN_INFO "line 595\n");//TODO:: delete printk
 	} 
 	else //relevant_opposite_conn_row==NULL and relevant_conn_row!=NULL
 	{ 	
@@ -622,7 +606,7 @@ static bool handle_SYN_packet_src_port_ftp_data(log_row_t* pckt_lg_info,
 			pckt_lg_info->reason = REASON_FOUND_MATCHING_TCP_CONNECTION;
 		} else {
 			pckt_lg_info->action = NF_DROP;
-			pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION;printk(KERN_INFO "line 625\n");//TODO:: delete printk
+			pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION;printk(KERN_INFO "line 610\n");//TODO:: delete printk
 		}			
 	}
 	
@@ -668,7 +652,7 @@ static bool handle_SYN_ACK_packet(log_row_t* pckt_lg_info,
 	//Means no prior SYN packet found OR
 	//A prior, same direction connection was found: so drop this packet.
 		pckt_lg_info->action = NF_DROP;
-		pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION;printk(KERN_INFO "line 671\n");//TODO:: delete printk
+		pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION;printk(KERN_INFO "line 655\n");//TODO:: delete printk
 	} 
 	else //relevant_opposite_conn_row!=NULL and relevant_conn_row==NULL
 	{ 	
@@ -692,7 +676,7 @@ static bool handle_SYN_ACK_packet(log_row_t* pckt_lg_info,
 				//Since other side of faked connection should be in state: 
 				printk(KERN_INFO "In handle_SYN_ACK_packet, opposite_conn_row fake_tcp_state IS TCP_STATE_CLOSED.\n");
 				pckt_lg_info->action = NF_DROP;
-				pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION; printk(KERN_INFO "line 695\n");//TODO:: delete printk
+				pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION; printk(KERN_INFO "line 680\n");//TODO:: delete printk
 			}
 	
 		} else {
@@ -740,11 +724,8 @@ static bool handle_OTHER_tcp_packet(log_row_t* pckt_lg_info,
 	}
 	
 	if (relevant_conn_row == NULL){
-#ifdef FAKING_DEBUG_MODE
-		printk(KERN_INFO "Function handle_OTHER_tcp_packet got NULL relevant_conn_row\n");
-#endif	
 		pckt_lg_info->action = NF_DROP;
-		pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION; printk(KERN_INFO "line 747\n");//TODO:: delete printk
+		pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION; printk(KERN_INFO "line 728\n");//TODO:: delete printk
 		return true;
 	}
 	
@@ -826,7 +807,6 @@ static bool handle_OTHER_tcp_packet(log_row_t* pckt_lg_info,
 				pckt_lg_info->reason = REASON_PART_OF_PROXY_HANDSHAKE;
 				return true;
 			}
-			///TODO: check if I need to allow FIN states (when other connection is NULL)
 		}
 		else //relevant_opposite_conn_row != NULL
 		{
@@ -899,7 +879,6 @@ static bool handle_OTHER_tcp_packet(log_row_t* pckt_lg_info,
 					 relevant_opposite_conn_row->tcp_state == TCP_STATE_SYN_RCVD)
 				)
 			{
-				printk(KERN_INFO "MEOWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW");///TODO:: delete this
 				//This is the only time we update the TCP state of both sides:
 				if (relevant_opposite_conn_row->tcp_state == TCP_STATE_LAST_ACK){
 					relevant_conn_row->tcp_state = TCP_STATE_TIME_WAIT;
@@ -936,7 +915,7 @@ static bool handle_OTHER_tcp_packet(log_row_t* pckt_lg_info,
 	}
 	
 	pckt_lg_info->action = NF_DROP;
-	pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION; printk(KERN_INFO "line 939\n");//TODO:: delete printk
+	pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION; printk(KERN_INFO "line 918\n");//TODO:: delete printk
 	
 	return true;
 }
@@ -983,38 +962,20 @@ static bool handle_RESET_tcp_packet(log_row_t* pckt_lg_info,
 	if ((relevant_conn_row) || (relevant_opposite_conn_row))
 	{
 		//Delete rows, if needed:
-		if (relevant_conn_row){
-#ifdef FAKING_DEBUG_MODE
-			printk(KERN_INFO "In handle_RESET_tcp_packet(), deleting relevant connection row:");
-			print_conn_row(relevant_conn_row);
-			printk(KERN_INFO "Its fake tcp state is: %d\n", relevant_conn_row->fake_tcp_state);
-#endif				
+		if (relevant_conn_row){			
 			if(relevant_conn_row->need_to_fake_connection){
 				delete_opposite_row = false;
 			}
 			delete_specific_row_by_conn_ptr(relevant_conn_row);
 		}
-		if (relevant_opposite_conn_row){
-#ifdef FAKING_DEBUG_MODE
-			printk(KERN_INFO "In handle_RESET_tcp_packet(), checking opposite connection row:");
-			print_conn_row(relevant_opposite_conn_row);
-			printk(KERN_INFO "Its fake tcp state is: %d\n", relevant_opposite_conn_row->fake_tcp_state);
-#endif	
-			if(delete_opposite_row){
-#ifdef FAKING_DEBUG_MODE
-				printk(KERN_INFO "This was relevant_opposite_conn_row, and it is deleted.\n");
-#endif			
+		if (relevant_opposite_conn_row){	
+			if(delete_opposite_row){		
 				delete_specific_row_by_conn_ptr(relevant_opposite_conn_row);
 			} else {
-#ifdef FAKING_DEBUG_MODE
-				printk(KERN_INFO "This was relevant_opposite_conn_row, and it WASN'T deleted.\n");
-#endif	
 				relevant_opposite_conn_row->fake_tcp_state = TCP_STATE_CLOSED;
 			}
 		}
-//#ifdef FAKING_DEBUG_MODE
-//		printk(KERN_INFO "END OF handle_RESET_tcp_packet().\n");
-//#endif			
+			
 		pckt_lg_info->action = NF_ACCEPT;
 		pckt_lg_info->reason = REASON_FOUND_MATCHING_TCP_CONNECTION;
 		return true;
@@ -1022,7 +983,7 @@ static bool handle_RESET_tcp_packet(log_row_t* pckt_lg_info,
 	
 	//Packet's not relevant for any tcp connection:
 	pckt_lg_info->action = NF_DROP;
-	pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION; printk(KERN_INFO "line 1025\n");//TODO:: delete printk
+	pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION; printk(KERN_INFO "line 986\n");//TODO:: delete printk
 	
 	return true;
 }
@@ -1133,7 +1094,7 @@ static bool handle_FIN_tcp_packet(log_row_t* pckt_lg_info,
 	
 	//Otherwise, its invalid tcp-state. drop packet:		
 	pckt_lg_info->action = NF_DROP;
-	pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION; printk(KERN_INFO "line 1133\n");//TODO:: delete printk
+	pckt_lg_info->reason = REASON_NO_MATCHING_TCP_CONNECTION; printk(KERN_INFO "line 1097\n");//TODO:: delete printk
 	return true;
 }
 
