@@ -11,6 +11,7 @@ COMMON_CHAR_EVALUATION = 0.09
 MINIMUM_ROWS_TO_EVALUATE = 2
 MINIMUM_CHARACTERS_TO_EVALUATE = 500
 
+
 #No matter what's the length of the data checked, if it includes those - it's probably C code:
 C_EXPLICIT_COMBINATIONS = {
 	"->", "==", "&&", "||",
@@ -43,6 +44,7 @@ C_TYPICAL_KEYWORDS = {
 	"const", "for", "signed", "void",
 	"continue", "volatile", "do", "while",
 	"default", "if", "static", "double",
+	"private", "public",
 	
 }
 
@@ -54,9 +56,10 @@ C_TYPES  = {
 
 
 COMMON_C_PATTERNS = {
-	"(.*?)while[ \t\n\r\f\v]*\((.*?)\)[ \t\n\r\f\v]*\{(.*?)\}",	#"while" pattern
-	"(.*?)if[ \t\n\r\f\v]*\((.*?)\)[ \t\n\r\f\v]*\{(.*?)\}",	#"if" pattern
-	"(.*?)for[ \t\n\r\f\v]*\((.*?)\;(.*?)\;(.*?)\)[ \t\n\r\f\v]*\{(.*?)\}",	#"for" pattern
+	"while[ \t\n\r\f\v]*\((.*?)\)[ \t\n\r\f\v]*\{(.*?)\}",	#"while" pattern
+	"if[ \t\n\r\f\v]*\((.*?)\)[ \t\n\r\f\v]*\{(.*?)\}",	#"if" pattern
+	"else[ \t\n\r\f\v]*\{(.*?)\}",#"else" pattern
+	"for[ \t\n\r\f\v]*\((.*?)\;(.*?)\;(.*?)\)[ \t\n\r\f\v]*\{(.*?)\}",	#"for" pattern
 	"(.*?)\/\*(.*?)\*\/(.*?)",	#comments' pattern ( /*comment*/ )
 	"\(\*(.*?)\)\.",	#accessing field: ( (*pointer_to_object). )
 }
@@ -180,18 +183,16 @@ def probability_according_to_patterns(file_data):
 	num_of_patterns_found = 0
 
 	for pattern in COMMON_C_PATTERNS:
-		found = len(re.findall(pattern, file_data))
-		if found>0:
-			print("Found common pattern: "+pattern)
-		num_of_patterns_found+=found
+		num_of_patterns_found+=len(re.findall(pattern, file_data, re.DOTALL))
 		if num_of_patterns_found >=5:
 			return 1.0
 
 	for pattern in array_patterns:
-		found = len(re.findall(pattern, file_data))
-		if found>0:
-			print("Found common pattern: "+pattern)
-		num_of_patterns_found+=found
+		#found = len(re.findall(pattern, file_data, re.DOTALL))
+		#if found>0:
+		#	print("Found common pattern: "+pattern)#TODO::remove
+		#num_of_patterns_found+=found
+		num_of_patterns_found+=len(re.findall(pattern, file_data, re.DOTALL))
 		if num_of_patterns_found >=5:
 			return 1.0
 
@@ -235,6 +236,7 @@ def is_data_c_code(file_data):
 	print("Probabilities are: {0},\tAverage is: {1}".format(probabilities, sum(probabilities)/float(len(probabilities))))
 	if (probabilities[0]>=0.9 and probabilities[3]>0) or \
 	(probabilities[1]>=0.75 and probabilities[2]>=0.7 and probabilities[3]>0) or \
+	(probabilities[0]>=0.75 and probabilities[1]>=0.75 and probabilities[2]>0 and probabilities[3]>0)or \
 	(sum(probabilities)/float(len(probabilities))>=0.6):
 		return True
 
@@ -268,6 +270,7 @@ def main(argv):
 			print("argv[1] is: {0}".format(argv[1]))
 			only_files_list = [f for f in listdir(argv[1]) if isfile(join(argv[1], f))]
 		except:
+			str=""
 			print("Couldn't open path provided, looking in current directory.")
 			only_files_list = [f for f in listdir(".") if isfile(join("./", f))]
 	else:
