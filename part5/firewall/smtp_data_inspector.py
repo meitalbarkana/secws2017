@@ -8,7 +8,6 @@ INFIMUM_PERCENTAGE_TYPICAL_WORDS_FROM_TOATL_WORDS = 0.05
 COMMON_CHAR_EVALUATION = 0.09
 MINIMUM_ROWS_TO_EVALUATE = 2
 MINIMUM_CHARACTERS_TO_EVALUATE = 500
-ASSUME_CODE_VALUE = 0.97
 
 #No matter what's the length of the data checked, if it includes those - it's probably C code:
 C_EXPLICIT_COMBINATIONS = {
@@ -90,20 +89,22 @@ def generate_array_patterns():
 
 def probability_according_to_semicolons(number_of_semicolons,number_of_rows_in_data, datas_length):
 	"""
-	Returns a probability [0,1] for the data to be C code according to the values of parameters provided.
+	Returns a probability [0,1) for the data to be C code according to the values of parameters provided.
 	"""
 	if number_of_rows_in_data>=MINIMUM_ROWS_TO_EVALUATE:
 		if number_of_semicolons/float(number_of_rows_in_data) >= INFIMUM_PERCENTAGE_LINES_ENDING_WITH_SEMICOLON_IN_C_CODE:
-			return 0.9
+			return 0.85+0.15*number_of_semicolons/float(number_of_rows_in_data)
 		if number_of_semicolons/float(datas_length) >= INFIMUM_PERCENTAGE_SEMICOLON_FROM_TOATL_CHARS:
 			if datas_length>=MINIMUM_CHARACTERS_TO_EVALUATE:
-				return 0.85
-			return min(number_of_semicolons*0.5, 0.5)
-	return min(number_of_semicolons, 0.3)
+				return 0.75
+			return min(number_of_semicolons, 0.5)	#will return 0 or 0.5
+	return min(number_of_semicolons, 0.3)	#will return 0 or 0.3
 
 
-def probability_according_to_special_characters(character_appearances_dict, total_characters):
-	
+def probability_according_to_common_characters(character_appearances_dict, total_characters):
+	"""
+	Returns a probability [0,1) for the data to be C code according to the number of appearances of common characters.
+	"""
 	do_not_count_chars = {'\n', ' ', '\t', '\r', '\f','\v'}
 	common_char_counter = 0
 
@@ -123,7 +124,7 @@ def probability_according_to_special_characters(character_appearances_dict, tota
 	#print("Common char value is: {0}, total char counter is: {1}".format(common_char_counter,float(total_char_counter))) 
 	#print("Common char evaluation is: {0}".format(common_char_counter/float(total_char_counter))) 
 	if (common_char_counter/float(total_char_counter))>=COMMON_CHAR_EVALUATION:
-		return 0.8
+		return 0.7+0.3*(common_char_counter/float(total_char_counter))
 	return (common_char_counter/float(total_char_counter))*5 #Value returned will be < 0.09*5 = 0.45
 
 
@@ -141,7 +142,7 @@ def probability_according_to_words(file_data):
 		if explicit_words_counter>=5:
 			#print("Found 5 explicit words, ending test of probability_according_to_words(). value to be returned is:")
 			#print((0.9+min(0.05,typical_words_counter/float(words_tested))))
-			return 0.9+min(0.05,typical_words_counter/float(words_tested))
+			return 0.9+min(0.09,typical_words_counter/float(words_tested))
 		if is_explicit_c_word(word):
 			explicit_words_counter+=1
 		elif is_typical_c_word(word):
@@ -165,8 +166,25 @@ def probability_according_to_words(file_data):
 	if  2<=explicit_words_counter<=4:
 		return 0.7+0.15*enough_typical_words
 
-	return 0.5+1*enough_typical_words
+	return 0.5+0.1*enough_typical_words
 
+
+def probability_according_to_patterns(file_data):
+	array_patterns = generate_array_patterns()
+	num_of_patterns_found = 0
+
+	for pattern in COMMON_C_PATTERNS:
+		num_of_patterns_found+=len(re.findall(pattern, file_data))
+		if num_of_patterns_found >=5:
+			return 1.0
+
+	for pattern in array_patterns:
+		num_of_patterns_found+=len(re.findall(pattern, file_data))
+		if num_of_patterns_found >=5:
+			return 1.0
+
+	#If gets here, num_of_patterns_found<5:
+	return num_of_patterns_found/5.0
 
 
 def is_data_c_code(file_data):
@@ -191,39 +209,21 @@ def is_data_c_code(file_data):
 	probabilities.append(probability_according_to_words(file_data))
 	probabilities.append(probability_according_to_semicolons(number_of_semicolons,number_of_rows_in_data, len(file_data)))
 
-	if probabilities[0]>=0.9 and probabilities[1]>=0.85:
+	print("Probabilities are: {0}".format(probabilities))
+	if probabilities[0]>= 0.9 and probabilities[1] > 0.3:
 		return True
 
-	probabilities.append(probability_according_to_special_characters(all_characters_dict, len(file_data)))
+	probabilities.append(probability_according_to_common_characters(all_characters_dict, len(file_data)))
+	print("Probabilities are: {0}".format(probabilities))
+	if probabilities[0]>= 0.9 and probabilities[2]>=0.7:
+		return True
 
+	probabilities.append(probability_according_to_patterns(file_data))
+	print("Probabilities are: {0}".format(probabilities))
+	if (probabilities[0]>=0.9 and probabilities[3]>0) or (probabilities[1]>=0.75 and probabilities[2]>=0.7 and probabilities[3]>0):
+		return True
 
-
-
-	#array_patterns = generate_array_patterns()
-
-
-
-
-	
-	
-
-	#for k in all_characters_dict:
-	#	print k, all_characters_dict[k]
-
-	"""
-	if '{' in datas_characters:
-		print("\tNumber of '{{': {0}".format(all_characters_dict['{']))
-	if '}' in datas_characters:
-		print("\tNumber of '}}': {0}".format(all_characters_dict['}']))
-	if '#' in datas_characters:
-		print("\tNumber of '#': {0}".format(all_characters_dict['#']))
-	if ';' in datas_characters:
-		print("\tNumber of ';': {0}".format(all_characters_dict[';']))
-		print("\t\tpercentage of ';' from total characters({1}): {0}".format(all_characters_dict[';']/float(len(file_data)), len(file_data)))
-	if ';' in datas_characters and number_of_rows_in_data!=0:
-		print("\tPercentage of ';' ending lines is: {0}".format(all_characters_dict[';']/float(number_of_rows_in_data)))
-	"""
-	return True #TODO:: change!
+	return False
 
 
 def start(file_name):
