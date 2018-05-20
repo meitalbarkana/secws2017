@@ -1,5 +1,7 @@
 import sys, string, struct, re, collections
 from StringIO import StringIO
+from os import listdir
+from os.path import isfile, join
 
 
 INFIMUM_PERCENTAGE_LINES_ENDING_WITH_SEMICOLON_IN_C_CODE = 0.20
@@ -63,6 +65,7 @@ COMMON_C_CHARACTERS = {
 	';', '{' , '}', '(', ')',
 	'>', '<', '=', '!', '*',
 	'-', '/', '&', '[', ']',
+	'_',
 }
 
 def is_explicit_c_word(word):
@@ -142,7 +145,10 @@ def probability_according_to_words(file_data):
 		if explicit_words_counter>=5:
 			#print("Found 5 explicit words, ending test of probability_according_to_words(). value to be returned is:")
 			#print((0.9+min(0.05,typical_words_counter/float(words_tested))))
-			return 0.9+min(0.09,typical_words_counter/float(words_tested))
+			if typical_words_counter/float(words_tested) >= INFIMUM_PERCENTAGE_TYPICAL_WORDS_FROM_TOATL_WORDS:
+				return 0.99
+			else: #typical_words_counter/float(words_tested)<0.05
+				return 0.9+typical_words_counter/float(words_tested)
 		if is_explicit_c_word(word):
 			explicit_words_counter+=1
 		elif is_typical_c_word(word):
@@ -174,12 +180,18 @@ def probability_according_to_patterns(file_data):
 	num_of_patterns_found = 0
 
 	for pattern in COMMON_C_PATTERNS:
-		num_of_patterns_found+=len(re.findall(pattern, file_data))
+		found = len(re.findall(pattern, file_data))
+		if found>0:
+			print("Found common pattern: "+pattern)
+		num_of_patterns_found+=found
 		if num_of_patterns_found >=5:
 			return 1.0
 
 	for pattern in array_patterns:
-		num_of_patterns_found+=len(re.findall(pattern, file_data))
+		found = len(re.findall(pattern, file_data))
+		if found>0:
+			print("Found common pattern: "+pattern)
+		num_of_patterns_found+=found
 		if num_of_patterns_found >=5:
 			return 1.0
 
@@ -209,18 +221,21 @@ def is_data_c_code(file_data):
 	probabilities.append(probability_according_to_words(file_data))
 	probabilities.append(probability_according_to_semicolons(number_of_semicolons,number_of_rows_in_data, len(file_data)))
 
-	print("Probabilities are: {0}".format(probabilities))
-	if probabilities[0]>= 0.9 and probabilities[1] > 0.3:
+	print("Probabilities are: {0},\tAverage is: {1}".format(probabilities, sum(probabilities)/float(len(probabilities))))
+	if (probabilities[0]>= 0.9 and probabilities[1] > 0.3) or \
+	(sum(probabilities)/float(len(probabilities))>=0.85):
 		return True
 
 	probabilities.append(probability_according_to_common_characters(all_characters_dict, len(file_data)))
-	print("Probabilities are: {0}".format(probabilities))
+	print("Probabilities are: {0},\tAverage is: {1}".format(probabilities, sum(probabilities)/float(len(probabilities))))
 	if probabilities[0]>= 0.9 and probabilities[2]>=0.7:
 		return True
 
 	probabilities.append(probability_according_to_patterns(file_data))
-	print("Probabilities are: {0}".format(probabilities))
-	if (probabilities[0]>=0.9 and probabilities[3]>0) or (probabilities[1]>=0.75 and probabilities[2]>=0.7 and probabilities[3]>0):
+	print("Probabilities are: {0},\tAverage is: {1}".format(probabilities, sum(probabilities)/float(len(probabilities))))
+	if (probabilities[0]>=0.9 and probabilities[3]>0) or \
+	(probabilities[1]>=0.75 and probabilities[2]>=0.7 and probabilities[3]>0) or \
+	(sum(probabilities)/float(len(probabilities))>=0.6):
 		return True
 
 	return False
@@ -232,10 +247,10 @@ def start(file_name):
 		f = open(file_name,"r")
 		file_data = f.read()
 		f.close()
-		print("\nTesting file: "+file_name)
+		print("\n________________________________________________________________\nTesting file: "+file_name)
 	except:
-		print ("Couldn't read file, exiting...")
-		sys.exit(1)
+		print ("Couldn't read file, continue to next file...")
+		return
 
 	if is_data_c_code(file_data):
 		print ("File is probably C code!")
@@ -244,17 +259,26 @@ def start(file_name):
 
 
 def main(argv):
-	"""
-	if not len(argv) == 2:
-		print 'Usage is: %s <file name>' % argv[0]
-		sys.exit(1)
 
-	file_name =""+ argv[1]
-	start(file_name)
-	"""
+	#print("len(argv) is: {0}".format(len(argv)))
 
-	for i in range(1,len(argv)):
-		start(""+argv[i])
+	if len(argv) == 2:
+		try:
+			str=argv[1]
+			print("argv[1] is: {0}".format(argv[1]))
+			only_files_list = [f for f in listdir(argv[1]) if isfile(join(argv[1], f))]
+		except:
+			print("Couldn't open path provided, looking in current directory.")
+			only_files_list = [f for f in listdir(".") if isfile(join("./", f))]
+	else:
+		str=""
+		only_files_list = [f for f in listdir(".") if isfile(join("./", f))]
+
+	for file_name in only_files_list:
+	#	print("File name sent to function is: {0}".format(str+file_name))
+		
+		start(str+file_name)
+
 
 if __name__ == '__main__':
 	main(sys.argv)
