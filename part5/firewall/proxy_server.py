@@ -2,6 +2,8 @@ import socket, sys, select, Queue, string, struct, re
 from httplib import HTTPResponse
 from StringIO import StringIO
 from executable_constants import *
+from DLP_data_inspector import *
+
 
 PATH_TO_CONN_TAB_ATTR = "/sys/class/fw/fw/conn_tab"
 
@@ -10,9 +12,11 @@ VLAN_2 = '10.1.2.3'
 HTTP_LISTENING_PORT = 8080		#"Spoof" port
 FTP_LISTENING_PORT_1 = 21212
 FTP_LISTENING_PORT_2 = 20202
+SMTP_LISTENING_PORT = 25252
 HTTP_PORT = 80
 FTP_PORT = 21
 FTP_DATA_PORT = 20
+SMTP_PORT = 25
 MAX_CONN = 5
 MAX_BUFFER_SIZE = 8192			#=2^13. since we should block only size > 5000, 4096 isn't enough
 MAX_HTTP_CONTENT_LENGTH = 5000
@@ -248,19 +252,20 @@ def search_for_and_handle_PORT_command(data, other_side_socket):
 	return True
 
 
+
 def start():
 	try:
-		listening_ports = [HTTP_LISTENING_PORT, FTP_LISTENING_PORT_1, FTP_LISTENING_PORT_2]
-		#Initiate 6 AF_INET (IPv4) SOCK_STREAM (TCP) sockets (for listening):
-		server_sockets = [socket.socket(socket.AF_INET, socket.SOCK_STREAM) for i in xrange(6)]
+		listening_ports = [HTTP_LISTENING_PORT, FTP_LISTENING_PORT_1, FTP_LISTENING_PORT_2, SMTP_LISTENING_PORT]
+		#Initiate 8 AF_INET (IPv4) SOCK_STREAM (TCP) sockets (for listening):
+		server_sockets = [socket.socket(socket.AF_INET, socket.SOCK_STREAM) for i in xrange(8)]
 
-		for i in xrange(3):
+		for i in xrange(4):
 			server_sockets[i].setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 			server_sockets[i].bind((VLAN_1, listening_ports[i]))				#Bind it to a our host and (well-known) relevant port
 			server_sockets[i].listen(MAX_CONN)									#Start listening
 			print('[*] Listening on {0} {1}'.format(VLAN_1, listening_ports[i]))
 
-		for i in xrange(3):
+		for i in xrange(4):
 			server_sockets[i+3].setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 			server_sockets[i+3].bind((VLAN_2, listening_ports[i]))				#Bind it to a our host and (well-known) relevant port
 			server_sockets[i+3].listen(MAX_CONN)								#Start listening
@@ -360,6 +365,24 @@ def start():
 						else:
 							print("Received INVALID outgoing FTP data ({} bytes) from inner network OR an error happened. closing connection.".format(len(data)))
 							close_sock(sock, input_sockets, messages_queue, True)
+
+					elif sock_port_as_int == SMTP_LISTENING_PORT:
+						print("Received data that is sent from inner network to SMTP PORT (25), making sure there will be no Data Leak:")
+						if(is_data_c_code(data)): #function implementation is in DLP_data_inspector
+							print("User probably tried to send C code - Ending connection!")
+							close_sock(sock, input_sockets, messages_queue, True)
+						else:
+							messages_queue[sock].send(data)
+							print("Sent valid data ({} bytes) from inner-network to SMTP server.".format(len(data)))
+						
+					elif sock_port_as_int == HTTP_LISTENING_PORT:
+						print("Received data that is sent from inner network to HTTP PORT (80), making sure there will be no Data Leak:")
+						if(is_data_c_code(data)): #function implementation is in DLP_data_inspector
+							print("User probably tried to send C code - Ending connection!")
+							close_sock(sock, input_sockets, messages_queue, True)
+						else:
+							messages_queue[sock].send(data)
+							print("Sent valid data ({} bytes) from inner-network to HTTP server.".format(len(data))) 
 
 					else:
 						messages_queue[sock].send(data)
