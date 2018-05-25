@@ -28,6 +28,7 @@
 #define FAKE_HTTP_PORT (8080)
 #define FAKE_FTP_PORT (21212)
 #define FAKE_FTP_DATA_PORT (20202)
+#define FAKE_SMTP_PORT (25252)
 #define NO_FAKE_NEEDED (-1)
 #define FW_IP_ETH_1 (167837955u)	//<=> 10.1.1.3
 #define FW_IP_ETH_2 (167838211u)	//<=> 10.1.2.3
@@ -72,6 +73,7 @@ typedef enum {
 #define PORT_HTTP		(80)
 #define PORT_FTP		(21)
 #define PORT_FTP_DATA	(20)
+#define PORT_SMTP		(25)
 #define PORT_ABOVE_1023	(1023)
 #define PORT_ERROR 		(-1) //NOTE: not to be confused with "PROT_ERR"
 #define MAX_RULES		(50)

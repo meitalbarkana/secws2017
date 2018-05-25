@@ -518,13 +518,24 @@ static bool update_conn_rows_fake_details_if_needed(log_row_t* ptr_pckt_lg_info,
 	{
 		//Checks if destination port is one of those we need to fake
 		if ( (ptr_pckt_lg_info->dst_port == PORT_HTTP) ||
-			 (ptr_pckt_lg_info->dst_port == PORT_FTP) )
+			 (ptr_pckt_lg_info->dst_port == PORT_FTP) ||
+			 (ptr_pckt_lg_info->dst_port == PORT_SMTP) )
 		{
 			relevant_conn_row->need_to_fake_connection = true;
 			relevant_conn_row->fake_tcp_state = TCP_STATE_SYN_SENT;
 			relevant_conn_row->fake_dst_ip = f_d_ip;
-			relevant_conn_row->fake_dst_port = 
-				(ptr_pckt_lg_info->dst_port == PORT_HTTP)?FAKE_HTTP_PORT:FAKE_FTP_PORT;
+			
+			switch(ptr_pckt_lg_info->dst_port){
+				case (PORT_HTTP):
+					relevant_conn_row->fake_dst_port = FAKE_HTTP_PORT;
+					break;
+				case(PORT_FTP):
+					relevant_conn_row->fake_dst_port = FAKE_FTP_PORT;
+					break;
+				default: //PORT_SMTP
+					relevant_conn_row->fake_dst_port = FAKE_SMTP_PORT;
+					break;
+			}
 		} 
 		else if(ptr_pckt_lg_info->dst_port == PORT_FTP_DATA){
 			//Never supposed to get here, since we don't use this
@@ -1241,8 +1252,7 @@ static void update_conn_rows_fake_tcp_state(connection_row_t* fake_conn_row,
  * 						2. skb's source port
  * 						3. fake_conn_row-> fake_tcp_state, timestamp
  *						4. opposite_fake_conn_row-> fake_src_ip, fake_src_port
- * 						5. 
- *	NOTE: 
+ *
  **/
 void handle_outer_tcp_packet(struct sk_buff* skb, struct tcphdr* tcp_hdr)
 {

@@ -369,6 +369,7 @@ static bool are_similar(log_row_t* row_a, log_row_t* row_b) {
 
 	if (row_a == NULL || row_b == NULL){
 		printk(KERN_ERR "Function are_similar() got NULL argument.\n");
+		return false; //Not supposed to get here
 	}
 
 	return (row_b->protocol == row_a->protocol &&
