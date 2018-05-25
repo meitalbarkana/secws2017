@@ -97,6 +97,7 @@ def probability_according_to_semicolons(number_of_semicolons,number_of_rows_in_d
 	"""
 	Returns a probability [0,1) for the data to be C code according to the values of parameters provided.
 	"""
+	print("Number of semicolons in data tested: {0}".format(number_of_semicolons)) #TODO:: delete!
 	if number_of_rows_in_data>=MINIMUM_ROWS_TO_EVALUATE:
 		if number_of_semicolons/float(number_of_rows_in_data) >= INFIMUM_PERCENTAGE_LINES_ENDING_WITH_SEMICOLON_IN_C_CODE:
 			return 0.85+0.15*number_of_semicolons/float(number_of_rows_in_data)
@@ -129,6 +130,9 @@ def probability_according_to_common_characters(character_appearances_dict, total
 
 	#print("Common char value is: {0}, total char counter is: {1}".format(common_char_counter,float(total_char_counter))) 
 	#print("Common char evaluation is: {0}".format(common_char_counter/float(total_char_counter))) 
+	if total_char_counter == 0:
+		return 0
+
 	if (common_char_counter/float(total_char_counter))>=COMMON_CHAR_EVALUATION:
 		return 0.7+0.3*(common_char_counter/float(total_char_counter))
 	return (common_char_counter/float(total_char_counter))*5 #Value returned will be < 0.09*5 = 0.45
@@ -201,17 +205,15 @@ def probability_according_to_patterns(file_data):
 
 
 def is_data_c_code(file_data):
-		"""
+	"""
 	Receives data that is designated to HTTP/SMTP server, returns:
 		True if data is probably C code,
 		False otherwise. 
 	"""
-
 	#Creates a dictionary of <character, number of appearances of that character> based on file_data:
 	all_characters_dict = collections.Counter(file_data)
 	datas_characters = all_characters_dict.keys()
 	probabilities = []
-
 
 	if '\n' in datas_characters:
 		number_of_rows_in_data = all_characters_dict['\n']
@@ -247,7 +249,7 @@ def is_data_c_code(file_data):
 
 	return False
 
-
+"""
 def start(file_name):
 
 	try:
@@ -291,3 +293,4 @@ def main(argv):
 if __name__ == '__main__':
 	main(sys.argv)
 
+"""

@@ -266,9 +266,9 @@ def start():
 			print('[*] Listening on {0} {1}'.format(VLAN_1, listening_ports[i]))
 
 		for i in xrange(4):
-			server_sockets[i+3].setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-			server_sockets[i+3].bind((VLAN_2, listening_ports[i]))				#Bind it to a our host and (well-known) relevant port
-			server_sockets[i+3].listen(MAX_CONN)								#Start listening
+			server_sockets[i+4].setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+			server_sockets[i+4].bind((VLAN_2, listening_ports[i]))				#Bind it to a our host and (well-known) relevant port
+			server_sockets[i+4].listen(MAX_CONN)								#Start listening
 			print('[*] Listening on {0} {1}'.format(VLAN_2, listening_ports[i]))
 
 
