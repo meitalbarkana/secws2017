@@ -12,14 +12,14 @@ MINIMUM_ROWS_TO_EVALUATE = 2
 MINIMUM_CHARACTERS_TO_EVALUATE = 500
 
 
-#No matter what's the length of the data checked, if it includes those - it's probably C code:
+#If data includes those - it's probably C code:
 C_EXPLICIT_COMBINATIONS = {
 	"->", "==", "&&", "||",
 	"#ifndef", "#define",
 	"#include", "#endif",
 }
 
-#No matter what's the length of the data checked, if it includes those - it's probably C code:
+#If data includes those - it's probably C code:
 C_EXPLICIT_KEYWORDS = {
 	"enum",  "typedef","goto", "sizeof",
 	"_Packed", "int", "else if", "break;",
@@ -28,7 +28,7 @@ C_EXPLICIT_KEYWORDS = {
 }
 
 
-#No matter what's the length of the data checked, if it includes those - it's probably C code:
+#If data includes those - it's probably C code:
 C_EXPLICIT_FUNCTION_NAMES = {
 	"printf(", "printk(", "free(", "kfree(",
 	"close(", "open(", "strncpy(", "strcpy(",
@@ -97,7 +97,6 @@ def probability_according_to_semicolons(number_of_semicolons,number_of_rows_in_d
 	"""
 	Returns a probability [0,1) for the data to be C code according to the values of parameters provided.
 	"""
-	print("Number of semicolons in data tested: {0}".format(number_of_semicolons)) #TODO:: delete!
 	if number_of_rows_in_data>=MINIMUM_ROWS_TO_EVALUATE:
 		if number_of_semicolons/float(number_of_rows_in_data) >= INFIMUM_PERCENTAGE_LINES_ENDING_WITH_SEMICOLON_IN_C_CODE:
 			return 0.85+0.15*number_of_semicolons/float(number_of_rows_in_data)
@@ -130,7 +129,7 @@ def probability_according_to_common_characters(character_appearances_dict, total
 
 	#print("Common char value is: {0}, total char counter is: {1}".format(common_char_counter,float(total_char_counter))) 
 	#print("Common char evaluation is: {0}".format(common_char_counter/float(total_char_counter))) 
-	if total_char_counter == 0:
+	if total_char_counter <= 0:
 		return 0
 
 	if (common_char_counter/float(total_char_counter))>=COMMON_CHAR_EVALUATION:
@@ -192,10 +191,6 @@ def probability_according_to_patterns(file_data):
 			return 1.0
 
 	for pattern in array_patterns:
-		#found = len(re.findall(pattern, file_data, re.DOTALL))
-		#if found>0:
-		#	print("Found common pattern: "+pattern)#TODO::remove
-		#num_of_patterns_found+=found
 		num_of_patterns_found+=len(re.findall(pattern, file_data, re.DOTALL))
 		if num_of_patterns_found >=5:
 			return 1.0
@@ -227,26 +222,26 @@ def is_data_c_code(file_data):
 
 
 	probabilities.append(probability_according_to_words(file_data))
-	probabilities.append(probability_according_to_semicolons(number_of_semicolons,number_of_rows_in_data, len(file_data)))
-
-	print("Probabilities are: {0},\tAverage is: {1}".format(probabilities, sum(probabilities)/float(len(probabilities))))
+	probabilities.append(probability_according_to_semicolons(number_of_semicolons,number_of_rows_in_data, len(file_data)))	
 	if (probabilities[0]>= 0.9 and probabilities[1] > 0.3) or \
 	(sum(probabilities)/float(len(probabilities))>=0.85):
+		print("Data probably is a C code, probabilities are: {0},\tAverage is: {1}".format(probabilities, sum(probabilities)/float(len(probabilities))))
 		return True
 
 	probabilities.append(probability_according_to_common_characters(all_characters_dict, len(file_data)))
-	print("Probabilities are: {0},\tAverage is: {1}".format(probabilities, sum(probabilities)/float(len(probabilities))))
 	if probabilities[0]>= 0.9 and probabilities[2]>=0.7:
+		print("Data probably is a C code, probabilities are: {0},\tAverage is: {1}".format(probabilities, sum(probabilities)/float(len(probabilities))))
 		return True
 
 	probabilities.append(probability_according_to_patterns(file_data))
-	print("Probabilities are: {0},\tAverage is: {1}".format(probabilities, sum(probabilities)/float(len(probabilities))))
 	if (probabilities[0]>=0.9 and probabilities[3]>0) or \
 	(probabilities[1]>=0.75 and probabilities[2]>=0.7 and probabilities[3]>0) or \
 	(probabilities[0]>=0.75 and probabilities[1]>=0.75 and probabilities[2]>0 and probabilities[3]>0)or \
 	(sum(probabilities)/float(len(probabilities))>=0.6):
+		print("Data probably is a C code, probabilities are: {0},\tAverage is: {1}".format(probabilities, sum(probabilities)/float(len(probabilities))))
 		return True
 
+	print("Data probably isn't C code, probabilities are: {0},\tAverage is: {1}".format(probabilities, sum(probabilities)/float(len(probabilities))))
 	return False
 
 """
