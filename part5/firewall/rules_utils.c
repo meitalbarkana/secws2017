@@ -841,6 +841,44 @@ static int get_relevant_rule_num_from_table(log_row_t* ptr_pckt_lg_info,
 }
 
 /**
+ * 	Checks if a packet is a SYN packet designated to an inner destination & 
+ *	port number is 9876 (Xplico's default port number)
+ *	
+ *	Returns true if it represent a 
+ *	(TCP packet with )
+ * 
+ * Note:	function should be called AFTER ptr_pckt_lg_info, 
+ * 			direction_t* packet_direction were initiated!
+ **/
+bool is_incoming_Xplico_port(log_row_t* ptr_pckt_lg_info,
+		direction_t packet_direction, struct sk_buff* skb)
+{
+	tcp_packet_t tcp_pckt_type;
+	struct tcphdr* tcp_hdr;
+	
+	if (ptr_pckt_lg_info == NULL || skb == NULL){
+		printk(KERN_ERR "Inside is_incoming_port_9876(), got NULL argument.\n");
+		return false;
+	}
+	
+	if ( ptr_pckt_lg_info->protocol == PROT_TCP && 
+		 packet_direction == DIRECTION_IN &&
+		 ptr_pckt_lg_info->dst_port == 9876)
+	{
+		tcp_hdr = get_tcp_header(skb);
+		if (tcp_hdr) { 
+			tcp_pckt_type = get_tcp_packet_type(tcp_hdr);
+			if (tcp_pckt_type == TCP_SYN_PACKET){
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+
+/**
  *	Decides the action that should be taken on packet:
  *	Updates: ptr_pckt_lg_info->action
  * 			 ptr_pckt_lg_info->reason
@@ -872,6 +910,12 @@ void decide_packet_action(struct sk_buff* skb, log_row_t* ptr_pckt_lg_info,
 		ptr_pckt_lg_info->reason = REASON_XMAS_PACKET;
 		return;
 	} 
+	
+	if (is_incoming_Xplico_port(ptr_pckt_lg_info, *packet_direction, skb)){
+		ptr_pckt_lg_info->action = NF_DROP;
+		ptr_pckt_lg_info->reason = REASON_XPLICO_PACKET;
+		return;
+	}
 	
 	if (is_loopback(ptr_pckt_lg_info, packet_ack, packet_direction)){
 		//ptr_pckt_lg_info->action was updated in is_loopback()

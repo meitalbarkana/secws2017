@@ -32,7 +32,8 @@ C_EXPLICIT_KEYWORDS = {
 C_EXPLICIT_FUNCTION_NAMES = {
 	"printf(", "printk(", "free(", "kfree(",
 	"close(", "open(", "strncpy(", "strcpy(",
-	"strnlen(", "strlen(", "strcmp(", 
+	"strnlen(", "strlen(", "strcmp(", "malloc(",
+	"calloc(", "kmalloc("
 }
 
 

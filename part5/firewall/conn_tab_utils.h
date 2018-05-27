@@ -3,7 +3,7 @@
 
 #include "fw.h"
 
-#define TIMEOUT_SECONDS (240) //TODO:: change back to 25
+#define TIMEOUT_SECONDS (25)
 #define MAX_STRLEN_OF_TCP_PACKET_TYPE (13)
 #define MAX_STRLEN_OF_TCP_STATE (11)
 
